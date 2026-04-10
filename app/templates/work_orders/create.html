@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-8 mx-auto">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h4><i class="fas fa-bug"></i> Reportar Problema</h4>
+            </div>
+            <div class="card-body">
+                <form method="POST">
+                    <div class="mb-3">
+                        <label class="form-label">Selecciona el equipo o indica que no está registrado</label>
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="equipment_option" id="existing" value="existing" checked>
+                            <label class="form-check-label" for="existing">
+                                El equipo está en la lista
+                            </label>
+                        </div>
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="equipment_option" id="new_equipment" value="new_equipment">
+                            <label class="form-check-label" for="new_equipment">
+                                El equipo NO está registrado o no sé identificarlo
+                            </label>
+                        </div>
+                    </div>
+
+                    <div id="existing_equipment_section">
+                        <div class="mb-3">
+                            <label for="equipment_id" class="form-label">Equipo *</label>
+                            <select class="form-control" id="equipment_id" name="equipment_id">
+                                <option value="">Seleccionar equipo...</option>
+                                {% for eq in equipments %}
+                                <option value="{{ eq.id }}">{{ eq.code }} - {{ eq.name }} - {{ eq.location }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+
+                    <div id="new_equipment_section" style="display: none;">
+                        <div class="alert alert-info">
+                            <i class="fas fa-info-circle"></i> No te preocupes. Describe dónde está el equipo y sus características.
+                        </div>
+                        <div class="mb-3">
+                            <label for="temporary_location" class="form-label">Ubicación *</label>
+                            <input type="text" class="form-control" id="temporary_location" name="temporary_location" placeholder="Ej: Taller de soldadura, lado norte, cerca del compresor">
+                        </div>
+                        <div class="mb-3">
+                            <label for="temporary_description" class="form-label">Descripción del equipo *</label>
+                            <input type="text" class="form-control" id="temporary_description" name="temporary_description" placeholder="Ej: Máquina de soldar marca Lincoln, color rojo, número de serie desconocido">
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="problem_description" class="form-label">¿Qué problema presenta? *</label>
+                        <textarea class="form-control" id="problem_description" name="problem_description" rows="4" required placeholder="Ej: Hace un ruido extraño, no enciende, vibra mucho, sale humo..."></textarea>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary">Reportar Problema</button>
+                    <a href="{{ url_for('work_orders.list_orders') }}" class="btn btn-secondary">Cancelar</a>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const existingRadio = document.getElementById('existing');
+    const newRadio = document.getElementById('new_equipment');
+    const existingSection = document.getElementById('existing_equipment_section');
+    const newSection = document.getElementById('new_equipment_section');
+    const equipmentSelect = document.getElementById('equipment_id');
+
+    existingRadio.addEventListener('change', function() {
+        if (this.checked) {
+            existingSection.style.display = 'block';
+            newSection.style.display = 'none';
+            equipmentSelect.required = true;
+            document.getElementById('temporary_location').required = false;
+            document.getElementById('temporary_description').required = false;
+        }
+    });
+
+    newRadio.addEventListener('change', function() {
+        if (this.checked) {
+            existingSection.style.display = 'none';
+            newSection.style.display = 'block';
+            equipmentSelect.required = false;
+            document.getElementById('temporary_location').required = true;
+            document.getElementById('temporary_description').required = true;
+        }
+    });
+</script>
+{% endblock %}

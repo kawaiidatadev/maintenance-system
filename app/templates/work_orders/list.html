@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12">
+        <h1><i class="fas fa-clipboard-list"></i> Órdenes de Trabajo</h1>
+        <hr>
+        {% if current_user.role in ['admin', 'supervisor'] %}
+        <a href="{{ url_for('work_orders.create_order') }}" class="btn btn-primary mb-3">
+            <i class="fas fa-plus"></i> Nueva OT
+        </a>
+        {% endif %}
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5>Todas las Órdenes</h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>N° OT</th>
+                                <th>Equipo</th>
+                                <th>Problema</th>
+                                <th>Asignado a</th>
+                                <th>Estado</th>
+                                <th>Fecha Reporte</th>
+                                <th>Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for order in orders %}
+                            <tr>
+                                <td>{{ order.number }}</td>
+                                <td>
+                                    {% if order.needs_equipment_registration %}
+                                        <span class="badge bg-warning">⚠️ Equipo por registrar</span>
+                                        <br>
+                                        <small>{{ order.temporary_location }} - {{ order.temporary_description }}</small>
+                                    {% else %}
+                                        {{ order.equipment.code if order.equipment else '-' }} - {{ order.equipment.name if order.equipment else '-' }}
+                                    {% endif %}
+                                </td>
+                                <td>{{ order.problem_description[:50] }}{% if order.problem_description|length > 50 %}...{% endif %}</td>
+                                <td>{{ order.assigned_to.username if order.assigned_to else 'No asignado' }}</td>
+                                <td>
+                                    {% if order.status == 'open' %}
+                                        <span class="badge bg-secondary">Abierta</span>
+                                    {% elif order.status == 'assigned' %}
+                                        <span class="badge bg-info">Asignada</span>
+                                    {% elif order.status == 'in_progress' %}
+                                        <span class="badge bg-warning">En Progreso</span>
+                                    {% elif order.status == 'completed' %}
+                                        <span class="badge bg-success">Completada</span>
+                                    {% elif order.status == 'approved' %}
+                                        <span class="badge bg-primary">Aprobada</span>
+                                    {% else %}
+                                        <span class="badge bg-danger">Cancelada</span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ order.created_at.strftime('%d/%m/%Y %H:%M') if order.created_at else '-' }}</td>
+                                <td>
+                                    <a href="{{ url_for('work_orders.view_order', id=order.id) }}" class="btn btn-sm btn-info">
+                                        <i class="fas fa-eye"></i>
+                                    </a>
+                                    {% if current_user.role in ['admin', 'supervisor'] and order.status not in ['completed', 'approved'] %}
+                                    <a href="{{ url_for('work_orders.edit_order', id=order.id) }}" class="btn btn-sm btn-warning">
+                                        <i class="fas fa-edit"></i>
+                                    </a>
+                                    {% endif %}
+                                 </td>
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="7" class="text-center">No hay órdenes de trabajo registradas</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

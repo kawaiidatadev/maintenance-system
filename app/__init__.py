@@ -27,17 +27,14 @@ def create_app():
         return User.query.get(int(user_id))
 
     # Importar blueprints
-    from app.blueprints.auth import auth_bp
-    from app.blueprints.dashboard import dashboard_bp
-    from app.blueprints.admin import admin_bp
-    from app.blueprints.equipment import equipment_bp
+    from app.blueprints import auth_bp, dashboard_bp, admin_bp, equipment_bp, work_orders_bp
 
     # Registrar blueprints
     app.register_blueprint(auth_bp, url_prefix='/auth')
     app.register_blueprint(dashboard_bp, url_prefix='/')
     app.register_blueprint(admin_bp)
     app.register_blueprint(equipment_bp)
-
+    app.register_blueprint(work_orders_bp)
     @app.route('/')
     def root():
         if current_user.is_authenticated:
