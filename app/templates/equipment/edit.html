@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h4><i class="fas fa-edit"></i> Editar Equipo: {{ equipment.code }}</h4>
+            </div>
+            <div class="card-body">
+                <form method="POST">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label>Código *</label>
+                            <input type="text" name="code" class="form-control" value="{{ equipment.code }}" required>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label>Nombre *</label>
+                            <input type="text" name="name" class="form-control" value="{{ equipment.name }}" required>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label>Ubicación</label>
+                            <input type="text" name="location" class="form-control" value="{{ equipment.location or '' }}">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label>Fabricante</label>
+                            <input type="text" name="manufacturer" class="form-control" value="{{ equipment.manufacturer or '' }}">
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label>Modelo</label>
+                            <input type="text" name="model" class="form-control" value="{{ equipment.model or '' }}">
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label>Número de Serie</label>
+                            <input type="text" name="serial_number" class="form-control" value="{{ equipment.serial_number or '' }}">
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label>Fecha Instalación</label>
+                            <input type="date" name="installation_date" class="form-control" value="{{ equipment.installation_date if equipment.installation_date else '' }}">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label>Estado</label>
+                            <select name="status" class="form-control">
+                                <option value="Operativo" {% if equipment.status == 'Operativo' %}selected{% endif %}>Operativo</option>
+                                <option value="En mantenimiento" {% if equipment.status == 'En mantenimiento' %}selected{% endif %}>En mantenimiento</option>
+                                <option value="Fuera de servicio" {% if equipment.status == 'Fuera de servicio' %}selected{% endif %}>Fuera de servicio</option>
+                            </select>
+                        </div>
+                        <div class="col-12 mb-3">
+                            <label>Descripción</label>
+                            <textarea name="description" rows="3" class="form-control">{{ equipment.description or '' }}</textarea>
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Actualizar</button>
+                    <a href="{{ url_for('equipment.list_equipment') }}" class="btn btn-secondary">Cancelar</a>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

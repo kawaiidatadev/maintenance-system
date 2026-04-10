@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-8 mx-auto">
+        <div class="card">
+            <div class="card-header">
+                <h4><i class="fas fa-plus"></i> Nuevo Equipo</h4>
+            </div>
+            <div class="card-body">
+                <form method="POST">
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="category" class="form-label">Categoría *</label>
+                            <input type="text" class="form-control" id="category" name="category" required>
+                            <small class="text-muted">Ej: Motor Eléctrico, Bomba Centrífuga</small>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="location" class="form-label">Ubicación *</label>
+                            <input type="text" class="form-control" id="location" name="location" required>
+                            <small class="text-muted">Ej: Planta 01, Área Producción</small>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="plant_section" class="form-label">Sección/Planta *</label>
+                            <input type="text" class="form-control" id="plant_section" name="plant_section" required>
+                            <small class="text-muted">Ej: Línea A, Nave 2</small>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="code" class="form-label">Código</label>
+                            <div class="input-group">
+                                <input type="text" class="form-control" id="code" name="code" placeholder="Se generará automáticamente">
+                                <button type="button" class="btn btn-secondary" onclick="sugerirCodigo()">
+                                    <i class="fas fa-magic"></i> Sugerir
+                                </button>
+                            </div>
+                            <small class="text-muted">Haz clic en "Sugerir" para generar automáticamente</small>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="name" class="form-label">Nombre del Equipo *</label>
+                        <input type="text" class="form-control" id="name" name="name" required>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="manufacturer" class="form-label">Fabricante</label>
+                            <input type="text" class="form-control" id="manufacturer" name="manufacturer">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="model" class="form-label">Modelo</label>
+                            <input type="text" class="form-control" id="model" name="model">
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="serial_number" class="form-label">Número de Serie</label>
+                            <input type="text" class="form-control" id="serial_number" name="serial_number">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label for="installation_date" class="form-label">Fecha Instalación</label>
+                            <input type="date" class="form-control" id="installation_date" name="installation_date">
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="status" class="form-label">Estado</label>
+                        <select class="form-control" id="status" name="status">
+                            <option value="Operativo">Operativo</option>
+                            <option value="Mantenimiento">En Mantenimiento</option>
+                            <option value="Fuera de Servicio">Fuera de Servicio</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="description" class="form-label">Descripción</label>
+                        <textarea class="form-control" id="description" name="description" rows="3"></textarea>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Guardar</button>
+                    <a href="{{ url_for('equipment.list_equipment') }}" class="btn btn-secondary">Cancelar</a>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>

@@ -4,12 +4,13 @@ from werkzeug.security import generate_password_hash
 app = create_app()
 
 with app.app_context():
-    # Importar el modelo aquí para evitar circular imports
+    # Importar modelos
     from app.models.user import User
+    from app.models.equipment import Equipment  # <-- Agregar esta línea
 
-    # Crear todas las tablas
+    # Crear todas las tablas (incluye equipos)
     db.create_all()
-    print("✅ Tablas creadas exitosamente")
+    print("✅ Tablas creadas/actualizadas exitosamente")
 
     # Verificar tablas existentes
     from sqlalchemy import inspect
@@ -18,7 +19,7 @@ with app.app_context():
     tables = inspector.get_table_names()
     print(f"📋 Tablas en la base de datos: {tables}")
 
-    # Crear usuario admin
+    # Crear usuario admin si no existe
     admin = User.query.filter_by(username='admin').first()
     if not admin:
         admin = User(
@@ -30,14 +31,6 @@ with app.app_context():
         )
         db.session.add(admin)
         db.session.commit()
-        print("✅ Usuario administrador creado:")
-        print("   Usuario: admin")
-        print("   Contraseña: admin123")
+        print("✅ Usuario administrador creado")
     else:
-        print("⚠️ El usuario admin ya existe")
-
-    # Listar usuarios
-    users = User.query.all()
-    print(f"\n📋 Usuarios en sistema: {len(users)}")
-    for u in users:
-        print(f"   - {u.username} ({u.role})")
+        print("⚠️ Usuario admin ya existe")
