@@ -26,10 +26,15 @@ def create_app():
     def load_user(user_id):
         return User.query.get(int(user_id))
 
+    # Importar blueprints
+    from app.blueprints.auth import auth_bp
+    from app.blueprints.dashboard import dashboard_bp
+    from app.blueprints.admin import admin_bp  # <-- IMPORTANTE: esta línea
+
     # Registrar blueprints
-    from app.blueprints import auth_bp, dashboard_bp
     app.register_blueprint(auth_bp, url_prefix='/auth')
     app.register_blueprint(dashboard_bp, url_prefix='/')
+    app.register_blueprint(admin_bp)  # <-- Ahora admin_bp está definido
 
     @app.route('/')
     def root():
