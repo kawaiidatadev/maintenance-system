@@ -3,54 +3,215 @@
 {% block content %}
 <div class="row">
     <div class="col-12">
-        <h1 class="display-4">
+        <h1 class="display-5">
             <i class="fas fa-tachometer-alt"></i> Dashboard
         </h1>
-        <p class="lead">Bienvenido al Sistema de Gestión de Mantenimiento</p>
+        <p class="lead">Bienvenido, {{ current_user.username }} ({{ current_user.role }})</p>
         <hr>
     </div>
 </div>
 
+<!-- Tarjetas de KPIs -->
 <div class="row mt-4">
-    <div class="col-md-4 mb-3">
+    <div class="col-md-3 mb-3">
         <div class="card text-white bg-primary">
             <div class="card-body">
-                <h5 class="card-title">Órdenes de Trabajo</h5>
-                <p class="card-text display-4">0</p>
-                <a href="#" class="text-white">Ver todas →</a>
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="card-title">Órdenes de Trabajo</h6>
+                        <h2 class="display-6">{{ total_orders }}</h2>
+                    </div>
+                    <i class="fas fa-clipboard-list fa-3x opacity-50"></i>
+                </div>
             </div>
         </div>
     </div>
-    <div class="col-md-4 mb-3">
+
+    <div class="col-md-3 mb-3">
+        <div class="card text-white bg-warning">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="card-title">Abiertas / Pendientes</h6>
+                        <h2 class="display-6">{{ open_orders }}</h2>
+                    </div>
+                    <i class="fas fa-hourglass-half fa-3x opacity-50"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-3 mb-3">
         <div class="card text-white bg-success">
             <div class="card-body">
-                <h5 class="card-title">Equipos Registrados</h5>
-                <p class="card-text display-4">0</p>
-                <a href="#" class="text-white">Gestionar →</a>
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="card-title">Completadas</h6>
+                        <h2 class="display-6">{{ completed_orders }}</h2>
+                    </div>
+                    <i class="fas fa-check-circle fa-3x opacity-50"></i>
+                </div>
             </div>
         </div>
     </div>
-    <div class="col-md-4 mb-3">
+
+    <div class="col-md-3 mb-3">
         <div class="card text-white bg-info">
             <div class="card-body">
-                <h5 class="card-title">OEE Global</h5>
-                <p class="card-text display-4">0%</p>
-                <a href="#" class="text-white">Ver indicadores →</a>
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="card-title">Equipos Registrados</h6>
+                        <h2 class="display-6">{{ total_equipment }}</h2>
+                    </div>
+                    <i class="fas fa-microchip fa-3x opacity-50"></i>
+                </div>
             </div>
         </div>
     </div>
 </div>
 
+<!-- Gráficos -->
 <div class="row mt-4">
-    <div class="col-12">
+    <div class="col-md-6 mb-3">
         <div class="card">
             <div class="card-header">
-                <h5>Últimas Actividades</h5>
+                <h5><i class="fas fa-chart-pie"></i> Órdenes por Estado</h5>
             </div>
             <div class="card-body">
-                <p class="text-muted">No hay actividades recientes.</p>
+                <canvas id="statusChart" height="250"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6 mb-3">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-chart-bar"></i> Órdenes por Técnico</h5>
+            </div>
+            <div class="card-body">
+                <canvas id="technicianChart" height="250"></canvas>
             </div>
         </div>
     </div>
 </div>
+
+<!-- Últimas actividades -->
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5><i class="fas fa-history"></i> Últimas Actividades</h5>
+            </div>
+            <div class="card-body">
+                {% if recent_orders %}
+                <div class="table-responsive">
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>N° OT</th>
+                                <th>Equipo</th>
+                                <th>Problema</th>
+                                <th>Asignado a</th>
+                                <th>Estado</th>
+                                <th>Fecha</th>
+                                <th>Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for order in recent_orders %}
+                            <tr>
+                                <td>{{ order.number }}</td>
+                                <td>
+                                    {% if order.needs_equipment_registration %}
+                                        <span class="badge bg-warning">Pendiente</span>
+                                    {% else %}
+                                        {{ order.equipment.code if order.equipment else '-' }}
+                                    {% endif %}
+                                </td>
+                                <td>{{ order.problem_description[:40] }}{% if order.problem_description|length > 40 %}...{% endif %}</td>
+                                <td>{{ order.assigned_to.username if order.assigned_to else 'No asignado' }}</td>
+                                <td>
+                                    {% if order.status == 'open' %}
+                                        <span class="badge bg-secondary">Abierta</span>
+                                    {% elif order.status == 'assigned' %}
+                                        <span class="badge bg-info">Asignada</span>
+                                    {% elif order.status == 'in_progress' %}
+                                        <span class="badge bg-warning">En Progreso</span>
+                                    {% elif order.status == 'completed' %}
+                                        <span class="badge bg-success">Completada</span>
+                                    {% else %}
+                                        <span class="badge bg-danger">{{ order.status }}</span>
+                                    {% endif %}
+                                </td>
+                                <td>{{ order.created_at.strftime('%d/%m/%Y') if order.created_at else '-' }}</td>
+                                <td>
+                                    <a href="{{ url_for('work_orders.view_order', id=order.id) }}" class="btn btn-sm btn-info">
+                                        <i class="fas fa-eye"></i>
+                                    </a>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <p class="text-muted">No hay actividades recientes</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Scripts para gráficos -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    // Gráfico de estados (dona)
+    const statusCtx = document.getElementById('statusChart').getContext('2d');
+    new Chart(statusCtx, {
+        type: 'doughnut',
+        data: {
+            labels: {{ status_labels|tojson }},
+            datasets: [{
+                data: {{ status_data|tojson }},
+                backgroundColor: {{ status_colors|tojson }},
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: {
+                    position: 'bottom'
+                }
+            }
+        }
+    });
+
+    // Gráfico de técnicos (barras)
+    const techCtx = document.getElementById('technicianChart').getContext('2d');
+    new Chart(techCtx, {
+        type: 'bar',
+        data: {
+            labels: [{% for tech, count in orders_by_technician %}'{{ tech }}'{% if not loop.last %}, {% endif %}{% endfor %}],
+            datasets: [{
+                label: 'Órdenes asignadas',
+                data: [{% for tech, count in orders_by_technician %}{{ count }}{% if not loop.last %}, {% endif %}{% endfor %}],
+                backgroundColor: '#0d6efd',
+                borderColor: '#0a58ca',
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        stepSize: 1
+                    }
+                }
+            }
+        }
+    });
+</script>
 {% endblock %}

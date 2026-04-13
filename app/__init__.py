@@ -27,7 +27,7 @@ def create_app():
         return User.query.get(int(user_id))
 
     # Importar blueprints
-    from app.blueprints import auth_bp, dashboard_bp, admin_bp, equipment_bp, work_orders_bp
+    from app.blueprints import auth_bp, dashboard_bp, admin_bp, equipment_bp, work_orders_bp, attachments_bp
 
     # Registrar blueprints
     app.register_blueprint(auth_bp, url_prefix='/auth')
@@ -35,6 +35,8 @@ def create_app():
     app.register_blueprint(admin_bp)
     app.register_blueprint(equipment_bp)
     app.register_blueprint(work_orders_bp)
+    app.register_blueprint(attachments_bp)
+
     @app.route('/')
     def root():
         if current_user.is_authenticated:
