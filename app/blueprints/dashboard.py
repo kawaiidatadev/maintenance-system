@@ -39,6 +39,43 @@ def index():
         # Últimas órdenes
         recent_orders = WorkOrder.query.order_by(WorkOrder.created_at.desc()).limit(10).all()
 
+        # KPIs de tiempo (promedios)
+        avg_response_time = db.session.query(
+            func.avg(func.datediff(WorkOrder.start_date, WorkOrder.created_at))
+        ).filter(
+            WorkOrder.start_date.isnot(None)
+        ).scalar() or 0
+
+        avg_completion_time = db.session.query(
+            func.avg(func.datediff(WorkOrder.completion_date, WorkOrder.start_date))
+        ).filter(
+            WorkOrder.completion_date.isnot(None),
+            WorkOrder.start_date.isnot(None)
+        ).scalar() or 0
+
+        # Top 3 equipos con más órdenes
+        top_equipment = db.session.query(
+            Equipment.code,
+            Equipment.name,
+            func.count(WorkOrder.id).label('order_count')
+        ).join(
+            WorkOrder, Equipment.id == WorkOrder.equipment_id
+        ).group_by(
+            Equipment.id
+        ).order_by(
+            func.count(WorkOrder.id).desc()
+        ).limit(3).all()
+
+        # Órdenes por tipo de falla
+        orders_by_failure = db.session.query(
+            WorkOrder.failure_type,
+            func.count(WorkOrder.id).label('count')
+        ).filter(
+            WorkOrder.failure_type.isnot(None)
+        ).group_by(
+            WorkOrder.failure_type
+        ).all()
+
     else:
         # Técnico solo ve sus órdenes
         total_orders = WorkOrder.query.filter_by(assigned_to_id=current_user.id).count()
@@ -55,6 +92,11 @@ def index():
         # Últimas órdenes del técnico
         recent_orders = WorkOrder.query.filter_by(assigned_to_id=current_user.id).order_by(
             WorkOrder.created_at.desc()).limit(10).all()
+
+        avg_response_time = 0
+        avg_completion_time = 0
+        top_equipment = []
+        orders_by_failure = []
 
     # Calcular porcentaje de compleción
     completion_rate = 0
@@ -77,12 +119,12 @@ def index():
     status_labels = []
     status_data = []
     status_colors = {
-        'open': '#6c757d',  # gris
-        'assigned': '#0dcaf0',  # celeste
-        'in_progress': '#ffc107',  # amarillo
-        'completed': '#198754',  # verde
-        'approved': '#0d6efd',  # azul
-        'cancelled': '#dc3545'  # rojo
+        'open': '#6c757d',
+        'assigned': '#0dcaf0',
+        'in_progress': '#ffc107',
+        'completed': '#198754',
+        'closed': '#0d6efd',
+        'cancelled': '#dc3545'
     }
     status_colors_list = []
 
@@ -103,5 +145,9 @@ def index():
         orders_by_technician=orders_by_technician,
         status_labels=status_labels,
         status_data=status_data,
-        status_colors=status_colors_list
+        status_colors=status_colors_list,
+        avg_response_time=round(avg_response_time, 1),
+        avg_completion_time=round(avg_completion_time, 1),
+        top_equipment=top_equipment,
+        orders_by_failure=orders_by_failure
     )

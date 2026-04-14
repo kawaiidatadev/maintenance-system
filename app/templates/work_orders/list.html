@@ -57,9 +57,9 @@
                                         <span class="badge bg-warning">En Progreso</span>
                                     {% elif order.status == 'completed' %}
                                         <span class="badge bg-success">Completada</span>
-                                    {% elif order.status == 'approved' %}
-                                        <span class="badge bg-primary">Aprobada</span>
-                                    {% else %}
+                                    {% elif order.status == 'closed' %}
+                                        <span class="badge bg-primary">Cerrada</span>
+                                    {% elif order.status == 'cancelled' %}
                                         <span class="badge bg-danger">Cancelada</span>
                                     {% endif %}
                                 </td>

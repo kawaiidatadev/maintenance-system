@@ -1,7 +1,6 @@
 from app import db
 from datetime import datetime
 
-
 class WorkOrder(db.Model):
     __tablename__ = 'work_orders'
 
@@ -32,9 +31,9 @@ class WorkOrder(db.Model):
     # Fase 5: Cierre
     resolution_summary = db.Column(db.Text)
     downtime_hours = db.Column(db.Float, default=0)
-    approved_by_id = db.Column(db.Integer, db.ForeignKey('users.id'))
-    approved_by = db.relationship('User', foreign_keys=[approved_by_id])
-    approved_at = db.Column(db.DateTime)
+    closed_by_id = db.Column(db.Integer, db.ForeignKey('users.id'))
+    closed_by = db.relationship('User', foreign_keys=[closed_by_id])
+    closed_at = db.Column(db.DateTime)
 
     # Para equipos no registrados
     temporary_location = db.Column(db.String(200))
@@ -43,6 +42,23 @@ class WorkOrder(db.Model):
 
     # Estado
     status = db.Column(db.String(20), default='open')
+
+    # Métodos de permisos
+    def can_edit(self, user):
+        if user.role in ['admin', 'supervisor']:
+            return True
+        if self.status == 'in_progress' and self.assigned_to_id == user.id:
+            return True
+        return False
+
+    def can_start(self, user):
+        return self.status == 'assigned' and self.assigned_to_id == user.id
+
+    def can_complete(self, user):
+        return self.status == 'in_progress' and self.assigned_to_id == user.id
+
+    def can_close(self, user):
+        return self.status == 'completed' and user.role in ['admin', 'supervisor']
 
     @staticmethod
     def generate_number():

@@ -30,19 +30,21 @@
                     </div>
                     <div class="col-md-6">
                         <strong>Estado:</strong>
-                        {% if order.status == 'open' %}
-                            <span class="badge bg-secondary">Abierta</span>
-                        {% elif order.status == 'assigned' %}
-                            <span class="badge bg-info">Asignada</span>
-                        {% elif order.status == 'in_progress' %}
-                            <span class="badge bg-warning">En Progreso</span>
-                        {% elif order.status == 'completed' %}
-                            <span class="badge bg-success">Completada</span>
-                        {% elif order.status == 'approved' %}
-                            <span class="badge bg-primary">Aprobada</span>
-                        {% else %}
-                            <span class="badge bg-danger">Cancelada</span>
-                        {% endif %}
+                       {% if order.status == 'open' %}
+            <span class="badge bg-secondary">Abierta</span>
+                {% elif order.status == 'assigned' %}
+                    <span class="badge bg-info">Asignada</span>
+                {% elif order.status == 'in_progress' %}
+                    <span class="badge bg-warning">En Progreso</span>
+                {% elif order.status == 'completed' %}
+                    <span class="badge bg-success">Completada</span>
+                {% elif order.status == 'closed' %}
+                    <span class="badge bg-primary">Cerrada</span>
+                {% elif order.status == 'cancelled' %}
+                    <span class="badge bg-danger">Cancelada</span>
+                {% else %}
+                    <span class="badge bg-secondary">{{ order.status }}</span>
+                {% endif %}
                     </div>
                 </div>
 
@@ -82,6 +84,7 @@
                     {% if order.parts_used %}<strong>Repuestos:</strong> {{ order.parts_used }}{% endif %}
                 </div>
                 {% endif %}
+
 
                 <!-- ============================================ -->
                 <!-- SECCIÓN DE EVIDENCIAS - AGREGADA AQUÍ -->
@@ -180,19 +183,25 @@
                 </div>
 
                 <!-- Botones de acción -->
-                <div class="mt-4">
-                    {% if order.status == 'open' and order.assigned_to_id == current_user.id %}
-                    <form method="POST" action="{{ url_for('work_orders.start_order', id=order.id) }}" style="display: inline;">
-                        <button type="submit" class="btn btn-warning">Iniciar OT</button>
-                    </form>
-                    {% endif %}
+<div class="mt-4">
+    {% if order.can_start(current_user) %}
+    <form method="POST" action="{{ url_for('work_orders.start_order', id=order.id) }}" style="display: inline;">
+        <button type="submit" class="btn btn-warning">Iniciar OT</button>
+    </form>
+    {% endif %}
 
-                    {% if order.status == 'in_progress' and (order.assigned_to_id == current_user.id or current_user.role in ['admin', 'supervisor']) %}
-                    <a href="{{ url_for('work_orders.complete_order', id=order.id) }}" class="btn btn-success">Completar OT</a>
-                    {% endif %}
+    {% if order.can_complete(current_user) %}
+    <a href="{{ url_for('work_orders.complete_order', id=order.id) }}" class="btn btn-success">Completar OT</a>
+    {% endif %}
 
-                    <a href="{{ url_for('work_orders.list_orders') }}" class="btn btn-secondary">Volver</a>
-                </div>
+    {% if order.can_close(current_user) %}
+    <form method="POST" action="{{ url_for('work_orders.close_order', id=order.id) }}" style="display: inline;">
+        <button type="submit" class="btn btn-primary">Cerrar OT</button>
+    </form>
+    {% endif %}
+
+    <a href="{{ url_for('work_orders.list_orders') }}" class="btn btn-secondary">Volver</a>
+</div>
             </div>
         </div>
     </div>

@@ -83,3 +83,35 @@
 </div>
 
 <script>
+function sugerirCodigo() {
+    const categoria = document.getElementById('category').value;
+    const ubicacion = document.getElementById('location').value;
+    const seccion = document.getElementById('plant_section').value;
+
+    if (!categoria || !ubicacion || !seccion) {
+        alert('Por favor, completa Categoría, Ubicación y Sección primero');
+        return;
+    }
+
+    fetch('/equipment/suggest_code', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            category: categoria,
+            location: ubicacion,
+            plant_section: seccion
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        document.getElementById('code').value = data.code;
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Error al generar código');
+    });
+}
+</script>
+{% endblock %}
