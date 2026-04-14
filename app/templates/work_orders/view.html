@@ -86,101 +86,99 @@
                 {% endif %}
 
 
-                <!-- ============================================ -->
-                <!-- SECCIÓN DE EVIDENCIAS - AGREGADA AQUÍ -->
-                <!-- ============================================ -->
-                <div class="card mt-4">
-                    <div class="card-header bg-info text-white">
-                        <h5><i class="fas fa-paperclip"></i> Evidencias y Archivos</h5>
-                    </div>
-                    <div class="card-body">
-                        <!-- Formulario de subida -->
-                        {% if order.status != 'completed' or current_user.role in ['admin', 'supervisor'] %}
-                        <form method="POST" action="{{ url_for('attachments.upload_file', order_id=order.id) }}" enctype="multipart/form-data" class="mb-4">
-                            <div class="row">
-                                <div class="col-md-6">
-                                    <input type="file" class="form-control" name="file" accept="image/*,application/pdf" required>
+               <!-- ============================================ -->
+<!-- SECCIÓN DE EVIDENCIAS -->
+<!-- ============================================ -->
+<div class="card mt-4">
+    <div class="card-header bg-info text-white">
+        <h5><i class="fas fa-paperclip"></i> Evidencias y Archivos</h5>
+    </div>
+    <div class="card-body">
+        <!-- Formulario de subida -->
+        <form method="POST" action="{{ url_for('attachments.upload_file', order_id=order.id) }}" enctype="multipart/form-data" class="mb-4">
+            <div class="row">
+                <div class="col-md-6">
+                    <input type="file" class="form-control" name="file" accept="image/*,application/pdf" required>
+                </div>
+                <div class="col-md-4">
+                    <input type="text" class="form-control" name="description" placeholder="Descripción (opcional)">
+                </div>
+                <div class="col-md-2">
+                    <button type="submit" class="btn btn-primary w-100">
+                        <i class="fas fa-upload"></i> Subir
+                    </button>
+                </div>
+            </div>
+            <small class="text-muted">Formatos permitidos: imágenes, PDF, Word, Excel. Máx 16MB</small>
+        </form>
+
+        <!-- Lista de archivos -->
+        {% if order.attachments %}
+        <div class="table-responsive">
+            <table class="table table-sm">
+                <thead>
+                    <tr>
+                        <th>Archivo</th>
+                        <th>Descripción</th>
+                        <th>Subido por</th>
+                        <th>Fecha</th>
+                        <th>Tamaño</th>
+                        <th>Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for att in order.attachments|sort(attribute='uploaded_at', reverse=true) %}
+                    <tr>
+                        <td>
+                            {% if att.file_type and att.file_type.startswith('image/') %}
+                                <a href="#" data-bs-toggle="modal" data-bs-target="#imageModal{{ att.id }}">
+                                    <i class="fas fa-image"></i> {{ att.original_filename }}
+                                </a>
+                            {% else %}
+                                <i class="fas fa-file"></i> {{ att.original_filename }}
+                            {% endif %}
+                        </td>
+                        <td>{{ att.description or '-' }}</td>
+                        <td>{{ att.uploaded_by.username if att.uploaded_by else '-' }}</td>
+                        <td>{{ att.uploaded_at.strftime('%d/%m/%Y %H:%M') if att.uploaded_at else '-' }}</td>
+                        <td>{{ (att.file_size / 1024)|round|int }} KB</td>
+                        <td>
+                            <a href="{{ url_for('attachments.download_file', id=att.id) }}" class="btn btn-sm btn-success">
+                                <i class="fas fa-download"></i>
+                            </a>
+                            {% if current_user.role in ['admin', 'supervisor'] %}
+                            <a href="{{ url_for('attachments.delete_file', id=att.id) }}" class="btn btn-sm btn-danger" onclick="return confirm('¿Eliminar este archivo?')">
+                                <i class="fas fa-trash"></i>
+                            </a>
+                            {% endif %}
+                        </td>
+                    </tr>
+
+                    <!-- Modal para imagen -->
+                    {% if att.file_type and att.file_type.startswith('image/') %}
+                    <div class="modal fade" id="imageModal{{ att.id }}" tabindex="-1">
+                        <div class="modal-dialog modal-lg">
+                            <div class="modal-content">
+                                <div class="modal-header">
+                                    <h5 class="modal-title">{{ att.original_filename }}</h5>
+                                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                                 </div>
-                                <div class="col-md-4">
-                                    <input type="text" class="form-control" name="description" placeholder="Descripción (opcional)">
-                                </div>
-                                <div class="col-md-2">
-                                    <button type="submit" class="btn btn-primary w-100">
-                                        <i class="fas fa-upload"></i> Subir
-                                    </button>
+                                <div class="modal-body text-center">
+                                    <img src="{{ url_for('static', filename=att.file_path) }}" class="img-fluid" alt="{{ att.original_filename }}">
                                 </div>
                             </div>
-                            <small class="text-muted">Formatos permitidos: imágenes, PDF, Word, Excel. Máx 16MB</small>
-                        </form>
-                        {% endif %}
-
-                        <!-- Lista de archivos -->
-                        {% if order.attachments %}
-                        <div class="table-responsive">
-                            <table class="table table-sm">
-                                <thead>
-                                    <tr>
-                                        <th>Archivo</th>
-                                        <th>Descripción</th>
-                                        <th>Subido por</th>
-                                        <th>Fecha</th>
-                                        <th>Tamaño</th>
-                                        <th>Acciones</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {% for att in order.attachments|sort(attribute='uploaded_at', reverse=true) %}
-                                    <tr>
-                                        <td>
-                                            {% if att.file_type and att.file_type.startswith('image/') %}
-                                                <a href="#" data-bs-toggle="modal" data-bs-target="#imageModal{{ att.id }}">
-                                                    <i class="fas fa-image"></i> {{ att.original_filename }}
-                                                </a>
-                                            {% else %}
-                                                <i class="fas fa-file"></i> {{ att.original_filename }}
-                                            {% endif %}
-                                        </td>
-                                        <td>{{ att.description or '-' }}</td>
-                                        <td>{{ att.uploaded_by.username if att.uploaded_by else '-' }}</td>
-                                        <td>{{ att.uploaded_at.strftime('%d/%m/%Y %H:%M') if att.uploaded_at else '-' }}</td>
-                                        <td>{{ (att.file_size / 1024)|round|int }} KB</td>
-                                        <td>
-                                            <a href="{{ url_for('attachments.download_file', id=att.id) }}" class="btn btn-sm btn-success">
-                                                <i class="fas fa-download"></i>
-                                            </a>
-                                            {% if current_user.role in ['admin', 'supervisor'] %}
-                                            <a href="{{ url_for('attachments.delete_file', id=att.id) }}" class="btn btn-sm btn-danger" onclick="return confirm('¿Eliminar este archivo?')">
-                                                <i class="fas fa-trash"></i>
-                                            </a>
-                                            {% endif %}
-                                        </td>
-                                    </tr>
-
-                                    <!-- Modal para imagen -->
-                                    {% if att.file_type and att.file_type.startswith('image/') %}
-                                    <div class="modal fade" id="imageModal{{ att.id }}" tabindex="-1">
-                                        <div class="modal-dialog modal-lg">
-                                            <div class="modal-content">
-                                                <div class="modal-header">
-                                                    <h5 class="modal-title">{{ att.original_filename }}</h5>
-                                                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                                                </div>
-                                                <div class="modal-body text-center">
-                                                    <img src="{{ url_for('static', filename=att.file_path) }}" class="img-fluid" alt="{{ att.original_filename }}">
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    {% endif %}
-                                    {% endfor %}
-                                </tbody>
-                            </table>
                         </div>
-                        {% else %}
-                        <p class="text-muted">No hay archivos adjuntos</p>
-                        {% endif %}
                     </div>
-                </div>
+                    {% endif %}
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p class="text-muted">No hay archivos adjuntos</p>
+        {% endif %}
+    </div>
+</div>
 
                 <!-- Botones de acción -->
 <div class="mt-4">

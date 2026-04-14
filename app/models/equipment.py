@@ -8,9 +8,9 @@ class Equipment(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
 
-    # Jerarquía
-    parent_id = db.Column(db.Integer, db.ForeignKey('equipment.id'))
-    parent = db.relationship('Equipment', remote_side=[id], backref='children')
+    # Relación con sistema (nuevo)
+    system_id = db.Column(db.Integer, db.ForeignKey('systems.id'))
+    # system = db.relationship('System', backref='equipment')  # se define en System
 
     # Datos básicos
     code = db.Column(db.String(50), unique=True, nullable=False)
@@ -25,13 +25,16 @@ class Equipment(db.Model):
     serial_number = db.Column(db.String(100))
     installation_date = db.Column(db.Date)
 
-    # Atributos avanzados (nuevos)
-    estimated_life_hours = db.Column(db.Float, nullable=True, comment='Horas de vida útil estimada')
-    commissioning_date = db.Column(db.Date, comment='Fecha de puesta en marcha')
-    recommended_specialty = db.Column(db.String(50), comment='Especialidad requerida')
-    life_remaining_hours = db.Column(db.Float, nullable=True, comment='Horas de vida restantes')
-    last_maintenance_date = db.Column(db.Date, comment='Última fecha de mantenimiento mayor')
-    total_operating_hours = db.Column(db.Float, default=0, comment='Horas totales de operación')
+    # Atributos avanzados (opcionales)
+    estimated_life_hours = db.Column(db.Float, nullable=True)
+    commissioning_date = db.Column(db.Date)
+    recommended_specialty = db.Column(db.String(50))
+    life_remaining_hours = db.Column(db.Float, nullable=True)
+    last_maintenance_date = db.Column(db.Date)
+    total_operating_hours = db.Column(db.Float, default=0)
+
+    # Foto del equipo
+    photo_filename = db.Column(db.String(200), nullable=True)
 
     # Estado y descripción
     status = db.Column(db.String(20), default='Operativo')
@@ -42,7 +45,6 @@ class Equipment(db.Model):
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     def calculate_life_remaining(self):
-        """Calcula la vida útil restante en horas"""
         if self.estimated_life_hours and self.total_operating_hours:
             remaining = self.estimated_life_hours - self.total_operating_hours
             self.life_remaining_hours = max(0, remaining)
@@ -51,24 +53,17 @@ class Equipment(db.Model):
         return self.life_remaining_hours
 
     def get_life_percentage(self):
-        """Devuelve el porcentaje de vida consumida (0-100)"""
         if self.estimated_life_hours and self.estimated_life_hours > 0:
             consumed = (self.total_operating_hours / self.estimated_life_hours) * 100
             return min(100, consumed)
         return 0
 
-    def get_hierarchy_path(self):
-        """Devuelve la ruta jerárquica del equipo (ej: Sistema > Subsistema > Equipo)"""
-        path = [self.name]
-        current = self.parent
-        while current:
-            path.insert(0, current.name)
-            current = current.parent
-        return ' > '.join(path)
+    def get_system_name(self):
+        return self.system.name if self.system else 'Sin sistema'
 
     @staticmethod
     def generate_code(category, location, plant_section):
-        """Genera código único basado en categoría, ubicación y sección"""
+        # Mismo código que antes, pero sin cambios
         category_map = {
             'BOMBA': 'BOM', 'MOTOR': 'MOT', 'COMPRESOR': 'COM',
             'VALVULA': 'VAL', 'TANQUE': 'TAN', 'CINTA': 'CIN',
@@ -76,7 +71,6 @@ class Equipment(db.Model):
             'SECADOR': 'SEC', 'FILTRO': 'FIL', 'PISTOLA': 'PIS',
             'TUBERIA': 'TUB', 'SISTEMA': 'SIS'
         }
-
         cat_code = category_map.get(category.upper(), category.upper()[:3])
         loc_code = location.upper().replace(' ', '')[:4] if location else 'XXXX'
         sec_code = plant_section.upper().replace(' ', '')[:4] if plant_section else 'XXXX'
@@ -86,7 +80,6 @@ class Equipment(db.Model):
         count = Equipment.query.filter(
             Equipment.code.like(f"{prefix}%")
         ).count()
-
         sequential = str(count + 1).zfill(3)
         return f"{prefix}-{sequential}"
 
@@ -94,7 +87,6 @@ class Equipment(db.Model):
         return f'<Equipment {self.code} - {self.name}>'
 
 
-# Evento para calcular automáticamente la vida restante antes de guardar
 @event.listens_for(Equipment, 'before_update')
 @event.listens_for(Equipment, 'before_insert')
 def calculate_life_remaining(mapper, connection, target):

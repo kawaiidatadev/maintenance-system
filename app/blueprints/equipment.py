@@ -3,6 +3,10 @@ from flask_login import login_required, current_user
 from app import db
 from app.models.equipment import Equipment
 from datetime import datetime
+from app.models.system import System
+from werkzeug.utils import secure_filename
+import os
+from flask import current_app
 
 equipment_bp = Blueprint('equipment', __name__, url_prefix='/equipment')
 
@@ -20,11 +24,59 @@ def admin_or_supervisor_required(func):
     return decorated_view
 
 
+
+
+
+@equipment_bp.route('/upload_photo/<int:id>', methods=['POST'])
+@login_required
+@admin_or_supervisor_required
+def upload_photo(id):
+    equipment = Equipment.query.get_or_404(id)
+
+    if 'photo' not in request.files:
+        flash('No se seleccionó ningún archivo', 'danger')
+        return redirect(url_for('equipment.view_equipment', id=id))
+
+    file = request.files['photo']
+    if file.filename == '':
+        flash('No se seleccionó ningún archivo', 'danger')
+        return redirect(url_for('equipment.view_equipment', id=id))
+
+    if file and allowed_file(file.filename):
+        filename = secure_filename(f"{equipment.code}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.jpg")
+
+        # Crear carpeta si no existe
+        upload_folder = os.path.join(current_app.root_path, 'static', 'uploads', 'equipment')
+        os.makedirs(upload_folder, exist_ok=True)
+
+        file_path = os.path.join(upload_folder, filename)
+        file.save(file_path)
+
+        # Guardar nombre en BD
+        equipment.photo_filename = filename
+        db.session.commit()
+        flash('Foto actualizada exitosamente', 'success')
+    else:
+        flash('Formato no permitido. Use JPG, PNG o GIF', 'danger')
+
+    return redirect(url_for('equipment.view_equipment', id=id))
+
+
+def allowed_file(filename):
+    ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
 @equipment_bp.route('/')
 @login_required
 def list_equipment():
     equipments = Equipment.query.order_by(Equipment.code).all()
     return render_template('equipment/list.html', equipments=equipments)
+
+@equipment_bp.route('/<int:id>')
+@login_required
+def view_equipment(id):
+    equipment = Equipment.query.get_or_404(id)
+    return render_template('equipment/view.html', equipment=equipment)
 
 
 @equipment_bp.route('/create', methods=['GET', 'POST'])
@@ -34,17 +86,14 @@ def create_equipment():
     if request.method == 'POST':
         code = request.form.get('code')
         name = request.form.get('name')
+        category = request.form.get('category')
         location = request.form.get('location')
-        manufacturer = request.form.get('manufacturer')
-        model = request.form.get('model')
-        serial_number = request.form.get('serial_number')
-        installation_date = request.form.get('installation_date')
-        if installation_date:
-            installation_date = datetime.strptime(installation_date, '%Y-%m-%d').date()
+        plant_section = request.form.get('plant_section')
+        system_id = request.form.get('system_id')
+        system_id = int(system_id) if system_id and system_id != '' else None
         status = request.form.get('status')
         description = request.form.get('description')
 
-        # Verificar código único
         if Equipment.query.filter_by(code=code).first():
             flash('El código de equipo ya existe', 'danger')
             return redirect(url_for('equipment.create_equipment'))
@@ -52,11 +101,10 @@ def create_equipment():
         equipment = Equipment(
             code=code,
             name=name,
+            category=category,
             location=location,
-            manufacturer=manufacturer,
-            model=model,
-            serial_number=serial_number,
-            installation_date=installation_date,
+            plant_section=plant_section,
+            system_id=system_id,
             status=status,
             description=description
         )
@@ -65,7 +113,8 @@ def create_equipment():
         flash(f'Equipo {code} - {name} creado exitosamente', 'success')
         return redirect(url_for('equipment.list_equipment'))
 
-    return render_template('equipment/create.html')
+    systems = System.query.order_by(System.code).all()
+    return render_template('equipment/create.html', systems=systems)
 
 
 @equipment_bp.route('/edit/<int:id>', methods=['GET', 'POST'])
@@ -73,25 +122,55 @@ def create_equipment():
 @admin_or_supervisor_required
 def edit_equipment(id):
     equipment = Equipment.query.get_or_404(id)
+
     if request.method == 'POST':
+        # Campos básicos
         equipment.code = request.form.get('code')
         equipment.name = request.form.get('name')
+        equipment.category = request.form.get('category')
         equipment.location = request.form.get('location')
-        equipment.manufacturer = request.form.get('manufacturer')
-        equipment.model = request.form.get('model')
-        equipment.serial_number = request.form.get('serial_number')
-        inst_date = request.form.get('installation_date')
-        equipment.installation_date = datetime.strptime(inst_date, '%Y-%m-%d').date() if inst_date else None
+        equipment.plant_section = request.form.get('plant_section')
+
+        system_id = request.form.get('system_id')
+        equipment.system_id = int(system_id) if system_id and system_id != '' else None
+
         equipment.status = request.form.get('status')
         equipment.description = request.form.get('description')
-        equipment.updated_at = datetime.utcnow()
 
+        # Atributos técnicos
+        equipment.manufacturer = request.form.get('manufacturer') or None
+        equipment.model = request.form.get('model') or None
+        equipment.serial_number = request.form.get('serial_number') or None
+        inst_date = request.form.get('installation_date')
+        equipment.installation_date = datetime.strptime(inst_date, '%Y-%m-%d').date() if inst_date else None
+
+        # Atributos avanzados
+        estimated_life = request.form.get('estimated_life_hours')
+        equipment.estimated_life_hours = float(estimated_life) if estimated_life and estimated_life != '' else None
+
+        commissioning_date = request.form.get('commissioning_date')
+        equipment.commissioning_date = datetime.strptime(commissioning_date,
+                                                         '%Y-%m-%d').date() if commissioning_date else None
+
+        equipment.recommended_specialty = request.form.get('recommended_specialty') or None
+
+        last_maintenance = request.form.get('last_maintenance_date')
+        equipment.last_maintenance_date = datetime.strptime(last_maintenance,
+                                                            '%Y-%m-%d').date() if last_maintenance else None
+
+        operating_hours = request.form.get('total_operating_hours')
+        equipment.total_operating_hours = float(operating_hours) if operating_hours and operating_hours != '' else 0
+
+        # Calcular vida restante
+        equipment.calculate_life_remaining()
+
+        equipment.updated_at = datetime.utcnow()
         db.session.commit()
         flash(f'Equipo {equipment.code} actualizado', 'success')
-        return redirect(url_for('equipment.list_equipment'))
+        return redirect(url_for('equipment.view_equipment', id=equipment.id))
 
-    return render_template('equipment/edit.html', equipment=equipment)
-
+    systems = System.query.order_by(System.code).all()
+    return render_template('equipment/edit.html', equipment=equipment, systems=systems)
 
 @equipment_bp.route('/delete/<int:id>')
 @login_required
@@ -116,5 +195,10 @@ def suggest_code():
         location=data.get('location'),
         plant_section=data.get('plant_section')
     )
-    print("wiwiwi")
     return jsonify({'code': code})
+
+@equipment_bp.route('/tree')
+@login_required
+def tree_view():
+    roots = Equipment.query.filter_by(parent_id=None).order_by(Equipment.code).all()
+    return render_template('equipment/tree.html', roots=roots)

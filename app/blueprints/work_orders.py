@@ -106,24 +106,50 @@ def edit_order(id):
                 order.temporary_location = None
                 order.temporary_description = None
 
-        # Asignación de técnico - FORZAR cambio de estado
+        # ==================================================
+        # ASIGNACIÓN DE TÉCNICO CON VERIFICACIÓN DE AUTO-ASIGNACIÓN
+        # ==================================================
         assigned_to = request.form.get('assigned_to_id')
         new_assigned_id = int(assigned_to) if assigned_to and assigned_to != '' else None
 
-        # Siempre que se asigne un técnico (no "No asignado"), el estado pasa a 'assigned'
-        if new_assigned_id:
+        # Verificar si el usuario se está asignando a sí mismo
+        is_self_assign = (new_assigned_id == current_user.id)
+
+        # Obtener el estado manual seleccionado por el usuario
+        manual_status = request.form.get('status')
+
+        if is_self_assign:
+            # El usuario se asigna a sí mismo: NO cambiar estado automáticamente
             order.assigned_to_id = new_assigned_id
-            if order.status != 'assigned':
+            # Respetar el estado que el usuario eligió manualmente
+            if manual_status and manual_status != order.status:
+                order.status = manual_status
+                if manual_status == 'in_progress' and not order.start_date:
+                    order.start_date = datetime.utcnow()
+                elif manual_status == 'completed' and not order.completion_date:
+                    order.completion_date = datetime.utcnow()
+            flash('Te has asignado la orden. El estado se ha actualizado según tu selección.', 'info')
+        else:
+            # El usuario asigna a otra persona (o desasigna)
+            if new_assigned_id and order.status == 'open':
+                # Orden abierta, se asigna a otro técnico
+                order.assigned_to_id = new_assigned_id
                 order.status = 'assigned'
                 order.assigned_at = datetime.utcnow()
                 flash(f'Técnico asignado. Estado cambiado a ASIGNADA', 'success')
-        else:
-            # Si se selecciona "No asignado" y la orden estaba en 'assigned', la dejamos en 'open'
-            order.assigned_to_id = None
-            if order.status == 'assigned':
+            elif new_assigned_id and order.status != 'open':
+                # Orden no está abierta, solo actualizar técnico
+                order.assigned_to_id = new_assigned_id
+                flash(f'Técnico actualizado (el estado no cambió porque la orden está en {order.status})', 'info')
+            elif not new_assigned_id and order.status == 'assigned':
+                # Se quita la asignación y estaba asignada
+                order.assigned_to_id = None
                 order.status = 'open'
                 order.assigned_at = None
-                flash('Técnico removido. Estado vuelve a ABIERTA', 'warning')
+                flash('Asignación removida. Estado vuelve a ABIERTA', 'warning')
+            else:
+                # Cualquier otro caso
+                order.assigned_to_id = new_assigned_id
 
         order.failure_type = request.form.get('failure_type') or None
         order.root_cause = request.form.get('root_cause') or None

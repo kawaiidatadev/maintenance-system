@@ -2,27 +2,73 @@
 
 {% block content %}
 <div class="row justify-content-center">
-    <div class="col-md-8">
+    <div class="col-md-10">
         <div class="card">
-            <div class="card-header">
+            <div class="card-header bg-warning">
                 <h4><i class="fas fa-edit"></i> Editar Equipo: {{ equipment.code }}</h4>
             </div>
             <div class="card-body">
                 <form method="POST">
+                    <!-- === INFORMACIÓN GENERAL === -->
+                    <h5 class="mt-2 text-primary">Información General</h5>
+                    <hr>
                     <div class="row">
-                        <div class="col-md-6 mb-3">
+                        <div class="col-md-4 mb-3">
                             <label>Código *</label>
                             <input type="text" name="code" class="form-control" value="{{ equipment.code }}" required>
                         </div>
-                        <div class="col-md-6 mb-3">
+                        <div class="col-md-8 mb-3">
                             <label>Nombre *</label>
                             <input type="text" name="name" class="form-control" value="{{ equipment.name }}" required>
                         </div>
-                        <div class="col-md-6 mb-3">
+                    </div>
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                            <label>Categoría</label>
+                            <input type="text" name="category" class="form-control" value="{{ equipment.category or '' }}">
+                            <small class="text-muted">Ej: Motor, Bomba, Compresor</small>
+                        </div>
+                        <div class="col-md-4 mb-3">
                             <label>Ubicación</label>
                             <input type="text" name="location" class="form-control" value="{{ equipment.location or '' }}">
                         </div>
+                        <div class="col-md-4 mb-3">
+                            <label>Sección/Planta</label>
+                            <input type="text" name="plant_section" class="form-control" value="{{ equipment.plant_section or '' }}">
+                        </div>
+                    </div>
+                    <div class="row">
                         <div class="col-md-6 mb-3">
+                            <label>Sistema al que pertenece</label>
+                            <select name="system_id" class="form-control">
+                                <option value="">Ninguno</option>
+                                {% for system in systems %}
+                                <option value="{{ system.id }}" {% if equipment.system_id == system.id %}selected{% endif %}>
+                                    {{ system.code }} - {{ system.name }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                            <small class="text-muted">Ej: Sistema Eléctrico, Sistema de Aire Comprimido</small>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label>Estado</label>
+                            <select name="status" class="form-control">
+                                <option value="Operativo" {% if equipment.status == 'Operativo' %}selected{% endif %}>Operativo</option>
+                                <option value="Mantenimiento" {% if equipment.status == 'Mantenimiento' %}selected{% endif %}>En Mantenimiento</option>
+                                <option value="Fuera de Servicio" {% if equipment.status == 'Fuera de Servicio' %}selected{% endif %}>Fuera de Servicio</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label>Descripción</label>
+                        <textarea name="description" rows="2" class="form-control">{{ equipment.description or '' }}</textarea>
+                    </div>
+
+                    <!-- === ATRIBUTOS TÉCNICOS === -->
+                    <h5 class="mt-4 text-primary">Atributos Técnicos</h5>
+                    <hr>
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
                             <label>Fabricante</label>
                             <input type="text" name="manufacturer" class="form-control" value="{{ equipment.manufacturer or '' }}">
                         </div>
@@ -34,25 +80,63 @@
                             <label>Número de Serie</label>
                             <input type="text" name="serial_number" class="form-control" value="{{ equipment.serial_number or '' }}">
                         </div>
-                        <div class="col-md-4 mb-3">
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
                             <label>Fecha Instalación</label>
                             <input type="date" name="installation_date" class="form-control" value="{{ equipment.installation_date if equipment.installation_date else '' }}">
                         </div>
-                        <div class="col-md-6 mb-3">
-                            <label>Estado</label>
-                            <select name="status" class="form-control">
-                                <option value="Operativo" {% if equipment.status == 'Operativo' %}selected{% endif %}>Operativo</option>
-                                <option value="En mantenimiento" {% if equipment.status == 'En mantenimiento' %}selected{% endif %}>En mantenimiento</option>
-                                <option value="Fuera de servicio" {% if equipment.status == 'Fuera de servicio' %}selected{% endif %}>Fuera de servicio</option>
-                            </select>
+                    </div>
+
+                    <!-- === ATRIBUTOS AVANZADOS === -->
+                    <h5 class="mt-4 text-primary">Atributos Avanzados (Opcionales)</h5>
+                    <hr>
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                            <label>Vida útil estimada (horas)</label>
+                            <input type="number" step="100" name="estimated_life_hours" class="form-control" value="{{ equipment.estimated_life_hours or '' }}">
+                            <small class="text-muted">Ej: 50000 horas</small>
                         </div>
-                        <div class="col-12 mb-3">
-                            <label>Descripción</label>
-                            <textarea name="description" rows="3" class="form-control">{{ equipment.description or '' }}</textarea>
+                        <div class="col-md-4 mb-3">
+                            <label>Horas totales operación</label>
+                            <input type="number" step="10" name="total_operating_hours" class="form-control" value="{{ equipment.total_operating_hours or 0 }}">
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label>Fecha puesta en marcha</label>
+                            <input type="date" name="commissioning_date" class="form-control" value="{{ equipment.commissioning_date if equipment.commissioning_date else '' }}">
                         </div>
                     </div>
-                    <button type="submit" class="btn btn-primary">Actualizar</button>
-                    <a href="{{ url_for('equipment.list_equipment') }}" class="btn btn-secondary">Cancelar</a>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label>Especialidad requerida</label>
+                            <select name="recommended_specialty" class="form-control">
+                                <option value="">No especificada</option>
+                                <option value="Electromecánico" {% if equipment.recommended_specialty == 'Electromecánico' %}selected{% endif %}>Electromecánico</option>
+                                <option value="Eléctrico" {% if equipment.recommended_specialty == 'Eléctrico' %}selected{% endif %}>Eléctrico</option>
+                                <option value="Mecánico" {% if equipment.recommended_specialty == 'Mecánico' %}selected{% endif %}>Mecánico</option>
+                                <option value="Electrónico" {% if equipment.recommended_specialty == 'Electrónico' %}selected{% endif %}>Electrónico</option>
+                                <option value="Neumático" {% if equipment.recommended_specialty == 'Neumático' %}selected{% endif %}>Neumático</option>
+                                <option value="Hidráulico" {% if equipment.recommended_specialty == 'Hidráulico' %}selected{% endif %}>Hidráulico</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label>Último mantenimiento mayor</label>
+                            <input type="date" name="last_maintenance_date" class="form-control" value="{{ equipment.last_maintenance_date if equipment.last_maintenance_date else '' }}">
+                        </div>
+                    </div>
+
+                    {% if equipment.estimated_life_hours %}
+                    <div class="alert alert-info">
+                        <strong>📊 Información calculada:</strong><br>
+                        <strong>Vida restante:</strong> {{ equipment.life_remaining_hours|round|int if equipment.life_remaining_hours else 'N/A' }} horas<br>
+                        <strong>Porcentaje consumido:</strong> {{ "%.1f"|format(equipment.get_life_percentage()) }}%
+                    </div>
+                    {% endif %}
+
+                    <div class="mt-4">
+                        <button type="submit" class="btn btn-primary">Guardar cambios</button>
+                        <a href="{{ url_for('equipment.view_equipment', id=equipment.id) }}" class="btn btn-secondary">Cancelar</a>
+                    </div>
                 </form>
             </div>
         </div>

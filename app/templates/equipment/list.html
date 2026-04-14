@@ -18,6 +18,7 @@
                     <tr>
                         <th>Código</th>
                         <th>Nombre</th>
+                        <th>Sistema</th>
                         <th>Ubicación</th>
                         <th>Fabricante</th>
                         <th>Estado</th>
@@ -29,25 +30,40 @@
                     <tr>
                         <td>{{ eq.code }}</td>
                         <td>{{ eq.name }}</td>
+                        <td>
+                            {% if eq.system %}
+                                <span class="badge bg-info">{{ eq.system.code }}</span>
+                                {{ eq.system.name }}
+                            {% else %}
+                                <span class="text-muted">-</span>
+                            {% endif %}
+                        </td>
                         <td>{{ eq.location or '-' }}</td>
                         <td>{{ eq.manufacturer or '-' }}</td>
                         <td>
-                            <span class="badge bg-{{ 'success' if eq.status == 'Operativo' else 'warning' if eq.status == 'En mantenimiento' else 'danger' }}">
+                            <span class="badge bg-{{ 'success' if eq.status == 'Operativo' else 'warning' if eq.status == 'Mantenimiento' else 'danger' }}">
                                 {{ eq.status }}
                             </span>
                         </td>
                         <td>
+                            <!-- Botón VER (nueva vista de detalle) -->
+                            <a href="{{ url_for('equipment.view_equipment', id=eq.id) }}" class="btn btn-sm btn-info">
+                                <i class="fas fa-eye"></i>
+                            </a>
+                            <!-- Botón EDITAR (solo admin/supervisor) -->
+                            {% if current_user.role in ['admin', 'supervisor'] %}
                             <a href="{{ url_for('equipment.edit_equipment', id=eq.id) }}" class="btn btn-sm btn-warning">
                                 <i class="fas fa-edit"></i>
                             </a>
                             <a href="{{ url_for('equipment.delete_equipment', id=eq.id) }}" class="btn btn-sm btn-danger" onclick="return confirm('¿Eliminar equipo {{ eq.code }}?')">
                                 <i class="fas fa-trash"></i>
                             </a>
+                            {% endif %}
                         </td>
                     </tr>
                     {% else %}
                     <tr>
-                        <td colspan="6" class="text-center">No hay equipos registrados</td>
+                        <td colspan="7" class="text-center">No hay equipos registrados</td>
                     </tr>
                     {% endfor %}
                 </tbody>
