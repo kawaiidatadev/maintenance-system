@@ -27,6 +27,11 @@
                         </button>
                     </li>
                     <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="criticality-tab" data-bs-toggle="tab" data-bs-target="#criticality" type="button" role="tab">
+                            <i class="fas fa-chart-pie"></i> Criticidad y Decisión
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
                         <button class="nav-link" id="photo-tab" data-bs-toggle="tab" data-bs-target="#photo" type="button" role="tab">
                             <i class="fas fa-camera"></i> Foto
                         </button>
@@ -110,6 +115,103 @@
                         </div>
                     </div>
 
+                    <!-- Pestaña Criticidad y Decisión -->
+                    <div class="tab-pane fade" id="criticality" role="tabpanel">
+                        <h5 class="mb-3">Evaluación de Criticidad</h5>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <p><strong>Seguridad:</strong> {{ equipment.safety_score or 'N/A' }}/5</p>
+                                <p><strong>Producción:</strong> {{ equipment.production_score or 'N/A' }}/5</p>
+                                <p><strong>Calidad:</strong> {{ equipment.quality_score or 'N/A' }}/5</p>
+                                <p><strong>Mantenimiento:</strong> {{ equipment.maintenance_score or 'N/A' }}/5</p>
+                                <p><strong>Criticidad final:</strong> {{ equipment.get_criticality_label()|safe }}</p>
+                            </div>
+                            <div class="col-md-6">
+                                <p><strong>Disponibilidad requerida:</strong> {{ equipment.availability_level or 'No definida' }}</p>
+                                <p><strong>Modelo de mantenimiento:</strong> {{ equipment.get_maintenance_model_label()|safe }}</p>
+                                <p><strong>Justificación:</strong> {{ equipment.model_justification or 'No disponible' }}</p>
+                            </div>
+                        </div>
+                        <hr>
+                        <h5 class="mb-3">Datos económicos</h5>
+                        <div class="row">
+                            <div class="col-md-4">
+                                <p><strong>Costo del equipo (MXN):</strong> {{ "{:,.2f}".format(equipment.equipment_cost_mxn) if equipment.equipment_cost_mxn else 'N/A' }}</p>
+                            </div>
+                            <div class="col-md-4">
+                                <p><strong>Costo de reparación (50% del equipo):</strong> {{ "{:,.2f}".format(equipment.repair_cost_mxn) if equipment.repair_cost_mxn else 'N/A' }}</p>
+                            </div>
+                            <div class="col-md-4">
+                                <p><strong>Valor hora de parada (MXN):</strong> {{ "{:,.2f}".format(equipment.downtime_cost_mxn) if equipment.downtime_cost_mxn else 'N/A' }}</p>
+                            </div>
+                        </div>
+                        <hr>
+                        <h5 class="mb-3">Análisis de Decisión: Reparar vs. Sustituir (CAR/CAS)</h5>
+                        <div class="alert alert-info">
+                            Este análisis ayuda a decidir si es más rentable reparar el equipo o comprar uno nuevo, considerando costos anualizados.
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <label for="cr" class="form-label">Costo de Reparación (CR) - MXN</label>
+                                <input type="number" id="cr" class="form-control" value="{{ equipment.repair_cost_mxn or 0 }}" step="1000">
+                            </div>
+                            <div class="col-md-6">
+                                <label for="cs" class="form-label">Costo de Sustitución (CS) - MXN</label>
+                                <input type="number" id="cs" class="form-control" placeholder="Ej: 500000" step="10000">
+                            </div>
+                        </div>
+                        <div class="row mt-3">
+                            <div class="col-md-6">
+                                <label for="rul" class="form-label">Vida Útil Remanente (RUL) - años</label>
+                                <input type="number" id="rul" class="form-control" step="0.5" placeholder="Ej: 5">
+                                <small class="text-muted">Si se conoce, basado en horas restantes.</small>
+                            </div>
+                            <div class="col-md-6">
+                                <label for="new_life" class="form-label">Vida Útil de máquina nueva - años</label>
+                                <input type="number" id="new_life" class="form-control" step="0.5" placeholder="Ej: 10">
+                            </div>
+                        </div>
+                        <div class="row mt-3">
+                        <div class="col-md-4">
+                            <label for="funds" class="form-label">Disponibilidad de fondos</label>
+                            <select id="funds" class="form-select">
+                                <option value="adequate">Adecuados</option>
+                                <option value="limited">Limitados</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label for="risk" class="form-label">Riesgo de falla</label>
+                            <select id="risk" class="form-select">
+                                <option value="high">Alto</option>
+                                <option value="low">Bajo</option>
+                            </select>
+                        </div>
+                        <div class="col-md-2 d-flex align-items-end">
+                            <button id="calculateBtn" class="btn btn-primary w-100">Calcular</button>
+                        </div>
+                        <div class="col-md-2 d-flex align-items-end">
+                            <button id="exportBtn" class="btn btn-success w-100" disabled>Guardar análisis</button>
+                        </div>
+                        </div>
+                        <div class="mt-4" id="resultadoAnalisis" style="display:none;">
+                            <div class="card">
+                                <div class="card-header bg-secondary text-white">
+                                    Resultado del análisis
+                                </div>
+                                <div class="card-body" id="analisisTexto">
+                                </div>
+                                <div class="row mt-3">
+                                <div class="col-md-6">
+                                    <canvas id="carCasChart" width="400" height="300"></canvas>
+                                </div>
+                                <div class="col-md-6">
+                                    <canvas id="factoresChart" width="400" height="300"></canvas>
+                                </div>
+                            </div>
+                            </div>
+                        </div>
+                    </div>
+
                     <!-- Pestaña Foto -->
                     <div class="tab-pane fade" id="photo" role="tabpanel">
                         <div class="text-center">
@@ -122,7 +224,6 @@
                                 </div>
                             {% endif %}
                         </div>
-
                         {% if current_user.role in ['admin', 'supervisor'] %}
                         <div class="mt-3">
                             <form method="POST" action="{{ url_for('equipment.upload_photo', id=equipment.id) }}" enctype="multipart/form-data">
@@ -157,4 +258,323 @@
         </div>
     </div>
 </div>
+
+
+<!-- JavaScript para el simulador CAR/CAS -->
+<script>
+    // Pasar variables de Jinja a JavaScript de forma segura
+    const equipmentData = {
+        criticality: {{ equipment.criticality|tojson }},
+        availability_level: {{ equipment.availability_level|tojson }},
+        maintenance_model: {{ equipment.maintenance_model|tojson }},
+        equipment_cost_mxn: {{ equipment.equipment_cost_mxn|float|default(0) }},
+        repair_cost_mxn: {{ equipment.repair_cost_mxn|float|default(0) }},
+        downtime_cost_mxn: {{ equipment.downtime_cost_mxn|float|default(0) }},
+        code: {{ equipment.code|tojson }},
+        name: {{ equipment.name|tojson }}
+    };
+
+    // Variables globales para almacenar el último resultado
+    let ultimoReporte = '';
+
+    function formatearMonto(valor) {
+        if (valor === null || valor === undefined || isNaN(valor)) return 'N/A';
+        return '$ ' + valor.toLocaleString('es-MX', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+
+    // Esperar a que el DOM esté listo
+    document.addEventListener('DOMContentLoaded', function() {
+        const calculateBtn = document.getElementById('calculateBtn');
+        const exportBtn = document.getElementById('exportBtn');
+
+        if (!calculateBtn) {
+            console.error('Botón calcular no encontrado');
+            return;
+        }
+
+        calculateBtn.addEventListener('click', function() {
+            console.log('Botón calcular clickeado');
+
+            // Obtener valores
+            const cr = parseFloat(document.getElementById('cr').value) || 0;
+            const cs = parseFloat(document.getElementById('cs').value) || 0;
+            let rul = parseFloat(document.getElementById('rul').value) || 0;
+            const newLife = parseFloat(document.getElementById('new_life').value) || 0;
+            const funds = document.getElementById('funds').value;
+            const risk = document.getElementById('risk').value;
+            const criticality = equipmentData.criticality;
+            const criticalityText = criticality === 'A' ? 'Crítico' : (criticality === 'B' ? 'Importante' : 'Prescindible');
+            const availability = equipmentData.availability_level || 'No definida';
+            const maintenanceModel = equipmentData.maintenance_model || 'No definido';
+            const equipmentCost = equipmentData.equipment_cost_mxn;
+            const repairCost = equipmentData.repair_cost_mxn;
+            const downtimeCost = equipmentData.downtime_cost_mxn;
+
+            // Validar RUL
+            let rulEffective = rul;
+            let obsolescencia = false;
+            if (rulEffective <= 0) {
+                obsolescencia = true;
+                rulEffective = 0.001;
+            }
+
+            // Cálculo de CAR y CAS
+            let car = null, cas = null;
+            let carText = 'No se puede calcular (RUL no válido)';
+            let casText = 'No se puede calcular (vida útil nueva no válida)';
+
+            if (!obsolescencia && rulEffective > 0 && cr > 0) {
+                car = cr / rulEffective;
+                carText = formatearMonto(car) + ' / año';
+            } else if (obsolescencia) {
+                carText = 'Equipo obsoleto (vida útil superada) → CAR no aplicable';
+            }
+
+            if (newLife > 0 && cs > 0) {
+                cas = cs / newLife;
+                casText = formatearMonto(cas) + ' / año';
+            }
+
+            // Decisión económica
+            let economicDecision = '';
+            let economicColor = '';
+            if (!obsolescencia && car !== null && cas !== null) {
+                if (car < cas) {
+                    economicDecision = 'Reparar (CAR menor)';
+                    economicColor = 'success';
+                } else if (cas < car) {
+                    economicDecision = 'Sustituir (CAS menor)';
+                    economicColor = 'danger';
+                } else {
+                    economicDecision = 'Indiferente (CAR ≈ CAS)';
+                    economicColor = 'secondary';
+                }
+            } else if (obsolescencia) {
+                economicDecision = 'Sustitución recomendada por obsolescencia';
+                economicColor = 'danger';
+            } else {
+                economicDecision = 'Datos insuficientes para comparar';
+                economicColor = 'secondary';
+            }
+
+            // Factores cualitativos y recomendación final
+            let qualitativeRecommendation = '';
+            let finalRecommendation = '';
+
+            if (criticality === 'A') {
+                qualitativeRecommendation = '⚠️ Equipo CRÍTICO para la operación.';
+                if (obsolescencia) {
+                    finalRecommendation = '✅ RECOMENDACIÓN: SUSTITUIR INMEDIATAMENTE (equipo obsoleto y crítico).';
+                } else if (cas !== null && car !== null && cas < car) {
+                    finalRecommendation = '✅ RECOMENDACIÓN: SUSTITUIR (crítico + CAS menor).';
+                } else {
+                    finalRecommendation = '⚠️ RECOMENDACIÓN: EVALUAR PROYECTO DE REEMPLAZO.';
+                }
+            } else if (criticality === 'B') {
+                qualitativeRecommendation = '📌 Equipo IMPORTANTE.';
+                if (obsolescencia) {
+                    finalRecommendation = '⚠️ RECOMENDACIÓN: PLANIFICAR SUSTITUCIÓN a mediano plazo.';
+                } else if (risk === 'high') {
+                    qualitativeRecommendation += ' Alto riesgo de falla.';
+                    if (cas !== null && car !== null && cas < car) {
+                        finalRecommendation = '✅ RECOMENDACIÓN: SUSTITUIR.';
+                    } else {
+                        finalRecommendation = '⚠️ RECOMENDACIÓN: Reparar y monitorear.';
+                    }
+                } else {
+                    qualitativeRecommendation += ' Bajo riesgo de falla.';
+                    if (car !== null && cas !== null && car < cas) {
+                        finalRecommendation = '✅ RECOMENDACIÓN: REPARAR.';
+                    } else {
+                        finalRecommendation = '📌 RECOMENDACIÓN: Reparar y mantener.';
+                    }
+                }
+            } else {
+                qualitativeRecommendation = '🔧 Equipo PRESCINDIBLE.';
+                if (obsolescencia) {
+                    finalRecommendation = '📌 RECOMENDACIÓN: Operar hasta falla (correctivo).';
+                } else if (car !== null && cas !== null && car < cas) {
+                    finalRecommendation = '✅ RECOMENDACIÓN: REPARAR.';
+                } else {
+                    finalRecommendation = '📌 RECOMENDACIÓN: Mantenimiento correctivo.';
+                }
+            }
+
+            const fundsText = (funds === 'adequate') ? 'Fondos adecuados disponibles' : 'Fondos limitados';
+            const fundsRecommendation = (funds === 'adequate') ? 'Se puede considerar inversión en sustitución.' : 'Priorizar reparaciones mientras se gestiona presupuesto.';
+
+            // Generar reporte completo
+            const fecha = new Date().toLocaleString('es-MX');
+            const equipoInfo = `EQUIPO: ${equipmentData.code} - ${equipmentData.name}\nCriticidad: ${criticalityText}\nModelo: ${maintenanceModel}\nDisponibilidad: ${availability}`;
+            const costosInfo = `COSTOS:\n• Costo equipo: ${formatearMonto(equipmentCost)}\n• Costo reparación (estimado): ${formatearMonto(repairCost)}\n• Valor hora parada: ${formatearMonto(downtimeCost)}\n• CR: ${formatearMonto(cr)}\n• CS: ${formatearMonto(cs)}\n• RUL: ${rul} años ${obsolescencia ? '(obsoleto)' : ''}\n• Vida útil nueva: ${newLife} años`;
+            const analisisEconomico = `ANÁLISIS ECONÓMICO:\n• CAR: ${carText}\n• CAS: ${casText}\n• Decisión: ${economicDecision}`;
+            const factoresCualitativos = `FACTORES CUALITATIVOS:\n• Criticidad: ${criticalityText}\n• Riesgo: ${risk === 'high' ? 'Alto' : 'Bajo'}\n• Fondos: ${fundsText} → ${fundsRecommendation}\n• ${qualitativeRecommendation}`;
+            const recomendacionFinal = `RECOMENDACIÓN FINAL:\n${finalRecommendation}\n\nPlan de acción sugerido:\n${finalRecommendation.includes('SUSTITUIR') ? '- Cotizar nuevo equipo.\n- Programar instalación.\n- Gestionar presupuesto.' : '- Programar reparación.\n- Realizar seguimiento.\n- Actualizar plan preventivo.'}\n\nEste análisis es una guía. Decisión final debe ser aprobada por supervisor.`;
+
+            const reporte = `
+===========================================
+ ANÁLISIS DE DECISIÓN REPARAR vs SUSTITUIR
+         (Método CAR/CAS)
+===========================================
+Fecha: ${fecha}
+${equipoInfo}
+${costosInfo}
+${analisisEconomico}
+${factoresCualitativos}
+${recomendacionFinal}
+===========================================
+            `;
+            ultimoReporte = reporte;
+
+                        // ============================================
+            // GRÁFICO DE BARRAS: CAR vs CAS
+            // ============================================
+            const ctxBar = document.getElementById('carCasChart').getContext('2d');
+            // Destruir gráfico anterior si existe
+            if (window.carCasChartInstance) window.carCasChartInstance.destroy();
+
+            // Valores numéricos para el gráfico
+            let carValue = (car !== null && !obsolescencia) ? car : 0;
+            let casValue = (cas !== null) ? cas : 0;
+
+            window.carCasChartInstance = new Chart(ctxBar, {
+                type: 'bar',
+                data: {
+                    labels: ['Costo Anualizado (MXN/año)'],
+                    datasets: [
+                        {
+                            label: 'Reparar (CAR)',
+                            data: [carValue],
+                            backgroundColor: 'rgba(54, 162, 235, 0.6)',
+                            borderColor: 'rgba(54, 162, 235, 1)',
+                            borderWidth: 1
+                        },
+                        {
+                            label: 'Sustituir (CAS)',
+                            data: [casValue],
+                            backgroundColor: 'rgba(255, 99, 132, 0.6)',
+                            borderColor: 'rgba(255, 99, 132, 1)',
+                            borderWidth: 1
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: { display: true, text: 'MXN / año' }
+                        }
+                    },
+                    plugins: {
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return context.dataset.label + ': ' + formatearMonto(context.raw);
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+
+            // ============================================
+            // GRÁFICO DE RADAR: Factores cualitativos
+            // ============================================
+            // Convertir valores cualitativos a escala numérica 1-5
+            let criticidadVal = criticality === 'A' ? 5 : (criticality === 'B' ? 3 : 1);
+            let riesgoVal = risk === 'high' ? 5 : 1;
+            let fondosVal = funds === 'adequate' ? 5 : 2;
+            let obsolescenciaVal = obsolescencia ? 5 : 1;
+
+            const ctxRadar = document.getElementById('factoresChart').getContext('2d');
+            if (window.factoresChartInstance) window.factoresChartInstance.destroy();
+            window.factoresChartInstance = new Chart(ctxRadar, {
+                type: 'radar',
+                data: {
+                    labels: ['Criticidad', 'Riesgo de falla', 'Fondos disponibles', 'Obsolescencia'],
+                    datasets: [{
+                        label: 'Nivel de impacto (1=bajo, 5=alto)',
+                        data: [criticidadVal, riesgoVal, fondosVal, obsolescenciaVal],
+                        backgroundColor: 'rgba(255, 206, 86, 0.2)',
+                        borderColor: 'rgba(255, 206, 86, 1)',
+                        pointBackgroundColor: 'rgba(255, 206, 86, 1)',
+                        pointBorderColor: '#fff',
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    scales: {
+                        r: {
+                            beginAtZero: true,
+                            max: 5,
+                            ticks: { stepSize: 1 }
+                        }
+                    },
+                    plugins: {
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return context.label + ': ' + context.raw + ' / 5';
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+
+            // Mostrar resultado en pantalla
+            const resultadoDiv = document.getElementById('resultadoAnalisis');
+            const analisisTexto = document.getElementById('analisisTexto');
+            analisisTexto.innerHTML = `
+                <h6>Resultados del análisis económico:</h6>
+                <ul>
+                    <li><strong>CAR:</strong> ${carText}</li>
+                    <li><strong>CAS:</strong> ${casText}</li>
+                    <li><strong>Decisión económica:</strong> <span class="text-${economicColor}">${economicDecision}</span></li>
+                </ul>
+                <h6 class="mt-3">Factores cualitativos:</h6>
+                <ul>
+                    <li><strong>Criticidad:</strong> ${criticalityText}</li>
+                    <li><strong>Riesgo de falla:</strong> ${risk === 'high' ? 'Alto' : 'Bajo'}</li>
+                    <li><strong>Disponibilidad de fondos:</strong> ${fundsText}</li>
+                    <li>${qualitativeRecommendation}</li>
+                </ul>
+                <h6 class="mt-3 text-primary">Recomendación final:</h6>
+                <p class="fw-bold">${finalRecommendation}</p>
+                <hr>
+                <button id="copyReportBtn" class="btn btn-sm btn-secondary">Copiar reporte completo</button>
+                <small class="text-muted ms-2">El reporte detallado se puede copiar o guardar con el botón "Guardar análisis".</small>
+            `;
+            resultadoDiv.style.display = 'block';
+             // Forzar redibujo de los gráficos
+            setTimeout(function() {
+                if (window.carCasChartInstance) window.carCasChartInstance.resize();
+                if (window.factoresChartInstance) window.factoresChartInstance.resize();
+            }, 100);
+            exportBtn.disabled = false;
+
+            document.getElementById('copyReportBtn').addEventListener('click', function() {
+                navigator.clipboard.writeText(ultimoReporte).then(() => alert('Reporte copiado al portapapeles'));
+            });
+        });
+
+        // Exportar reporte como archivo .txt
+        exportBtn.addEventListener('click', function() {
+            if (!ultimoReporte) return;
+            const blob = new Blob([ultimoReporte], { type: 'text/plain;charset=utf-8' });
+            const link = document.createElement('a');
+            const url = URL.createObjectURL(blob);
+            link.href = url;
+            link.download = `analisis_${equipmentData.code}_${new Date().toISOString().slice(0,19)}.txt`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+        });
+    });
+</script>
 {% endblock %}

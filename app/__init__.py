@@ -28,6 +28,7 @@ def create_app():
 
     # Importar blueprints
     from app.blueprints import auth_bp, dashboard_bp, admin_bp, equipment_bp, work_orders_bp, attachments_bp
+    from app.blueprints.criticality import criticality_bp
 
     # Registrar blueprints
     app.register_blueprint(auth_bp, url_prefix='/auth')
@@ -36,11 +37,21 @@ def create_app():
     app.register_blueprint(equipment_bp)
     app.register_blueprint(work_orders_bp)
     app.register_blueprint(attachments_bp)
+    app.register_blueprint(criticality_bp)
 
     @app.route('/')
     def root():
         if current_user.is_authenticated:
             return redirect(url_for('dashboard.index'))
         return redirect(url_for('auth.login'))
+
+    @app.template_filter('format_currency')
+    def format_currency(value):
+        if value is None:
+            return ''
+        try:
+            return f"{value:,.2f}".replace(',', ' ')  # si quieres espacio como separador, o ',' para coma
+        except:
+            return str(value)
 
     return app

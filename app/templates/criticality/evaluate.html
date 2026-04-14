@@ -1,0 +1,173 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-10 mx-auto">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h4><i class="fas fa-chart-line"></i> Evaluación de Criticidad: {{ equipment.code }} - {{ equipment.name }}</h4>
+            </div>
+            <div class="card-body">
+                <form method="POST">
+                    <!-- 1. Análisis de criticidad (puntuaciones 1-5) -->
+                    <h5 class="mt-3 text-primary">1. Análisis de Criticidad</h5>
+                    <hr>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">Seguridad y Medio Ambiente</label>
+                            {% for val, label in [(5,'5 - Puede originar accidente muy grave / Ha producido accidentes'),(4,'4 - Riesgo alto'),(3,'3 - Revisiones anuales'),(2,'2 - Posibilidad remota de accidente'),(1,'1 - Poca influencia')] %}
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="safety_score" value="{{ val }}" {% if equipment.safety_score == val %}checked{% endif %} required>
+                                <label>{{ label }}</label>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">Producción</label>
+                            {% for val, label in [(5,'5 - Afecta al Plan de Producción (parada total)'),(4,'4 - Afecta severamente'),(3,'3 - Afecta pero recuperable'),(2,'2 - Afecta mínimamente'),(1,'1 - Poca influencia')] %}
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="production_score" value="{{ val }}" {% if equipment.production_score == val %}checked{% endif %} required>
+                                <label>{{ label }}</label>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">Calidad</label>
+                            {% for val, label in [(5,'5 - Clave para la calidad / Alto % de rechazos'),(4,'4 - Afecta significativamente'),(3,'3 - Afecta pero no problemático'),(2,'2 - Afecta mínimamente'),(1,'1 - No afecta')] %}
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="quality_score" value="{{ val }}" {% if equipment.quality_score == val %}checked{% endif %} required>
+                                <label>{{ label }}</label>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">Mantenimiento</label>
+                            {% for val, label in [(5,'5 - Alto coste / Averías frecuentes'),(4,'4 - Coste alto, averías moderadas'),(3,'3 - Coste medio'),(2,'2 - Coste bajo, pocas averías'),(1,'1 - Bajo coste')] %}
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="maintenance_score" value="{{ val }}" {% if equipment.maintenance_score == val %}checked{% endif %} required>
+                                <label>{{ label }}</label>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+
+                    <!-- 2. Datos Económicos (MXN) -->
+<h5 class="mt-4 text-primary">2. Datos Económicos (MXN)</h5>
+<hr>
+<div class="row">
+    <div class="col-md-6 mb-3">
+        <label for="downtime_cost_mxn" class="form-label">Valor de parada por hora (MXN)</label>
+        <input type="number" step="0.01" class="form-control" id="downtime_cost_mxn" name="downtime_cost_mxn" value="{{ equipment.downtime_cost_mxn or '' }}">
+        <small class="text-muted">Ej: 1250.50</small>
+    </div>
+    <div class="col-md-6 mb-3">
+        <label for="equipment_cost_mxn" class="form-label">Coste del equipo (antes de IVA e impuestos) (MXN)</label>
+        <input type="number" step="0.01" class="form-control" id="equipment_cost_mxn" name="equipment_cost_mxn" value="{{ equipment.equipment_cost_mxn or '' }}">
+        <small class="text-muted">Ej: 150000.00</small>
+    </div>
+</div>
+<div class="alert alert-secondary">
+    <strong>Valores calculados automáticamente:</strong><br>
+    Coste de reparación estimado (50% del equipo): <strong id="repair_preview">-</strong> MXN<br>
+    Nivel de coste de parada: <strong id="downtime_level_preview">-</strong><br>
+    Nivel de coste de reparación: <strong id="repair_level_preview">-</strong>
+</div>
+
+                    <!-- 3. Disponibilidad requerida (cualitativa) -->
+                    <h5 class="mt-4 text-primary">3. Disponibilidad Requerida</h5>
+                    <hr>
+                    <div class="row">
+                        <div class="col-md-12 mb-3">
+                            <label class="form-label fw-bold">Nivel de disponibilidad</label>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="availability_level" value="Mayor a 90%" {% if equipment.availability_level == 'Mayor a 90%' %}checked{% endif %}>
+                                <label>Mayor a 90%</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="availability_level" value="Media" {% if equipment.availability_level == 'Media' %}checked{% endif %}>
+                                <label>Media</label>
+                            </div>
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" name="availability_level" value="Poco uso o baja posibilidad de fallo" {% if equipment.availability_level == 'Poco uso o baja posibilidad de fallo' %}checked{% endif %}>
+                                <label>Poco uso o baja posibilidad de fallo</label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 4. Mantenimiento legal y subcontratado (opcional) -->
+                    <h5 class="mt-4 text-primary">4. Mantenimiento Legal y Subcontratado</h5>
+                    <hr>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="has_legal_maintenance" id="has_legal_maintenance" {% if equipment.has_legal_maintenance %}checked{% endif %}>
+                                <label class="form-check-label" for="has_legal_maintenance">Requiere mantenimiento legal (normativa aplicable)</label>
+                            </div>
+                            <textarea class="form-control mt-2" name="legal_requirements" rows="2" placeholder="Especificar normativas...">{{ equipment.legal_requirements or '' }}</textarea>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" name="has_subcontracted" id="has_subcontracted" {% if equipment.has_subcontracted %}checked{% endif %}>
+                                <label class="form-check-label" for="has_subcontracted">Requiere subcontratación (fabricante/especialista)</label>
+                            </div>
+                            <textarea class="form-control mt-2" name="subcontract_details" rows="2" placeholder="Detalles del subcontrato...">{{ equipment.subcontract_details or '' }}</textarea>
+                        </div>
+                    </div>
+
+                    <!-- 5. Modelo de mantenimiento (override manual) -->
+                    <h5 class="mt-4 text-primary">5. Modelo de Mantenimiento</h5>
+                    <hr>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="maintenance_model_override" class="form-label">Modelo sugerido (automático)</label>
+                            <select name="maintenance_model_override" class="form-control">
+                                <option value="">[Automático según reglas]</option>
+                                <option value="correctivo" {% if equipment.maintenance_model == 'correctivo' %}selected{% endif %}>Correctivo</option>
+                                <option value="condicional" {% if equipment.maintenance_model == 'condicional' %}selected{% endif %}>Condicional</option>
+                                <option value="sistematico" {% if equipment.maintenance_model == 'sistematico' %}selected{% endif %}>Sistemático</option>
+                                <option value="alta_disponibilidad" {% if equipment.maintenance_model == 'alta_disponibilidad' %}selected{% endif %}>Alta Disponibilidad</option>
+                            </select>
+                            <small class="text-muted">Si selecciona, reemplazará el cálculo automático</small>
+                        </div>
+                    </div>
+
+                    <div class="alert alert-info mt-3">
+                        <strong>Resumen:</strong><br>
+                        Criticidad calculada: {{ equipment.criticality or 'Pendiente' }}<br>
+                        Modelo sugerido: {{ equipment.maintenance_model or 'Pendiente' }}
+                    </div>
+
+                    <button type="submit" class="btn btn-primary">Guardar Evaluación</button>
+                    <a href="{{ url_for('criticality.index') }}" class="btn btn-secondary">Cancelar</a>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+<script>
+    const downtimeInput = document.getElementById('downtime_cost_mxn');
+    const equipmentCostInput = document.getElementById('equipment_cost_mxn');
+    const repairPreview = document.getElementById('repair_preview');
+    const downtimeLevelPreview = document.getElementById('downtime_level_preview');
+    const repairLevelPreview = document.getElementById('repair_level_preview');
+
+    function updatePreviews() {
+        const equipCost = parseFloat(equipmentCostInput.value);
+        if (!isNaN(equipCost)) {
+            const repairCost = equipCost * 0.5;
+            repairPreview.textContent = repairCost.toFixed(2);
+        } else {
+            repairPreview.textContent = '-';
+        }
+        // Los niveles se calcularán en el servidor, aquí solo mostramos mensaje
+        downtimeLevelPreview.textContent = '(se calculará al guardar)';
+        repairLevelPreview.textContent = '(se calculará al guardar)';
+    }
+    downtimeInput.addEventListener('input', updatePreviews);
+    equipmentCostInput.addEventListener('input', updatePreviews);
+    updatePreviews();
+</script>
+
+{% endblock %}

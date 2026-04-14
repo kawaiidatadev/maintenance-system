@@ -8,6 +8,7 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <!-- Font Awesome para íconos -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
 <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
@@ -29,20 +30,10 @@
                         </a>
                     </li>
                     {% endif %}
-                    <li class="nav-item">
-                        <span class="nav-link">
-                            <i class="fas fa-user"></i> {{ current_user.username }} ({{ current_user.role }})
-                        </span>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('auth.logout') }}">
-                            <i class="fas fa-sign-out-alt"></i> Cerrar Sesión
-                        </a>
-                    </li>
 
                     <li class="nav-item">
-                         <a class="nav-link" href="{{ url_for('equipment.list_equipment') }}">
-                             <i class="fas fa-microchip"></i> Equipos
+                        <a class="nav-link" href="{{ url_for('equipment.list_equipment') }}">
+                            <i class="fas fa-microchip"></i> Equipos
                         </a>
                     </li>
 
@@ -52,28 +43,46 @@
                         </a>
                     </li>
 
+                    <!-- NUEVO: Enlace para Análisis de Criticidad -->
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('criticality.index') }}">
+                            <i class="fas fa-chart-line"></i> Criticidad
+                        </a>
+                    </li>
+
+                    <li class="nav-item">
+                        <span class="nav-link">
+                            <i class="fas fa-user"></i> {{ current_user.username }} ({{ current_user.role }})
+                        </span>
+                    </li>
+
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('auth.logout') }}">
+                            <i class="fas fa-sign-out-alt"></i> Cerrar Sesión
+                        </a>
+                    </li>
                 {% endif %}
             </ul>
         </div>
     </div>
 </nav>
 
-    <div class="container mt-4">
-        {% with messages = get_flashed_messages(with_categories=true) %}
-            {% if messages %}
-                {% for category, message in messages %}
-                    <div class="alert alert-{{ category if category != 'message' else 'info' }} alert-dismissible fade show">
-                        {{ message }}
-                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                    </div>
-                {% endfor %}
-            {% endif %}
-        {% endwith %}
+<div class="container mt-4">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="alert alert-{{ category if category != 'message' else 'info' }} alert-dismissible fade show">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
 
-        {% block content %}{% endblock %}
-    </div>
+    {% block content %}{% endblock %}
+</div>
 
-    <!-- Bootstrap JS -->
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<!-- Bootstrap JS -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>

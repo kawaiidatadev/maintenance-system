@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h1><i class="fas fa-chart-line"></i> Análisis de Criticidad y Modelos de Mantenimiento</h1>
+
+</div>
+
+<div class="card">
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-striped table-hover">
+                <thead>
+                    <tr>
+                        <th>Código</th>
+                        <th>Nombre</th>
+                        <th>Sistema</th>
+                        <th>Seguridad</th>
+                        <th>Producción</th>
+                        <th>Calidad</th>
+                        <th>Mantenimiento</th>
+                        <th>Criticidad</th>
+                        <th>Modelo</th>
+                        <th>Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for eq in equipments %}
+                    <tr>
+                        <td>{{ eq.code }}</td>
+                        <td>{{ eq.name }}</td>
+                        <td>{{ eq.system.name if eq.system else '-' }}</td>
+                        <td>{{ eq.safety_score or '-' }}/5</td>
+                        <td>{{ eq.production_score or '-' }}/5</td>
+                        <td>{{ eq.quality_score or '-' }}/5</td>
+                        <td>{{ eq.maintenance_score or '-' }}/5</td>
+                        <td>{{ eq.get_criticality_label()|safe }}</td>
+                        <td>{{ eq.get_maintenance_model_label()|safe }}</td>
+                        <td>
+                            <a href="{{ url_for('criticality.evaluate', id=eq.id) }}" class="btn btn-sm btn-primary">
+                                <i class="fas fa-edit"></i> Evaluar
+                            </a>
+                            <a href="{{ url_for('equipment.view_equipment', id=eq.id) }}" class="btn btn-sm btn-info">
+                                <i class="fas fa-eye"></i> Ver
+                            </a>
+                         </td>
+                     </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="10" class="text-center">No hay equipos registrados</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

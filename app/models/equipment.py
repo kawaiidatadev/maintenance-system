@@ -8,9 +8,8 @@ class Equipment(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
 
-    # Relación con sistema (nuevo)
+    # Relación con sistema
     system_id = db.Column(db.Integer, db.ForeignKey('systems.id'))
-    # system = db.relationship('System', backref='equipment')  # se define en System
 
     # Datos básicos
     code = db.Column(db.String(50), unique=True, nullable=False)
@@ -40,9 +39,211 @@ class Equipment(db.Model):
     status = db.Column(db.String(20), default='Operativo')
     description = db.Column(db.Text)
 
+    # Criticidad
+    safety_score = db.Column(db.Integer)
+    production_score = db.Column(db.Integer)
+    quality_score = db.Column(db.Integer)
+    maintenance_score = db.Column(db.Integer)
+    criticality = db.Column(db.String(1))
+    last_criticality_review = db.Column(db.Date)
+
+    # Datos económicos
+    equipment_cost_mxn = db.Column(db.Float, comment='Costo del equipo antes de IVA/impuestos (MXN)')
+    downtime_cost_mxn = db.Column(db.Float, comment='Valor de parada por hora (MXN)')
+    repair_cost_mxn = db.Column(db.Float, comment='Calculado: 50% del equipment_cost_mxn')
+    downtime_cost_level = db.Column(db.String(10))
+    repair_cost_level = db.Column(db.String(10))
+
+    # Disponibilidad cualitativa
+    availability_level = db.Column(db.String(50))
+
+    # Modelo
+    maintenance_model = db.Column(db.String(30))
+    model_justification = db.Column(db.Text)
+
+    # Legal y subcontrato
+    has_legal_maintenance = db.Column(db.Boolean, default=False)
+    legal_requirements = db.Column(db.Text)
+    has_subcontracted = db.Column(db.Boolean, default=False)
+    subcontract_details = db.Column(db.Text)
+
     # Auditoría
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # ==================== MÉTODOS ====================
+
+    def calculate_criticality(self):
+        """Calcula criticidad: la categoría más alta (A > B > C) según puntuaciones 1-5"""
+
+        def score_to_category(score):
+            if score >= 4:
+                return 'A'
+            elif score >= 2:
+                return 'B'
+            else:
+                return 'C'
+
+        categories = []
+        if self.safety_score:
+            categories.append(score_to_category(self.safety_score))
+        if self.production_score:
+            categories.append(score_to_category(self.production_score))
+        if self.quality_score:
+            categories.append(score_to_category(self.quality_score))
+        if self.maintenance_score:
+            categories.append(score_to_category(self.maintenance_score))
+
+        if 'A' in categories:
+            self.criticality = 'A'
+        elif 'B' in categories:
+            self.criticality = 'B'
+        else:
+            self.criticality = 'C' if categories else None
+        return self.criticality
+
+    def calculate_repair_cost(self):
+        """Calcula repair_cost_mxn como 50% del equipment_cost_mxn"""
+        if self.equipment_cost_mxn is not None:
+            self.repair_cost_mxn = self.equipment_cost_mxn * 0.5
+        else:
+            self.repair_cost_mxn = None
+
+    @staticmethod
+    def get_percentiles():
+        """Calcula percentiles 25 y 75 usando SQL nativo (compatible con MySQL 5.x)"""
+        from app import db
+        from sqlalchemy import text
+
+        # Percentiles para downtime_cost_mxn
+        downtime_p25 = None
+        downtime_p75 = None
+        repair_p25 = None
+        repair_p75 = None
+
+        # Método manual para percentiles usando LIMIT y OFFSET
+        # 1. Contar cuántos valores no nulos hay
+        result = db.session.query(
+            db.func.count(Equipment.downtime_cost_mxn)
+        ).filter(Equipment.downtime_cost_mxn.isnot(None)).scalar()
+
+        if result and result > 0:
+            count = result
+            # Percentil 25: posición en el cuartil 1
+            pos_25 = int(count * 0.25)
+            # Percentil 75: posición en el cuartil 3
+            pos_75 = int(count * 0.75)
+
+            # Obtener valor en la posición pos_25
+            p25_result = db.session.query(Equipment.downtime_cost_mxn).filter(
+                Equipment.downtime_cost_mxn.isnot(None)
+            ).order_by(Equipment.downtime_cost_mxn).offset(pos_25).limit(1).first()
+            downtime_p25 = p25_result[0] if p25_result else None
+
+            # Obtener valor en la posición pos_75
+            p75_result = db.session.query(Equipment.downtime_cost_mxn).filter(
+                Equipment.downtime_cost_mxn.isnot(None)
+            ).order_by(Equipment.downtime_cost_mxn).offset(pos_75).limit(1).first()
+            downtime_p75 = p75_result[0] if p75_result else None
+
+        # Percentiles para repair_cost_mxn
+        result2 = db.session.query(
+            db.func.count(Equipment.repair_cost_mxn)
+        ).filter(Equipment.repair_cost_mxn.isnot(None)).scalar()
+
+        if result2 and result2 > 0:
+            count2 = result2
+            pos_25 = int(count2 * 0.25)
+            pos_75 = int(count2 * 0.75)
+
+            p25_result = db.session.query(Equipment.repair_cost_mxn).filter(
+                Equipment.repair_cost_mxn.isnot(None)
+            ).order_by(Equipment.repair_cost_mxn).offset(pos_25).limit(1).first()
+            repair_p25 = p25_result[0] if p25_result else None
+
+            p75_result = db.session.query(Equipment.repair_cost_mxn).filter(
+                Equipment.repair_cost_mxn.isnot(None)
+            ).order_by(Equipment.repair_cost_mxn).offset(pos_75).limit(1).first()
+            repair_p75 = p75_result[0] if p75_result else None
+
+        return downtime_p25, downtime_p75, repair_p25, repair_p75
+
+    def determine_cost_levels(self):
+        """Asigna 'Alto' o 'Bajo' según percentiles globales"""
+        p25_downtime, p75_downtime, p25_repair, p75_repair = Equipment.get_percentiles()
+
+        # Para downtime
+        if self.downtime_cost_mxn is not None and p75_downtime is not None:
+            if self.downtime_cost_mxn >= p75_downtime:
+                self.downtime_cost_level = 'Alto'
+            elif self.downtime_cost_mxn <= p25_downtime:
+                self.downtime_cost_level = 'Bajo'
+            else:
+                self.downtime_cost_level = 'Bajo'  # intermedio se considera bajo
+
+        # Para repair cost
+        if self.repair_cost_mxn is not None and p75_repair is not None:
+            if self.repair_cost_mxn >= p75_repair:
+                self.repair_cost_level = 'Alto'
+            elif self.repair_cost_mxn <= p25_repair:
+                self.repair_cost_level = 'Bajo'
+            else:
+                self.repair_cost_level = 'Bajo'
+
+    def determine_maintenance_model(self):
+        """Selecciona modelo según criticidad, disponibilidad, y niveles de coste (lógica anidada Excel)"""
+        if not self.criticality:
+            return None
+
+        # Mapeo de disponibilidad
+        disp = self.availability_level  # 'Mayor a 90%', 'Media', 'Poco uso o baja posibilidad de fallo'
+
+        # Reglas según tu fórmula
+        if self.criticality == 'A':  # Crítico
+            if disp == 'Mayor a 90%':
+                self.maintenance_model = 'alta_disponibilidad'
+                self.model_justification = 'Equipo crítico con disponibilidad >90% → Alta Disponibilidad.'
+            elif disp == 'Media':
+                self.maintenance_model = 'sistematico'
+                self.model_justification = 'Equipo crítico con disponibilidad media → Sistemático.'
+            else:
+                self.maintenance_model = 'condicional'
+                self.model_justification = 'Equipo crítico con poco uso o baja probabilidad de fallo → Condicional.'
+
+        elif self.criticality == 'B':  # Importante
+            if self.downtime_cost_level == 'Alto':
+                # Modelo programado según disponibilidad
+                if disp == 'Mayor a 90%':
+                    self.maintenance_model = 'alta_disponibilidad'
+                    self.model_justification = 'Equipo importante con coste de parada Alto y disponibilidad >90% → Alta Disponibilidad.'
+                elif disp == 'Media':
+                    self.maintenance_model = 'sistematico'
+                    self.model_justification = 'Equipo importante con coste de parada Alto y disponibilidad media → Sistemático.'
+                else:
+                    self.maintenance_model = 'condicional'
+                    self.model_justification = 'Equipo importante con coste de parada Alto y baja disponibilidad requerida → Condicional.'
+            else:  # downtime_cost_level == 'Bajo'
+                if self.repair_cost_level == 'Alto':
+                    if disp == 'Mayor a 90%':
+                        self.maintenance_model = 'alta_disponibilidad'
+                        self.model_justification = 'Equipo importante con coste de reparación Alto y disponibilidad >90% → Alta Disponibilidad.'
+                    elif disp == 'Media':
+                        self.maintenance_model = 'sistematico'
+                        self.model_justification = 'Equipo importante con coste de reparación Alto y disponibilidad media → Sistemático.'
+                    else:
+                        self.maintenance_model = 'condicional'
+                        self.model_justification = 'Equipo importante con coste de reparación Alto y baja disponibilidad → Condicional.'
+                else:  # repair_cost_level == 'Bajo'
+                    self.maintenance_model = 'correctivo'
+                    self.model_justification = 'Equipo importante con costes de parada y reparación Bajos → Correctivo.'
+
+        else:  # Prescindible
+            self.maintenance_model = 'correctivo'
+            self.model_justification = 'Equipo prescindible → Correctivo.'
+
+        return self.maintenance_model
+
+    # ==================== MÉTODOS AUXILIARES ====================
 
     def calculate_life_remaining(self):
         if self.estimated_life_hours and self.total_operating_hours:
@@ -61,9 +262,25 @@ class Equipment(db.Model):
     def get_system_name(self):
         return self.system.name if self.system else 'Sin sistema'
 
+    def get_criticality_label(self):
+        labels = {
+            'A': '<span class="badge bg-danger">A - Crítico</span>',
+            'B': '<span class="badge bg-warning">B - Importante</span>',
+            'C': '<span class="badge bg-success">C - Prescindible</span>'
+        }
+        return labels.get(self.criticality, '<span class="badge bg-secondary">No definido</span>')
+
+    def get_maintenance_model_label(self):
+        models = {
+            'correctivo': '<span class="badge bg-secondary">Correctivo</span>',
+            'condicional': '<span class="badge bg-info">Condicional</span>',
+            'sistematico': '<span class="badge bg-primary">Sistemático</span>',
+            'alta_disponibilidad': '<span class="badge bg-danger">Alta Disponibilidad</span>'
+        }
+        return models.get(self.maintenance_model, '<span class="badge bg-secondary">No definido</span>')
+
     @staticmethod
     def generate_code(category, location, plant_section):
-        # Mismo código que antes, pero sin cambios
         category_map = {
             'BOMBA': 'BOM', 'MOTOR': 'MOT', 'COMPRESOR': 'COM',
             'VALVULA': 'VAL', 'TANQUE': 'TAN', 'CINTA': 'CIN',
@@ -87,7 +304,9 @@ class Equipment(db.Model):
         return f'<Equipment {self.code} - {self.name}>'
 
 
+# ==================== EVENTOS ====================
 @event.listens_for(Equipment, 'before_update')
 @event.listens_for(Equipment, 'before_insert')
 def calculate_life_remaining(mapper, connection, target):
     target.calculate_life_remaining()
+    target.calculate_repair_cost()
