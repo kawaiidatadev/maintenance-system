@@ -71,6 +71,53 @@ class Equipment(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+    # Nuevos campos (agregar dentro de la clase Equipment)
+    operating_time_method = db.Column(db.String(30))  # manual_fixed, counter_reading, etc.
+    daily_operating_hours = db.Column(db.Float)
+    operating_days_per_week = db.Column(db.Integer)
+    initial_counter_value = db.Column(db.Float)
+    last_counter_value = db.Column(db.Float)
+    last_counter_reading_date = db.Column(db.Date)
+
+    def calculate_operating_hours(self, reference_date=None):
+        """Calcula horas totales según el método seleccionado"""
+        if self.operating_time_method == 'manual_fixed':
+            return self._calculate_manual_fixed(reference_date)
+        elif self.operating_time_method == 'counter_reading':
+            return self._calculate_counter_reading()
+        else:
+            return self.total_operating_hours or 0
+
+    def _calculate_manual_fixed(self, reference_date=None):
+        """Método: cálculo automático por horario fijo"""
+        if not self.commissioning_date:
+            return 0
+        if not self.daily_operating_hours or not self.operating_days_per_week:
+            return 0
+
+        from datetime import date
+        end_date = reference_date or date.today()
+        start_date = self.commissioning_date
+
+        if end_date < start_date:
+            return 0
+
+        delta_days = (end_date - start_date).days
+        weeks = delta_days / 7.0
+        operating_days = weeks * self.operating_days_per_week
+        total_hours = operating_days * self.daily_operating_hours
+        return int(round(total_hours))
+
+    def _calculate_counter_reading(self):
+        """Método: lectura de contador (último valor - valor inicial)"""
+        if self.initial_counter_value is not None and self.last_counter_value is not None:
+            return max(0, self.last_counter_value - self.initial_counter_value)
+        return self.total_operating_hours or 0
+
+    def update_operating_hours(self):
+        """Actualiza el campo total_operating_hours según el método"""
+        self.total_operating_hours = self.calculate_operating_hours()
+
     # ==================== MÉTODOS ====================
 
     def calculate_criticality(self):
@@ -310,3 +357,4 @@ class Equipment(db.Model):
 def calculate_life_remaining(mapper, connection, target):
     target.calculate_life_remaining()
     target.calculate_repair_cost()
+

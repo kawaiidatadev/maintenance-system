@@ -98,16 +98,10 @@
                             <small class="text-muted">Ej: 50000 horas</small>
                         </div>
                         <div class="col-md-4 mb-3">
-                            <label>Horas totales operación</label>
-                            <input type="number" step="10" name="total_operating_hours" class="form-control" value="{{ equipment.total_operating_hours or 0 }}">
-                        </div>
-                        <div class="col-md-4 mb-3">
                             <label>Fecha puesta en marcha</label>
                             <input type="date" name="commissioning_date" class="form-control" value="{{ equipment.commissioning_date if equipment.commissioning_date else '' }}">
                         </div>
-                    </div>
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
+                        <div class="col-md-4 mb-3">
                             <label>Especialidad requerida</label>
                             <select name="recommended_specialty" class="form-control">
                                 <option value="">No especificada</option>
@@ -119,6 +113,8 @@
                                 <option value="Hidráulico" {% if equipment.recommended_specialty == 'Hidráulico' %}selected{% endif %}>Hidráulico</option>
                             </select>
                         </div>
+                    </div>
+                    <div class="row">
                         <div class="col-md-6 mb-3">
                             <label>Último mantenimiento mayor</label>
                             <input type="date" name="last_maintenance_date" class="form-control" value="{{ equipment.last_maintenance_date if equipment.last_maintenance_date else '' }}">
@@ -133,6 +129,62 @@
                     </div>
                     {% endif %}
 
+                    <!-- === MEDICIÓN DE TIEMPO DE OPERACIÓN === -->
+                    <h5 class="mt-4 text-primary">Medición de Tiempo de Operación</h5>
+                    <hr>
+
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label for="operating_time_method" class="form-label">Método de medición</label>
+                            <select class="form-control" id="operating_time_method" name="operating_time_method">
+                                <option value="">Seleccionar método...</option>
+                                <option value="manual_fixed" {% if equipment.operating_time_method == 'manual_fixed' %}selected{% endif %}>Manual fijo (horario predefinido)</option>
+                                <option value="counter_reading" {% if equipment.operating_time_method == 'counter_reading' %}selected{% endif %}>Lectura de contador (horómetro)</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Campos para método MANUAL FIJO -->
+                    <div id="manual_fixed_fields" style="display: none;">
+                        <div class="row">
+                            <div class="col-md-4 mb-3">
+                                <label for="daily_operating_hours" class="form-label">Horas de operación por día</label>
+                                <input type="number" step="0.5" class="form-control" id="daily_operating_hours" name="daily_operating_hours" value="{{ equipment.daily_operating_hours or '' }}">
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label for="operating_days_per_week" class="form-label">Días de operación por semana</label>
+                                <input type="number" class="form-control" id="operating_days_per_week" name="operating_days_per_week" value="{{ equipment.operating_days_per_week or '' }}" min="1" max="7">
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label">Horas calculadas</label>
+                                <input type="text" class="form-control" readonly value="{{ equipment.total_operating_hours|round|int if equipment.total_operating_hours else '0' }} horas">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Campos para método LECTURA DE CONTADOR -->
+                    <div id="counter_reading_fields" style="display: none;">
+                        <div class="row">
+                            <div class="col-md-4 mb-3">
+                                <label for="initial_counter_value" class="form-label">Valor inicial del contador (horas)</label>
+                                <input type="number" step="0.1" class="form-control" id="initial_counter_value" name="initial_counter_value" value="{{ equipment.initial_counter_value or '' }}">
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label for="last_counter_value" class="form-label">Última lectura (horas)</label>
+                                <input type="number" step="0.1" class="form-control" id="last_counter_value" name="last_counter_value" value="{{ equipment.last_counter_value or '' }}">
+                            </div>
+                            <div class="col-md-4 mb-3">
+                                <label class="form-label">Horas calculadas</label>
+                                <input type="text" class="form-control" readonly value="{{ equipment.total_operating_hours|round|int if equipment.total_operating_hours else '0' }} horas">
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-12">
+                                <a href="{{ url_for('equipment.reading_history', id=equipment.id) }}" class="btn btn-sm btn-info">Ver historial de lecturas</a>
+                            </div>
+                        </div>
+                    </div>
+
                     <div class="mt-4">
                         <button type="submit" class="btn btn-primary">Guardar cambios</button>
                         <a href="{{ url_for('equipment.view_equipment', id=equipment.id) }}" class="btn btn-secondary">Cancelar</a>
@@ -142,4 +194,25 @@
         </div>
     </div>
 </div>
+
+<script>
+    function toggleOperatingFields() {
+        const method = document.getElementById('operating_time_method').value;
+        const manualDiv = document.getElementById('manual_fixed_fields');
+        const counterDiv = document.getElementById('counter_reading_fields');
+
+        manualDiv.style.display = 'none';
+        counterDiv.style.display = 'none';
+
+        if (method === 'manual_fixed') {
+            manualDiv.style.display = 'block';
+        } else if (method === 'counter_reading') {
+            counterDiv.style.display = 'block';
+        }
+    }
+
+    document.getElementById('operating_time_method').addEventListener('change', toggleOperatingFields);
+    // Ejecutar al cargar
+    toggleOperatingFields();
+</script>
 {% endblock %}

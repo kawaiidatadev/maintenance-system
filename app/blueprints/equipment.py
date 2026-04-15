@@ -7,6 +7,7 @@ from app.models.system import System
 from werkzeug.utils import secure_filename
 import os
 from flask import current_app
+from app.models.equipment_reading import EquipmentReading
 
 equipment_bp = Blueprint('equipment', __name__, url_prefix='/equipment')
 
@@ -124,7 +125,9 @@ def edit_equipment(id):
     equipment = Equipment.query.get_or_404(id)
 
     if request.method == 'POST':
-        # Campos básicos
+        # ============================================
+        # CAMPOS BÁSICOS
+        # ============================================
         equipment.code = request.form.get('code')
         equipment.name = request.form.get('name')
         equipment.category = request.form.get('category')
@@ -137,14 +140,18 @@ def edit_equipment(id):
         equipment.status = request.form.get('status')
         equipment.description = request.form.get('description')
 
-        # Atributos técnicos
+        # ============================================
+        # ATRIBUTOS TÉCNICOS
+        # ============================================
         equipment.manufacturer = request.form.get('manufacturer') or None
         equipment.model = request.form.get('model') or None
         equipment.serial_number = request.form.get('serial_number') or None
         inst_date = request.form.get('installation_date')
         equipment.installation_date = datetime.strptime(inst_date, '%Y-%m-%d').date() if inst_date else None
 
-        # Atributos avanzados
+        # ============================================
+        # ATRIBUTOS AVANZADOS
+        # ============================================
         estimated_life = request.form.get('estimated_life_hours')
         equipment.estimated_life_hours = float(estimated_life) if estimated_life and estimated_life != '' else None
 
@@ -158,17 +165,50 @@ def edit_equipment(id):
         equipment.last_maintenance_date = datetime.strptime(last_maintenance,
                                                             '%Y-%m-%d').date() if last_maintenance else None
 
-        operating_hours = request.form.get('total_operating_hours')
-        equipment.total_operating_hours = float(operating_hours) if operating_hours and operating_hours != '' else 0
+        # ============================================
+        # MEDICIÓN DE TIEMPO DE OPERACIÓN (NUEVO)
+        # ============================================
+        operating_method = request.form.get('operating_time_method')
+        equipment.operating_time_method = operating_method if operating_method else None
 
-        # Calcular vida restante
+        if operating_method == 'manual_fixed':
+            daily_hours = request.form.get('daily_operating_hours')
+            equipment.daily_operating_hours = float(daily_hours) if daily_hours and daily_hours != '' else None
+            days_per_week = request.form.get('operating_days_per_week')
+            equipment.operating_days_per_week = int(days_per_week) if days_per_week and days_per_week != '' else None
+            equipment.initial_counter_value = None
+            equipment.last_counter_value = None
+        elif operating_method == 'counter_reading':
+            initial_value = request.form.get('initial_counter_value')
+            equipment.initial_counter_value = float(initial_value) if initial_value and initial_value != '' else None
+            last_value = request.form.get('last_counter_value')
+            equipment.last_counter_value = float(last_value) if last_value and last_value != '' else None
+            equipment.daily_operating_hours = None
+            equipment.operating_days_per_week = None
+        else:
+            equipment.daily_operating_hours = None
+            equipment.operating_days_per_week = None
+            equipment.initial_counter_value = None
+            equipment.last_counter_value = None
+
+        # ============================================
+        # CÁLCULOS AUTOMÁTICOS
+        # ============================================
+        # Calcular vida restante (por horas estimadas)
         equipment.calculate_life_remaining()
+
+        # Recalcular horas totales de operación según método seleccionado
+        equipment.update_operating_hours()
 
         equipment.updated_at = datetime.utcnow()
         db.session.commit()
+
         flash(f'Equipo {equipment.code} actualizado', 'success')
         return redirect(url_for('equipment.view_equipment', id=equipment.id))
 
+    # ============================================
+    # GET: Mostrar formulario
+    # ============================================
     systems = System.query.order_by(System.code).all()
     return render_template('equipment/edit.html', equipment=equipment, systems=systems)
 
@@ -202,3 +242,45 @@ def suggest_code():
 def tree_view():
     roots = Equipment.query.filter_by(parent_id=None).order_by(Equipment.code).all()
     return render_template('equipment/tree.html', roots=roots)
+
+@equipment_bp.route('/reading_history/<int:id>')
+@login_required
+def reading_history(id):
+    equipment = Equipment.query.get_or_404(id)
+    readings = EquipmentReading.query.filter_by(equipment_id=id).order_by(EquipmentReading.reading_date.desc()).all()
+    return render_template('equipment/reading_history.html', equipment=equipment, readings=readings)
+
+
+
+@equipment_bp.route('/add_reading/<int:id>', methods=['GET', 'POST'])
+@login_required
+@admin_or_supervisor_required
+def add_reading(id):
+    equipment = Equipment.query.get_or_404(id)
+
+    if request.method == 'POST':
+        reading_value = request.form.get('reading_value')
+        notes = request.form.get('notes')
+
+        if reading_value and reading_value != '':
+            reading = EquipmentReading(
+                equipment_id=equipment.id,
+                reading_value=float(reading_value),
+                operator_id=current_user.id,
+                notes=notes
+            )
+            db.session.add(reading)
+
+            # Actualizar la última lectura del equipo
+            equipment.last_counter_value = float(reading_value)
+            equipment.last_counter_reading_date = datetime.now().date()
+            equipment.update_operating_hours()
+
+            db.session.commit()
+            flash(f'Lectura de {reading_value} horas registrada para {equipment.code}', 'success')
+        else:
+            flash('Debe ingresar un valor de lectura', 'danger')
+
+        return redirect(url_for('equipment.reading_history', id=equipment.id))
+
+    return render_template('equipment/add_reading.html', equipment=equipment)
