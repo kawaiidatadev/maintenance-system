@@ -56,17 +56,19 @@
                         <strong>Creado por:</strong> {{ order.created_by.username if order.created_by else 'Sistema' }}
                     </div>
                     <div class="col-md-4">
-                        <strong>Fecha reporte:</strong> {{ order.created_at.strftime('%d/%m/%Y %H:%M') if order.created_at else '-' }}
+                        <strong>Fecha reporte:</strong> {{ format_datetime(order.created_at) }}
                     </div>
                 </div>
 
                 {% if order.start_date %}
                 <div class="row mb-3">
                     <div class="col-md-4">
-                        <strong>Fecha inicio:</strong> {{ order.start_date.strftime('%d/%m/%Y %H:%M') }}
+                       <strong>Fecha inicio:</strong> {{ format_datetime(order.start_date) }}
+
                     </div>
                     <div class="col-md-4">
-                        <strong>Fecha fin:</strong> {{ order.completion_date.strftime('%d/%m/%Y %H:%M') if order.completion_date else '-' }}
+<strong>Fecha fin:</strong> {{ format_datetime(order.completion_date) }}
+
                     </div>
                     <div class="col-md-4">
                         <strong>Tiempo parada:</strong> {{ order.downtime_hours }} horas
@@ -140,7 +142,7 @@
                         </td>
                         <td>{{ att.description or '-' }}</td>
                         <td>{{ att.uploaded_by.username if att.uploaded_by else '-' }}</td>
-                        <td>{{ att.uploaded_at.strftime('%d/%m/%Y %H:%M') if att.uploaded_at else '-' }}</td>
+                        <td>{{ format_date(att.uploaded_at) }}</td>
                         <td>{{ (att.file_size / 1024)|round|int }} KB</td>
                         <td>
                             <a href="{{ url_for('attachments.download_file', id=att.id) }}" class="btn btn-sm btn-success">

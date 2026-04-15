@@ -8,24 +8,24 @@
                 <h4><i class="fas fa-cog"></i> Configuración del Sistema</h4>
             </div>
             <div class="card-body">
-                <form method="POST" action="{{ 1.strftime('%d/%m/%Y') if 1 else '-' }}('%d/%m/%Y %H:%M') if 1 else '-' }}('settings.update') }}">
+                <form method="POST" action="{{ url_for('settings.update') }}">
                     <div class="mb-3">
                         <label for="timezone" class="form-label">Zona Horaria</label>
                         <select name="timezone" id="timezone" class="form-control">
                             {% for tz in timezones %}
-                            <option value="{{ 1.strftime('%d/%m/%Y') if 1 else '-' }}('%d/%m/%Y %H:%M') if 1 else '-' }}}}" {% if timezone == tz %}selected{% endif %}>{{ 1.strftime('%d/%m/%Y') if 1 else '-' }}('%d/%m/%Y %H:%M') if 1 else '-' }}}}</option>
+                            <option value="{{ tz }}" {% if timezone == tz %}selected{% endif %}>{{ tz }}</option>
                             {% endfor %}
                         </select>
                         <small class="text-muted">Afecta cómo se muestran las fechas y horas en todo el sistema.</small>
                     </div>
                     <div class="mb-3">
                         <label for="date_format" class="form-label">Formato de Fecha</label>
-                        <input type="text" name="date_format" id="date_format" class="form-control" value="{{ 1.strftime('%d/%m/%Y') if 1 else '-' }}('%d/%m/%Y %H:%M') if 1 else '-' }}}}">
+                        <input type="text" name="date_format" id="date_format" class="form-control" value="{{ date_format }}">
                         <small class="text-muted">Ej: %d/%m/%Y (día/mes/año) o %Y-%m-%d (año-mes-día)</small>
                     </div>
                     <div class="mb-3">
                         <label for="datetime_format" class="form-label">Formato de Fecha y Hora</label>
-                        <input type="text" name="datetime_format" id="datetime_format" class="form-control" value="{{ 1.strftime('%d/%m/%Y') if 1 else '-' }}('%d/%m/%Y %H:%M') if 1 else '-' }}}}">
+                        <input type="text" name="datetime_format" id="datetime_format" class="form-control" value="{{ datetime_format }}">
                         <small class="text-muted">Ej: %d/%m/%Y %H:%M</small>
                     </div>
                     <button type="submit" class="btn btn-primary">Guardar Configuración</button>

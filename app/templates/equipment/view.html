@@ -61,7 +61,7 @@
                                     <span class="badge bg-danger">Fuera de Servicio</span>
                                 {% endif %}<br>
                                 <strong>Descripción:</strong> {{ equipment.description or '-' }}<br>
-                                <strong>Fecha creación:</strong> {{ equipment.created_at.strftime('%d/%m/%Y') if equipment.created_at else '-' }}
+                                <strong>Fecha creación:</strong> {{ format_datetime(equipment.created_at) }}
                             </div>
                         </div>
                     </div>
@@ -73,7 +73,7 @@
                                 <strong>Fabricante:</strong> {{ equipment.manufacturer or '-' }}<br>
                                 <strong>Modelo:</strong> {{ equipment.model or '-' }}<br>
                                 <strong>Número de Serie:</strong> {{ equipment.serial_number or '-' }}<br>
-                                <strong>Fecha Instalación:</strong> {{ equipment.installation_date.strftime('%d/%m/%Y') if equipment.installation_date else '-' }}
+                                <strong>Fecha Instalación:</strong> {{ format_date(equipment.installation_date) }}
                             </div>
                         </div>
                     </div>
@@ -109,8 +109,8 @@
                             </div>
                             <div class="col-md-6">
                                 <strong>Especialidad requerida:</strong> {{ equipment.recommended_specialty or '-' }}<br>
-                                <strong>Fecha puesta en marcha:</strong> {{ equipment.commissioning_date.strftime('%d/%m/%Y') if equipment.commissioning_date else '-' }}<br>
-                                <strong>Último mantenimiento mayor:</strong> {{ equipment.last_maintenance_date.strftime('%d/%m/%Y') if equipment.last_maintenance_date else '-' }}
+                                <strong>Fecha puesta en marcha:</strong> {{ format_date(equipment.commissioning_date) }}<br>
+                                <strong>Último mantenimiento mayor:</strong> {{ format_date(equipment.last_maintenance_date) }}
                             </div>
                         </div>
                     </div>
