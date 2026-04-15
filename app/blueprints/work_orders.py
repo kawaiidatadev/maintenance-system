@@ -91,9 +91,14 @@ def view_order(id):
 
 @work_orders_bp.route('/<int:id>/edit', methods=['GET', 'POST'])
 @login_required
-@admin_or_supervisor_required
 def edit_order(id):
     order = WorkOrder.query.get_or_404(id)
+
+    # Verificar permisos
+    if not (current_user.role in ['admin', 'supervisor'] or
+            (order.assigned_to_id == current_user.id and order.status not in ['completed', 'closed', 'cancelled'])):
+        flash('No tienes permiso para editar esta orden', 'danger')
+        return redirect(url_for('work_orders.list_orders'))
 
     if request.method == 'POST':
         order.problem_description = request.form.get('problem_description')
@@ -106,50 +111,21 @@ def edit_order(id):
                 order.temporary_location = None
                 order.temporary_description = None
 
-        # ==================================================
-        # ASIGNACIÓN DE TÉCNICO CON VERIFICACIÓN DE AUTO-ASIGNACIÓN
-        # ==================================================
+        # Asignación de técnico (sin cambio automático de estado)
         assigned_to = request.form.get('assigned_to_id')
         new_assigned_id = int(assigned_to) if assigned_to and assigned_to != '' else None
+        order.assigned_to_id = new_assigned_id
 
-        # Verificar si el usuario se está asignando a sí mismo
-        is_self_assign = (new_assigned_id == current_user.id)
-
-        # Obtener el estado manual seleccionado por el usuario
-        manual_status = request.form.get('status')
-
-        if is_self_assign:
-            # El usuario se asigna a sí mismo: NO cambiar estado automáticamente
-            order.assigned_to_id = new_assigned_id
-            # Respetar el estado que el usuario eligió manualmente
-            if manual_status and manual_status != order.status:
-                order.status = manual_status
-                if manual_status == 'in_progress' and not order.start_date:
-                    order.start_date = datetime.utcnow()
-                elif manual_status == 'completed' and not order.completion_date:
-                    order.completion_date = datetime.utcnow()
-            flash('Te has asignado la orden. El estado se ha actualizado según tu selección.', 'info')
-        else:
-            # El usuario asigna a otra persona (o desasigna)
-            if new_assigned_id and order.status == 'open':
-                # Orden abierta, se asigna a otro técnico
-                order.assigned_to_id = new_assigned_id
-                order.status = 'assigned'
+        # El estado se guarda tal cual lo seleccionó el usuario
+        new_status = request.form.get('status')
+        if new_status and new_status != order.status:
+            order.status = new_status
+            if new_status == 'in_progress' and not order.start_date:
+                order.start_date = datetime.utcnow()
+            elif new_status == 'completed' and not order.completion_date:
+                order.completion_date = datetime.utcnow()
+            elif new_status == 'assigned' and not order.assigned_at:
                 order.assigned_at = datetime.utcnow()
-                flash(f'Técnico asignado. Estado cambiado a ASIGNADA', 'success')
-            elif new_assigned_id and order.status != 'open':
-                # Orden no está abierta, solo actualizar técnico
-                order.assigned_to_id = new_assigned_id
-                flash(f'Técnico actualizado (el estado no cambió porque la orden está en {order.status})', 'info')
-            elif not new_assigned_id and order.status == 'assigned':
-                # Se quita la asignación y estaba asignada
-                order.assigned_to_id = None
-                order.status = 'open'
-                order.assigned_at = None
-                flash('Asignación removida. Estado vuelve a ABIERTA', 'warning')
-            else:
-                # Cualquier otro caso
-                order.assigned_to_id = new_assigned_id
 
         order.failure_type = request.form.get('failure_type') or None
         order.root_cause = request.form.get('root_cause') or None
@@ -175,8 +151,8 @@ def edit_order(id):
         ('closed', 'Cerrada'),
         ('cancelled', 'Cancelada')
     ]
-    return render_template('work_orders/edit.html', order=order, equipments=equipments, technicians=technicians, status_choices=status_choices)
-
+    return render_template('work_orders/edit.html', order=order, equipments=equipments, technicians=technicians,
+                           status_choices=status_choices)
 
 @work_orders_bp.route('/<int:id>/start', methods=['POST'])
 @login_required

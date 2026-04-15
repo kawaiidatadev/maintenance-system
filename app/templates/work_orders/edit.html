@@ -66,16 +66,25 @@
 
                     <!-- Estado -->
                     <div class="mb-3">
-                        <label for="status" class="form-label">Estado</label>
-                        <select class="form-control" id="status" name="status">
-                            <option value="open" {% if order.status == 'open' %}selected{% endif %}>Abierta</option>
-                            <option value="assigned" {% if order.status == 'assigned' %}selected{% endif %}>Asignada</option>
-                            <option value="in_progress" {% if order.status == 'in_progress' %}selected{% endif %}>En Progreso</option>
-                            <option value="completed" {% if order.status == 'completed' %}selected{% endif %}>Completada</option>
-                            <option value="closed" {% if order.status == 'closed' %}selected{% endif %}>Cerrada</option>
-                            <option value="cancelled" {% if order.status == 'cancelled' %}selected{% endif %}>Cancelada</option>
-                        </select>
-                    </div>
+    <label for="status" class="form-label">Estado</label>
+    <select class="form-control" id="status" name="status">
+        <option value="open" {% if order.status == 'open' %}selected{% endif %}>Abierta</option>
+        <option value="assigned" {% if order.status == 'assigned' %}selected{% endif %}>Asignada</option>
+        <option value="in_progress" {% if order.status == 'in_progress' %}selected{% endif %}>En Progreso</option>
+        <option value="completed" {% if order.status == 'completed' %}selected{% endif %}>Completada</option>
+        <option value="closed" {% if order.status == 'closed' %}selected{% endif %}>Cerrada</option>
+        <option value="cancelled" {% if order.status == 'cancelled' %}selected{% endif %}>Cancelada</option>
+    </select>
+    <small class="form-text text-muted">
+        <strong>📌 Significado de los estados:</strong><br>
+        • <strong>Abierta:</strong> Orden reportada, aún no asignada a un técnico.<br>
+        • <strong>Asignada:</strong> Un técnico ha sido designado responsable.<br>
+        • <strong>En Progreso:</strong> El técnico ha comenzado a trabajar en la orden.<br>
+        • <strong>Completada:</strong> El trabajo ha finalizado, pendiente de revisión (si aplica).<br>
+        • <strong>Cerrada:</strong> La orden ha sido revisada y aceptada (estado final).<br>
+        • <strong>Cancelada:</strong> La orden no se ejecutó y se da de baja.
+    </small>
+</div>
 
                     <!-- Sección técnica (para técnicos y supervisores) -->
                     <div class="alert alert-success mt-3">

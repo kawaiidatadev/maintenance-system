@@ -16,7 +16,6 @@ def admin_required(func):
             flash('Acceso denegado. Se requieren permisos de administrador.', 'danger')
             return redirect(url_for('dashboard.index'))
         return func(*args, **kwargs)
-
     return decorated_view
 
 
@@ -37,7 +36,6 @@ def create_user():
     password = request.form.get('password')
     role = request.form.get('role')
 
-    # Verificar si ya existe
     if User.query.filter_by(username=username).first():
         flash('El nombre de usuario ya existe', 'danger')
         return redirect(url_for('admin.users'))
@@ -59,15 +57,42 @@ def create_user():
     return redirect(url_for('admin.users'))
 
 
-@admin_bp.route('/users/delete/<int:user_id>')
+@admin_bp.route('/users/edit/<int:id>', methods=['GET', 'POST'])
 @login_required
 @admin_required
-def delete_user(user_id):
-    user = User.query.get_or_404(user_id)
+def edit_user(id):
+    user = User.query.get_or_404(id)
+
+    if request.method == 'POST':
+        user.username = request.form.get('username')
+        user.email = request.form.get('email')
+        user.role = request.form.get('role')
+        user.is_active = 'is_active' in request.form
+
+        new_password = request.form.get('password')
+        if new_password and new_password.strip():
+            user.password_hash = generate_password_hash(new_password)
+            flash('Contraseña actualizada', 'info')
+
+        db.session.commit()
+        flash(f'Usuario {user.username} actualizado', 'success')
+        return redirect(url_for('admin.users'))
+
+    return render_template('admin/edit_user.html', user=user)
+
+
+@admin_bp.route('/users/delete/<int:id>', methods=['POST'])
+@login_required
+@admin_required
+def delete_user(id):
+    user = User.query.get_or_404(id)
+
     if user.id == current_user.id:
         flash('No puedes eliminar tu propio usuario', 'danger')
         return redirect(url_for('admin.users'))
+
+    username = user.username
     db.session.delete(user)
     db.session.commit()
-    flash(f'Usuario {user.username} eliminado', 'success')
+    flash(f'Usuario {username} eliminado', 'success')
     return redirect(url_for('admin.users'))

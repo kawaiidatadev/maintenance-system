@@ -18,45 +18,56 @@
                 <h5>Usuarios del Sistema</h5>
             </div>
             <div class="card-body">
-                <table class="table table-striped">
-                    <thead>
-                        <tr>
-                            <th>ID</th>
-                            <th>Usuario</th>
-                            <th>Email</th>
-                            <th>Rol</th>
-                            <th>Estado</th>
-                            <th>Acciones</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for user in users %}
-                        <tr>
-                            <td>{{ user.id }}</td>
-                            <td>{{ user.username }}</td>
-                            <td>{{ user.email }}</td>
-                            <td>
-                                <span class="badge bg-{{ 'danger' if user.role == 'admin' else 'primary' if user.role == 'supervisor' else 'secondary' }}">
-                                    {{ user.role }}
-                                </span>
-                            </td>
-                            <td>
-                                {% if user.is_active %}
-                                    <span class="badge bg-success">Activo</span>
-                                {% else %}
-                                    <span class="badge bg-danger">Inactivo</span>
-                                {% endif %}
-                            </td>
-                            <td>
-                                <button class="btn btn-sm btn-warning" onclick="editUser({{ user.id }})">Editar</button>
-                                {% if user.id != current_user.id %}
-                                <button class="btn btn-sm btn-danger" onclick="deleteUser({{ user.id }})">Eliminar</button>
-                                {% endif %}
-                            </td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
+                <div class="table-responsive">
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Usuario</th>
+                                <th>Email</th>
+                                <th>Rol</th>
+                                <th>Estado</th>
+                                <th>Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for user in users %}
+                            <tr>
+                                <td>{{ user.id }}</td>
+                                <td>{{ user.username }}</td>
+                                <td>{{ user.email }}</td>
+                                <td>
+                                    <span class="badge bg-{{ 'danger' if user.role == 'admin' else 'primary' if user.role == 'supervisor' else 'secondary' }}">
+                                        {{ user.role }}
+                                    </span>
+                                </td>
+                                <td>
+                                    {% if user.is_active %}
+                                        <span class="badge bg-success">Activo</span>
+                                    {% else %}
+                                        <span class="badge bg-danger">Inactivo</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <!-- Botón Editar -->
+                                    <a href="{{ url_for('admin.edit_user', id=user.id) }}" class="btn btn-sm btn-warning">
+                                        <i class="fas fa-edit"></i> Editar
+                                    </a>
+
+                                    <!-- Botón Eliminar (con confirmación) -->
+                                    {% if user.id != current_user.id %}
+                                    <form method="POST" action="{{ url_for('admin.delete_user', id=user.id) }}" style="display: inline;" onsubmit="return confirm('¿Eliminar usuario {{ user.username }}?')">
+                                        <button type="submit" class="btn btn-sm btn-danger">
+                                            <i class="fas fa-trash"></i> Eliminar
+                                        </button>
+                                    </form>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
     </div>
