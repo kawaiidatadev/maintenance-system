@@ -1,10 +1,13 @@
-from flask import Blueprint, render_template, request, redirect, url_for, flash
+from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify
 from flask_login import login_required, current_user
 from app import db
 from app.models.setting import Setting
+from app.models.notification_rule import NotificationRule
+from app.models.user_notification_preference import UserNotificationPreference
 import pytz
 
 settings_bp = Blueprint('settings', __name__, url_prefix='/settings')
+
 
 def admin_required(func):
     from functools import wraps
@@ -14,6 +17,7 @@ def admin_required(func):
             flash('Acceso denegado. Se requieren permisos de administrador.', 'danger')
             return redirect(url_for('dashboard.index'))
         return func(*args, **kwargs)
+
     return decorated_view
 
 
@@ -21,27 +25,56 @@ def admin_required(func):
 @login_required
 @admin_required
 def index():
+    # Configuración general
     timezone = Setting.get('timezone', 'America/Mexico_City')
     date_format = Setting.get('date_format', '%d/%m/%Y')
     datetime_format = Setting.get('datetime_format', '%d/%m/%Y %H:%M')
 
+    # Preferencias de notificaciones del usuario actual
+    rules = NotificationRule.query.filter_by(is_active=True).all()
+    user_prefs = {}
+    for rule in rules:
+        pref = UserNotificationPreference.query.filter_by(user_id=current_user.id, rule_id=rule.id).first()
+        if not pref:
+            pref = UserNotificationPreference(
+                user_id=current_user.id,
+                rule_id=rule.id,
+                is_enabled=True,
+                channel_in_app=True
+            )
+            db.session.add(pref)
+            db.session.commit()
+        user_prefs[rule.id] = pref
+
+    # Lista de zonas horarias comunes
     timezones = [
         'America/Mexico_City', 'America/Monterrey', 'America/Chihuahua',
         'America/Tijuana', 'America/Cancun', 'America/Matamoros',
         'UTC', 'America/New_York', 'America/Los_Angeles'
     ]
 
+    # Ejemplo de fecha actual para mostrar preview
+    from datetime import datetime
+    from app.utils import localize_datetime, format_datetime
+    now_utc = datetime.utcnow()
+    now_local = localize_datetime(now_utc)
+
     return render_template('settings/index.html',
                            timezone=timezone,
                            date_format=date_format,
                            datetime_format=datetime_format,
-                           timezones=timezones)
+                           timezones=timezones,
+                           rules=rules,
+                           user_prefs=user_prefs,
+                           preview_date=now_local,
+                           preview_datetime=now_local)
 
 
 @settings_bp.route('/update', methods=['POST'])
 @login_required
 @admin_required
 def update():
+    # Configuración general
     timezone = request.form.get('timezone')
     date_format = request.form.get('date_format')
     datetime_format = request.form.get('datetime_format')
@@ -50,5 +83,65 @@ def update():
     Setting.set('date_format', date_format)
     Setting.set('datetime_format', datetime_format)
 
+    # Preferencias de notificaciones
+    rules = NotificationRule.query.filter_by(is_active=True).all()
+    for rule in rules:
+        pref = UserNotificationPreference.query.filter_by(user_id=current_user.id, rule_id=rule.id).first()
+        if not pref:
+            pref = UserNotificationPreference(user_id=current_user.id, rule_id=rule.id)
+            db.session.add(pref)
+
+        pref.is_enabled = f'rule_{rule.id}_enabled' in request.form
+        pref.channel_email = f'rule_{rule.id}_email' in request.form
+        # channel_in_app siempre True (no se puede desactivar)
+
+    db.session.commit()
     flash('Configuración actualizada', 'success')
     return redirect(url_for('settings.index'))
+
+
+from datetime import datetime
+from app.utils import localize_datetime
+
+
+@settings_bp.route('/preview', methods=['POST'])
+@login_required
+def preview():
+    """Devuelve la fecha actual formateada según la configuración (para vista previa en tiempo real)"""
+    import pytz
+    data = request.get_json()
+    timezone = data.get('timezone', 'America/Mexico_City')
+    date_format = data.get('date_format', '%d/%m/%Y')
+    datetime_format = data.get('datetime_format', '%d/%m/%Y %H:%M')
+
+    now_utc = datetime.utcnow()
+    try:
+        tz = pytz.timezone(timezone)
+        now_local = tz.localize(now_utc) if now_utc.tzinfo is None else now_utc.astimezone(tz)
+    except:
+        now_local = now_utc
+
+    return jsonify({
+        'success': True,
+        'formatted_date': now_local.strftime(date_format),
+        'formatted_datetime': now_local.strftime(datetime_format)
+    })
+
+
+@settings_bp.route('/update_general', methods=['POST'])
+@login_required
+@admin_required
+def update_general():
+    """Actualiza la configuración general vía AJAX"""
+    from app.models.setting import Setting
+    data = request.get_json()
+
+    timezone = data.get('timezone')
+    date_format = data.get('date_format')
+    datetime_format = data.get('datetime_format')
+
+    Setting.set('timezone', timezone)
+    Setting.set('date_format', date_format)
+    Setting.set('datetime_format', datetime_format)
+
+    return jsonify({'success': True})

@@ -1,37 +1,280 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="row justify-content-center">
-    <div class="col-md-8">
+<div class="row">
+    <div class="col-md-10 mx-auto">
         <div class="card">
             <div class="card-header bg-primary text-white">
                 <h4><i class="fas fa-cog"></i> Configuración del Sistema</h4>
             </div>
             <div class="card-body">
-                <form method="POST" action="{{ url_for('settings.update') }}">
-                    <div class="mb-3">
-                        <label for="timezone" class="form-label">Zona Horaria</label>
-                        <select name="timezone" id="timezone" class="form-control">
-                            {% for tz in timezones %}
-                            <option value="{{ tz }}" {% if timezone == tz %}selected{% endif %}>{{ tz }}</option>
-                            {% endfor %}
-                        </select>
-                        <small class="text-muted">Afecta cómo se muestran las fechas y horas en todo el sistema.</small>
+
+                <!-- Pestañas -->
+                <ul class="nav nav-tabs" id="settingsTab" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" id="general-tab" data-bs-toggle="tab" data-bs-target="#general" type="button" role="tab">
+                            <i class="fas fa-globe"></i> General
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="notifications-tab" data-bs-toggle="tab" data-bs-target="#notifications" type="button" role="tab">
+                            <i class="fas fa-bell"></i> Notificaciones
+                        </button>
+                    </li>
+                </ul>
+
+                <div class="tab-content mt-3">
+
+                    <!-- ============================================ -->
+                    <!-- PESTAÑA GENERAL -->
+                    <!-- ============================================ -->
+                    <div class="tab-pane fade show active" id="general" role="tabpanel">
+                        <form id="generalSettingsForm">
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <label for="timezone" class="form-label">Zona Horaria</label>
+                                    <select name="timezone" id="timezone" class="form-control">
+                                        {% for tz in timezones %}
+                                        <option value="{{ tz }}" {% if timezone == tz %}selected{% endif %}>{{ tz }}</option>
+                                        {% endfor %}
+                                    </select>
+                                    <small class="text-muted">Afecta cómo se muestran las fechas y horas en todo el sistema.</small>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label for="date_format" class="form-label">Formato de Fecha</label>
+                                    <input type="text" name="date_format" id="date_format" class="form-control" value="{{ date_format }}">
+                                    <small class="text-muted">Ej: %d/%m/%Y (día/mes/año) o %Y-%m-%d (año-mes-día)</small>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <label for="datetime_format" class="form-label">Formato de Fecha y Hora</label>
+                                    <input type="text" name="datetime_format" id="datetime_format" class="form-control" value="{{ datetime_format }}">
+                                    <small class="text-muted">Ej: %d/%m/%Y %H:%M</small>
+                                </div>
+                            </div>
+
+                            <!-- Vista previa en tiempo real -->
+                            <div class="alert alert-info" id="previewBox">
+                                <strong><i class="fas fa-eye"></i> Vista previa (en tiempo real):</strong><br>
+                                <strong>Fecha actual:</strong> <span id="preview_date">{{ format_date(preview_date) }}</span><br>
+                                <strong>Fecha y hora actual:</strong> <span id="preview_datetime">{{ format_datetime(preview_datetime) }}</span>
+                            </div>
+
+                            <div class="mt-3">
+                                <button type="button" class="btn btn-primary" id="saveGeneralBtn">Guardar Configuración</button>
+                            </div>
+                        </form>
                     </div>
-                    <div class="mb-3">
-                        <label for="date_format" class="form-label">Formato de Fecha</label>
-                        <input type="text" name="date_format" id="date_format" class="form-control" value="{{ date_format }}">
-                        <small class="text-muted">Ej: %d/%m/%Y (día/mes/año) o %Y-%m-%d (año-mes-día)</small>
+
+                    <!-- ============================================ -->
+                    <!-- PESTAÑA NOTIFICACIONES -->
+                    <!-- ============================================ -->
+                    <div class="tab-pane fade" id="notifications" role="tabpanel">
+                        <form method="POST" action="{{ url_for('settings.update') }}">
+                            <div class="alert alert-info">
+                                <i class="fas fa-info-circle"></i> Selecciona qué notificaciones quieres recibir y cómo.
+                            </div>
+                            <div class="table-responsive">
+                                <table class="table table-bordered table-striped align-middle">
+                                    <thead class="table-dark">
+                                        <tr>
+                                            <th style="width: 25%">Tipo de notificación</th>
+                                            <th style="width: 45%">Descripción</th>
+                                            <th style="width: 15%" class="text-center">Activar</th>
+                                            <th style="width: 15%" class="text-center">Correo electrónico</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for rule in rules %}
+                                        {% set pref = user_prefs[rule.id] %}
+                                        <tr>
+                                            <td><strong>{{ rule.name }}</strong></td>
+                                            <td>{{ rule.description }}</td>
+                                            <td class="text-center">
+                                                <input type="checkbox" name="rule_{{ rule.id }}_enabled" {% if pref.is_enabled %}checked{% endif %} class="form-check-input">
+                                            </td>
+                                            <td class="text-center">
+                                                <input type="checkbox" name="rule_{{ rule.id }}_email" {% if pref.channel_email %}checked{% endif %} class="form-check-input">
+                                            </td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+                            <div class="mt-3">
+                                <button type="submit" class="btn btn-primary">Guardar preferencias</button>
+                            </div>
+                        </form>
                     </div>
-                    <div class="mb-3">
-                        <label for="datetime_format" class="form-label">Formato de Fecha y Hora</label>
-                        <input type="text" name="datetime_format" id="datetime_format" class="form-control" value="{{ datetime_format }}">
-                        <small class="text-muted">Ej: %d/%m/%Y %H:%M</small>
-                    </div>
-                    <button type="submit" class="btn btn-primary">Guardar Configuración</button>
-                </form>
+
+                </div>
             </div>
         </div>
     </div>
 </div>
+
+<script>
+    // Elementos del DOM
+    const timezoneSelect = document.getElementById('timezone');
+    const dateFormatInput = document.getElementById('date_format');
+    const datetimeFormatInput = document.getElementById('datetime_format');
+    const previewDateSpan = document.getElementById('preview_date');
+    const previewDatetimeSpan = document.getElementById('preview_datetime');
+
+    // Mapeo de formatos Python a JavaScript (simplificado)
+    function convertPythonFormatToJs(pythonFormat) {
+        // Mapeo básico de formatos comunes
+        const mappings = {
+            '%d': 'dd',
+            '%m': 'MM',
+            '%Y': 'yyyy',
+            '%y': 'yy',
+            '%H': 'HH',
+            '%M': 'mm',
+            '%S': 'ss',
+            '%B': 'MMMM',
+            '%b': 'MMM',
+            '%A': 'EEEE',
+            '%a': 'EEE'
+        };
+
+        let jsFormat = pythonFormat;
+        for (const [py, js] of Object.entries(mappings)) {
+            jsFormat = jsFormat.replaceAll(py, js);
+        }
+        return jsFormat;
+    }
+
+    // Función para obtener la fecha actual en una zona horaria específica
+    function getCurrentDateInTimezone(timezone) {
+        const now = new Date();
+        // Formatear usando la zona horaria especificada
+        const formatterDate = new Intl.DateTimeFormat('es-MX', {
+            timeZone: timezone,
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit'
+        });
+
+        const formatterDateTime = new Intl.DateTimeFormat('es-MX', {
+            timeZone: timezone,
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+            hour12: false
+        });
+
+        // Obtener partes para poder reordenar según formato personalizado
+        const dateParts = formatterDate.formatToParts(now);
+        const dateTimeParts = formatterDateTime.formatToParts(now);
+
+        // Construir objeto con las partes
+        const getValue = (parts, type) => {
+            const part = parts.find(p => p.type === type);
+            return part ? part.value : '';
+        };
+
+        // Para formato personalizado, necesitamos mapear
+        const year = getValue(dateParts, 'year');
+        const month = getValue(dateParts, 'month');
+        const day = getValue(dateParts, 'day');
+        const hour = getValue(dateTimeParts, 'hour');
+        const minute = getValue(dateTimeParts, 'minute');
+        const second = getValue(dateTimeParts, 'second');
+
+        return { year, month, day, hour, minute, second };
+    }
+
+    // Formatear según el patrón Python convertido a JavaScript
+    function formatWithPattern(pattern, dateObj) {
+        let result = pattern;
+        result = result.replaceAll('%Y', dateObj.year);
+        result = result.replaceAll('%y', dateObj.year.slice(-2));
+        result = result.replaceAll('%m', dateObj.month);
+        result = result.replaceAll('%d', dateObj.day);
+        result = result.replaceAll('%H', dateObj.hour);
+        result = result.replaceAll('%M', dateObj.minute);
+        result = result.replaceAll('%S', dateObj.second || '00');
+        return result;
+    }
+
+    // Actualizar vista previa
+    function updatePreview() {
+        const timezone = timezoneSelect.value;
+        let dateFormat = dateFormatInput.value || '%d/%m/%Y';
+        let datetimeFormat = datetimeFormatInput.value || '%d/%m/%Y %H:%M';
+
+        try {
+            const dateObj = getCurrentDateInTimezone(timezone);
+
+            // Formatear fecha
+            let formattedDate = dateFormat;
+            formattedDate = formattedDate.replaceAll('%Y', dateObj.year);
+            formattedDate = formattedDate.replaceAll('%y', dateObj.year.slice(-2));
+            formattedDate = formattedDate.replaceAll('%m', dateObj.month);
+            formattedDate = formattedDate.replaceAll('%d', dateObj.day);
+
+            // Formatear fecha y hora
+            let formattedDateTime = datetimeFormat;
+            formattedDateTime = formattedDateTime.replaceAll('%Y', dateObj.year);
+            formattedDateTime = formattedDateTime.replaceAll('%y', dateObj.year.slice(-2));
+            formattedDateTime = formattedDateTime.replaceAll('%m', dateObj.month);
+            formattedDateTime = formattedDateTime.replaceAll('%d', dateObj.day);
+            formattedDateTime = formattedDateTime.replaceAll('%H', dateObj.hour);
+            formattedDateTime = formattedDateTime.replaceAll('%M', dateObj.minute);
+            formattedDateTime = formattedDateTime.replaceAll('%S', dateObj.second || '00');
+
+            previewDateSpan.textContent = formattedDate;
+            previewDatetimeSpan.textContent = formattedDateTime;
+        } catch (error) {
+            console.error('Error al actualizar vista previa:', error);
+            // Fallback a UTC
+            const now = new Date();
+            previewDateSpan.textContent = now.toLocaleDateString('es-MX');
+            previewDatetimeSpan.textContent = now.toLocaleString('es-MX');
+        }
+    }
+
+    // Escuchar cambios en los campos
+    timezoneSelect.addEventListener('change', updatePreview);
+    dateFormatInput.addEventListener('input', updatePreview);
+    datetimeFormatInput.addEventListener('input', updatePreview);
+
+    // Inicializar vista previa
+    updatePreview();
+
+    // Guardar configuración general
+    document.getElementById('saveGeneralBtn').addEventListener('click', async function() {
+        const timezone = timezoneSelect.value;
+        const dateFormat = dateFormatInput.value;
+        const datetimeFormat = datetimeFormatInput.value;
+
+        try {
+            const response = await fetch('/settings/update_general', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    timezone: timezone,
+                    date_format: dateFormat,
+                    datetime_format: datetimeFormat
+                })
+            });
+            const data = await response.json();
+            if (data.success) {
+                alert('Configuración guardada. La página se recargará para aplicar los cambios.');
+                location.reload();
+            } else {
+                alert('Error: ' + data.error);
+            }
+        } catch (error) {
+            console.error('Error al guardar:', error);
+            alert('Error al guardar la configuración');
+        }
+    });
+</script>
+
 {% endblock %}
