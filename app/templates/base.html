@@ -8,6 +8,7 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <!-- Font Awesome para íconos -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/custom.css') }}">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
@@ -43,14 +44,14 @@
                         </a>
                     </li>
 
-                    <!-- NUEVO: Enlace para Análisis de Criticidad -->
+                    <!-- Enlace para Análisis de Criticidad -->
                     <li class="nav-item">
                         <a class="nav-link" href="{{ url_for('criticality.index') }}">
                             <i class="fas fa-chart-line"></i> Criticidad
                         </a>
                     </li>
 
-                                        <!-- Enlace para Configuración (solo admin) -->
+                    <!-- Enlace para Configuración (solo admin) -->
                     {% if current_user.role == 'admin' %}
                     <li class="nav-item">
                         <a class="nav-link" href="{{ url_for('settings.index') }}">
@@ -58,6 +59,70 @@
                         </a>
                     </li>
                     {% endif %}
+
+                    <!-- ============================================ -->
+                    <!-- CAMPAÑA DE NOTIFICACIONES (NUEVO) -->
+                    <!-- ============================================ -->
+                    <!-- Notificaciones -->
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" id="notificationsDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="fas fa-bell"></i>
+                            {% if unread_count > 0 %}
+                            <span class="badge bg-danger rounded-pill">{{ unread_count }}</span>
+                            {% endif %}
+                        </a>
+                        <div class="dropdown-menu dropdown-menu-end dropdown-notifications" aria-labelledby="notificationsDropdown">
+                            <h6 class="dropdown-header">🔔 Notificaciones</h6>
+                            <div class="dropdown-divider"></div>
+                            {% for notif in recent_notifications %}
+                            <div class="notification-item {% if not notif.is_read %}unread{% endif %}" data-notif-id="{{ notif.id }}">
+                                <div class="d-flex">
+                                    <div class="notification-icon">
+                                        {% set icon = 'fa-bell' %}
+                                        {% set color = 'text-secondary' %}
+                                        {% if notif.rule and notif.rule.event_type %}
+                                            {% if notif.rule.event_type == 'work_order_assigned' %}
+                                                {% set icon = 'fa-tools' %}
+                                                {% set color = 'text-primary' %}
+                                            {% elif notif.rule.event_type == 'work_order_completed' %}
+                                                {% set icon = 'fa-check-circle' %}
+                                                {% set color = 'text-success' %}
+                                            {% elif notif.rule.event_type == 'work_order_overdue' %}
+                                                {% set icon = 'fa-exclamation-triangle' %}
+                                                {% set color = 'text-danger' %}
+                                            {% elif notif.rule.event_type == 'equipment_life_critical' %}
+                                                {% set icon = 'fa-microchip' %}
+                                                {% set color = 'text-danger' %}
+                                            {% elif notif.rule.event_type == 'preventive_due_soon' %}
+                                                {% set icon = 'fa-calendar-alt' %}
+                                                {% set color = 'text-warning' %}
+                                            {% endif %}
+                                        {% endif %}
+                                        <i class="fas {{ icon }} {{ color }}"></i>
+                                    </div>
+                                    <div class="notification-content ms-2">
+                                        <div class="notification-title">{{ notif.title }}</div>
+                                        <div class="notification-meta">
+                                            {% if notif.link %}
+                                            <a href="{{ notif.link }}" class="text-decoration-none">{{ notif.message[:60] }}{% if notif.message|length > 60 %}...{% endif %}</a>
+                                            {% else %}
+                                            <span>{{ notif.message[:60] }}{% if notif.message|length > 60 %}...{% endif %}</span>
+                                            {% endif %}
+                                        </div>
+                                        <div class="notification-meta">
+                                            <small>{{ time_ago(notif.created_at) }}</small>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="dropdown-divider"></div>
+                            {% else %}
+                            <span class="dropdown-item text-muted">No hay notificaciones</span>
+                            <div class="dropdown-divider"></div>
+                            {% endfor %}
+                            <a class="dropdown-item text-center" href="{{ url_for('notifications.index') }}">Ver todas</a>
+                        </div>
+                    </li>
 
                     <li class="nav-item">
                         <span class="nav-link">

@@ -5,6 +5,8 @@ from app.models.work_order import WorkOrder
 from app.models.equipment import Equipment
 from app.models.user import User
 from datetime import datetime
+from app.notifications_helper import create_notification  # 🔔 Importar helper de notificaciones
+from flask import url_for  # ya lo tienes
 
 work_orders_bp = Blueprint('work_orders', __name__, url_prefix='/work-orders')
 
@@ -69,7 +71,8 @@ def create_order():
         db.session.commit()
 
         if work_order.needs_equipment_registration:
-            flash(f'OT {number} reportada. Se ha notificado al departamento de mantenimiento para registrar el equipo.', 'info')
+            flash(f'OT {number} reportada. Se ha notificado al departamento de mantenimiento para registrar el equipo.',
+                  'info')
         else:
             flash(f'OT {number} reportada exitosamente. Un técnico la atenderá pronto.', 'success')
 
@@ -114,7 +117,22 @@ def edit_order(id):
         # Asignación de técnico (sin cambio automático de estado)
         assigned_to = request.form.get('assigned_to_id')
         new_assigned_id = int(assigned_to) if assigned_to and assigned_to != '' else None
+
+        # 🔔 NOTIFICACIÓN: Si cambia el técnico asignado y no es None
+        old_assigned_id = order.assigned_to_id
         order.assigned_to_id = new_assigned_id
+
+        # Si se asignó un nuevo técnico (diferente al anterior) y no es None
+        # Dentro de edit_order, cuando se asigna un técnico:
+        if new_assigned_id and new_assigned_id != old_assigned_id:
+            create_notification(
+                user_id=new_assigned_id,
+                title=f"Nueva OT asignada: {order.number}",
+                message=f"Se te ha asignado la orden {order.number} para el equipo {order.equipment.name if order.equipment else 'sin equipo'}.",
+                event_type='work_order_assigned',
+                related_id=order.id,
+                link=url_for('work_orders.view_order', id=order.id, _external=True)
+            )
 
         # El estado se guarda tal cual lo seleccionó el usuario
         new_status = request.form.get('status')
@@ -154,6 +172,7 @@ def edit_order(id):
     return render_template('work_orders/edit.html', order=order, equipments=equipments, technicians=technicians,
                            status_choices=status_choices)
 
+
 @work_orders_bp.route('/<int:id>/start', methods=['POST'])
 @login_required
 def start_order(id):
@@ -189,6 +208,19 @@ def complete_order(id):
         order.closed_by_id = current_user.id
 
         db.session.commit()
+
+        # 🔔 NOTIFICACIÓN: Notificar al creador de la OT que fue completada
+        # Dentro de complete_order, después de guardar:
+        if order.created_by_id and order.created_by_id != current_user.id:
+            create_notification(
+                user_id=order.created_by_id,
+                title=f"OT completada: {order.number}",
+                message=f"La orden {order.number} ha sido completada por {current_user.username}.",
+                event_type='work_order_completed',
+                related_id=order.id,
+                link=url_for('work_orders.view_order', id=order.id, _external=True)
+            )
+
         flash(f'OT {order.number} completada', 'success')
         return redirect(url_for('work_orders.view_order', id=id))
 

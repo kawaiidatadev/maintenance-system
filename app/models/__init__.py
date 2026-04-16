@@ -4,3 +4,6 @@ from app.models.work_order import WorkOrder
 from app.models.attachment import Attachment
 from app.models.system import System
 from app.models.equipment_reading import EquipmentReading
+from app.models.notification_rule import NotificationRule
+from app.models.user_notification_preference import UserNotificationPreference
+from app.models.notification import Notification

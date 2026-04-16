@@ -38,6 +38,10 @@ def create_app():
     from app.blueprints.attachments import attachments_bp
     from app.blueprints.criticality import criticality_bp
     from app.blueprints.settings import settings_bp  # <-- Importar settings
+    from app.scheduler import start_scheduler
+    from app.blueprints.notifications import notifications_bp
+    scheduler = start_scheduler(app)
+    app.scheduler = scheduler
 
     # Registrar blueprints
     app.register_blueprint(auth_bp, url_prefix='/auth')
@@ -48,15 +52,27 @@ def create_app():
     app.register_blueprint(attachments_bp)
     app.register_blueprint(criticality_bp)
     app.register_blueprint(settings_bp)  # <-- Registrar settings
+    app.register_blueprint(notifications_bp)
+
+    @app.context_processor
+    def inject_notifications():
+        from app.models.notification import Notification
+        if current_user.is_authenticated:
+            unread_count = Notification.query.filter_by(user_id=current_user.id, is_read=False).count()
+            recent = Notification.query.filter_by(user_id=current_user.id).order_by(
+                Notification.created_at.desc()).limit(5).all()
+            return dict(unread_count=unread_count, recent_notifications=recent)
+        return dict(unread_count=0, recent_notifications=[])
 
     # Context processor para funciones de formato (DENTRO de create_app)
     @app.context_processor
     def utility_processor():
-        from app.utils import format_datetime, format_date, localize_datetime
+        from app.utils import format_datetime, format_date, localize_datetime, time_ago
         return dict(
             format_datetime=format_datetime,
             format_date=format_date,
-            localize_datetime=localize_datetime
+            localize_datetime=localize_datetime,
+            time_ago=time_ago
         )
 
     # Filtro para formato de moneda
