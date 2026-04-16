@@ -40,3 +40,48 @@
     background: white;
     z-index: 1;
 }
+
+/* Notificaciones - Dropdown */
+.dropdown-notifications {
+    width: 380px;
+    max-height: 500px;
+    overflow: hidden;
+}
+.notifications-list {
+    max-height: 350px;
+    overflow-y: auto;
+}
+.notification-item {
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid #e9ecef;
+    transition: background-color 0.2s;
+}
+.notification-item:last-child {
+    border-bottom: none;
+}
+.notification-item.unread {
+    background-color: #f0f7ff;
+    font-weight: 500;
+}
+.notification-item.unread:hover {
+    background-color: #e6f0fa;
+}
+.notification-icon {
+    width: 32px;
+    text-align: center;
+}
+.notification-content {
+    flex: 1;
+}
+.notification-title {
+    font-weight: 600;
+    margin-bottom: 0.2rem;
+    font-size: 0.85rem;
+}
+.notification-meta {
+    font-size: 0.7rem;
+    color: #6c757d;
+}
+.notification-meta a {
+    font-size: 0.7rem;
+}

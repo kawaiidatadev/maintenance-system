@@ -64,6 +64,7 @@
                     <!-- CAMPAÑA DE NOTIFICACIONES (NUEVO) -->
                     <!-- ============================================ -->
                     <!-- Notificaciones -->
+                    <!-- Notificaciones -->
                     <li class="nav-item dropdown">
                         <a class="nav-link dropdown-toggle" href="#" id="notificationsDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                             <i class="fas fa-bell"></i>
@@ -72,55 +73,76 @@
                             {% endif %}
                         </a>
                         <div class="dropdown-menu dropdown-menu-end dropdown-notifications" aria-labelledby="notificationsDropdown">
-                            <h6 class="dropdown-header">🔔 Notificaciones</h6>
-                            <div class="dropdown-divider"></div>
-                            {% for notif in recent_notifications %}
-                            <div class="notification-item {% if not notif.is_read %}unread{% endif %}" data-notif-id="{{ notif.id }}">
-                                <div class="d-flex">
-                                    <div class="notification-icon">
-                                        {% set icon = 'fa-bell' %}
-                                        {% set color = 'text-secondary' %}
-                                        {% if notif.rule and notif.rule.event_type %}
-                                            {% if notif.rule.event_type == 'work_order_assigned' %}
-                                                {% set icon = 'fa-tools' %}
-                                                {% set color = 'text-primary' %}
-                                            {% elif notif.rule.event_type == 'work_order_completed' %}
-                                                {% set icon = 'fa-check-circle' %}
-                                                {% set color = 'text-success' %}
-                                            {% elif notif.rule.event_type == 'work_order_overdue' %}
-                                                {% set icon = 'fa-exclamation-triangle' %}
-                                                {% set color = 'text-danger' %}
-                                            {% elif notif.rule.event_type == 'equipment_life_critical' %}
-                                                {% set icon = 'fa-microchip' %}
-                                                {% set color = 'text-danger' %}
-                                            {% elif notif.rule.event_type == 'preventive_due_soon' %}
-                                                {% set icon = 'fa-calendar-alt' %}
-                                                {% set color = 'text-warning' %}
-                                            {% endif %}
-                                        {% endif %}
-                                        <i class="fas {{ icon }} {{ color }}"></i>
-                                    </div>
-                                    <div class="notification-content ms-2">
-                                        <div class="notification-title">{{ notif.title }}</div>
-                                        <div class="notification-meta">
-                                            {% if notif.link %}
-                                            <a href="{{ notif.link }}" class="text-decoration-none">{{ notif.message[:60] }}{% if notif.message|length > 60 %}...{% endif %}</a>
-                                            {% else %}
-                                            <span>{{ notif.message[:60] }}{% if notif.message|length > 60 %}...{% endif %}</span>
-                                            {% endif %}
-                                        </div>
-                                        <div class="notification-meta">
-                                            <small>{{ time_ago(notif.created_at) }}</small>
-                                        </div>
-                                    </div>
+                            <div class="d-flex justify-content-between align-items-center px-3 py-2 border-bottom">
+                                <h6 class="mb-0">🔔 Notificaciones</h6>
+                                <div>
+                                    {% if unread_count > 0 %}
+                                    <a href="{{ url_for('notifications.mark_all_read') }}" class="text-muted me-2" title="Marcar todas como leídas">
+                                        <i class="fas fa-check-double"></i>
+                                    </a>
+                                    {% endif %}
+                                    <a href="{{ url_for('notifications.clear_dropdown') }}" class="text-muted" title="Limpiar notificaciones leídas" onclick="return confirm('¿Eliminar las notificaciones leídas?')">
+                                        <i class="fas fa-trash-alt"></i>
+                                    </a>
                                 </div>
                             </div>
                             <div class="dropdown-divider"></div>
-                            {% else %}
-                            <span class="dropdown-item text-muted">No hay notificaciones</span>
+                            <div class="notifications-list">
+                                {% for notif in recent_notifications %}
+                                <div class="notification-item {% if not notif.is_read %}unread{% endif %}" data-notif-id="{{ notif.id }}">
+                                    <div class="d-flex">
+                                        <div class="notification-icon">
+                                            {% set icon = 'fa-bell' %}
+                                            {% set color = 'text-secondary' %}
+                                            {% if notif.rule and notif.rule.event_type %}
+                                                {% if notif.rule.event_type == 'work_order_assigned' %}
+                                                    {% set icon = 'fa-tools' %}
+                                                    {% set color = 'text-primary' %}
+                                                {% elif notif.rule.event_type == 'work_order_completed' %}
+                                                    {% set icon = 'fa-check-circle' %}
+                                                    {% set color = 'text-success' %}
+                                                {% elif notif.rule.event_type == 'work_order_overdue' %}
+                                                    {% set icon = 'fa-exclamation-triangle' %}
+                                                    {% set color = 'text-danger' %}
+                                                {% elif notif.rule.event_type == 'equipment_life_critical' %}
+                                                    {% set icon = 'fa-microchip' %}
+                                                    {% set color = 'text-danger' %}
+                                                {% elif notif.rule.event_type == 'preventive_due_soon' %}
+                                                    {% set icon = 'fa-calendar-alt' %}
+                                                    {% set color = 'text-warning' %}
+                                                {% endif %}
+                                            {% endif %}
+                                            <i class="fas {{ icon }} {{ color }}"></i>
+                                        </div>
+                                        <div class="notification-content ms-2">
+                                            <div class="notification-title">{{ notif.title }}</div>
+                                            <div class="notification-meta">
+                                                {% if notif.link %}
+                                                <a href="{{ notif.link }}" class="text-decoration-none">{{ notif.message[:50] }}{% if notif.message|length > 50 %}...{% endif %}</a>
+                                                {% else %}
+                                                <span>{{ notif.message[:50] }}{% if notif.message|length > 50 %}...{% endif %}</span>
+                                                {% endif %}
+                                            </div>
+                                            <div class="notification-meta">
+                                                <small>{{ time_ago(notif.created_at) }}</small>
+                                                {% if not notif.is_read %}
+                                                <a href="{{ url_for('notifications.mark_read', id=notif.id) }}" class="ms-2 text-muted small">Marcar leída</a>
+                                                {% endif %}
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                {% else %}
+                                <div class="text-center py-3 text-muted">
+                                    <small>No hay notificaciones</small>
+                                </div>
+                                {% endfor %}
+                            </div>
                             <div class="dropdown-divider"></div>
-                            {% endfor %}
-                            <a class="dropdown-item text-center" href="{{ url_for('notifications.index') }}">Ver todas</a>
+                            <div class="d-flex justify-content-between align-items-center px-3 py-2">
+                                <a class="small" href="{{ url_for('notifications.index') }}">Ver todas</a>
+                                <a class="small text-danger" href="{{ url_for('notifications.clear_dropdown') }}" onclick="return confirm('¿Eliminar todas las notificaciones leídas?')">Limpiar leídas</a>
+                            </div>
                         </div>
                     </li>
 

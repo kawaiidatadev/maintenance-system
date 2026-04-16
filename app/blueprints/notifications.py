@@ -58,3 +58,45 @@ def preferences():
             db.session.commit()
         user_prefs[rule.id] = pref
     return render_template('notifications/preferences.html', rules=rules, user_prefs=user_prefs)
+
+
+@notifications_bp.route('/mark_all_read')
+@login_required
+def mark_all_read():
+    """Marca todas las notificaciones del usuario como leídas"""
+    Notification.query.filter_by(user_id=current_user.id, is_read=False).update({'is_read': True})
+    db.session.commit()
+    flash('Todas las notificaciones marcadas como leídas', 'success')
+    return redirect(request.referrer or url_for('notifications.index'))
+
+
+@notifications_bp.route('/clear_dropdown')
+@login_required
+def clear_dropdown():
+    """Elimina las notificaciones del dropdown (solo las últimas 20 o las no leídas?)"""
+    # Opción 1: Eliminar solo las notificaciones leídas (conservar no leídas)
+    Notification.query.filter_by(user_id=current_user.id, is_read=True).delete()
+
+    # Opción 2: Eliminar todas excepto las últimas 5 (más seguro)
+    # Mantener las últimas 5 notificaciones sin importar estado
+    # count = Notification.query.filter_by(user_id=current_user.id).count()
+    # if count > 20:
+    #     to_delete = Notification.query.filter_by(user_id=current_user.id).order_by(Notification.created_at).limit(count - 20).all()
+    #     for n in to_delete:
+    #         db.session.delete(n)
+
+    db.session.commit()
+    flash('Notificaciones antiguas eliminadas', 'success')
+    return redirect(request.referrer or url_for('notifications.index'))
+
+
+@notifications_bp.route('/clear_all')
+@login_required
+def clear_all():
+    """Elimina TODAS las notificaciones del usuario (peligroso, mejor no usar)"""
+    # Notification.query.filter_by(user_id=current_user.id).delete()
+    # db.session.commit()
+    # flash('Todas las notificaciones eliminadas', 'warning')
+    # return redirect(request.referrer or url_for('notifications.index'))
+    flash('Función deshabilitada por seguridad', 'danger')
+    return redirect(request.referrer or url_for('notifications.index'))
