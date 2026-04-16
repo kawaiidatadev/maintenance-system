@@ -284,3 +284,37 @@ def add_reading(id):
         return redirect(url_for('equipment.reading_history', id=equipment.id))
 
     return render_template('equipment/add_reading.html', equipment=equipment)
+
+
+@equipment_bp.route('/create_system', methods=['POST'])
+@login_required
+@admin_or_supervisor_required
+def create_system():
+    """Crea un nuevo sistema vía AJAX"""
+    from app.models.system import System
+
+    code = request.form.get('code')
+    name = request.form.get('name')
+    description = request.form.get('description')
+
+    if not code or not name:
+        return jsonify({'success': False, 'error': 'Código y nombre son requeridos'})
+
+    # Verificar si ya existe
+    existing = System.query.filter_by(code=code).first()
+    if existing:
+        return jsonify({'success': False, 'error': f'El código {code} ya existe'})
+
+    system = System(code=code, name=name, description=description)
+    db.session.add(system)
+    db.session.commit()
+
+    return jsonify({
+        'success': True,
+        'system': {
+            'id': system.id,
+            'code': system.code,
+            'name': system.name,
+            'description': system.description
+        }
+    })

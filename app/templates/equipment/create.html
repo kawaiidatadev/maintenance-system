@@ -45,12 +45,17 @@
                     <div class="row">
                         <div class="col-md-6 mb-3">
                             <label for="system_id" class="form-label">Sistema al que pertenece</label>
-                            <select class="form-control" id="system_id" name="system_id">
-                                <option value="">Ninguno</option>
-                                {% for system in systems %}
-                                <option value="{{ system.id }}">{{ system.code }} - {{ system.name }}</option>
-                                {% endfor %}
-                            </select>
+                            <div class="input-group">
+                                <select class="form-control" id="system_id" name="system_id">
+                                    <option value="">Ninguno</option>
+                                    {% for system in systems %}
+                                    <option value="{{ system.id }}">{{ system.code }} - {{ system.name }}</option>
+                                    {% endfor %}
+                                </select>
+                                <button type="button" class="btn btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#newSystemModal">
+                                    <i class="fas fa-plus"></i>
+                                </button>
+                            </div>
                             <small class="text-muted">Ej: Sistema Eléctrico, Sistema de Aire Comprimido</small>
                         </div>
                         <div class="col-md-6 mb-3">
@@ -74,6 +79,41 @@
                     <button type="submit" class="btn btn-primary">Guardar</button>
                     <a href="{{ url_for('equipment.list_equipment') }}" class="btn btn-secondary">Cancelar</a>
                 </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal para crear nuevo sistema -->
+<div class="modal fade" id="newSystemModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title"><i class="fas fa-plus"></i> Nuevo Sistema</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div id="systemFormAlert"></div>
+                <form id="newSystemForm">
+                    <div class="mb-3">
+                        <label for="system_code" class="form-label">Código del Sistema *</label>
+                        <input type="text" class="form-control" id="system_code" name="code" required>
+                        <small class="text-muted">Ej: SIS-ELEC, SIS-AIRE, SIS-ESD</small>
+                    </div>
+                    <div class="mb-3">
+                        <label for="system_name" class="form-label">Nombre del Sistema *</label>
+                        <input type="text" class="form-control" id="system_name" name="name" required>
+                        <small class="text-muted">Ej: Sistema Eléctrico, Sistema de Aire Comprimido</small>
+                    </div>
+                    <div class="mb-3">
+                        <label for="system_description" class="form-label">Descripción</label>
+                        <textarea class="form-control" id="system_description" name="description" rows="2"></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" id="saveSystemBtn">Crear Sistema</button>
             </div>
         </div>
     </div>
@@ -110,5 +150,60 @@ function sugerirCodigo() {
         alert('Error al generar código');
     });
 }
+
+// Crear nuevo sistema vía AJAX
+document.getElementById('saveSystemBtn').addEventListener('click', function() {
+    const code = document.getElementById('system_code').value;
+    const name = document.getElementById('system_name').value;
+    const description = document.getElementById('system_description').value;
+
+    if (!code || !name) {
+        alert('Código y nombre son requeridos');
+        return;
+    }
+
+    fetch('/equipment/create_system', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: new URLSearchParams({
+            'code': code,
+            'name': name,
+            'description': description
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Agregar nueva opción al select
+            const select = document.getElementById('system_id');
+            const option = document.createElement('option');
+            option.value = data.system.id;
+            option.text = data.system.code + ' - ' + data.system.name;
+            select.appendChild(option);
+            option.selected = true;
+
+            // Limpiar formulario y cerrar modal
+            document.getElementById('newSystemForm').reset();
+            const modal = bootstrap.Modal.getInstance(document.getElementById('newSystemModal'));
+            modal.hide();
+
+            // Mostrar mensaje de éxito
+            const alertDiv = document.createElement('div');
+            alertDiv.className = 'alert alert-success alert-dismissible fade show mt-3';
+            alertDiv.innerHTML = `Sistema ${data.system.code} creado exitosamente<button type="button" class="btn-close" data-bs-dismiss="alert"></button>`;
+            document.querySelector('.card-body form').prepend(alertDiv);
+
+            setTimeout(() => alertDiv.remove(), 3000);
+        } else {
+            alert('Error: ' + data.error);
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Error al crear el sistema');
+    });
+});
 </script>
 {% endblock %}
