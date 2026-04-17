@@ -14,6 +14,10 @@ class NotificationRule(db.Model):
     throttling_hours = db.Column(db.Integer, default=24)
     escalation_hours = db.Column(db.Integer, nullable=True)
     escalation_target_role = db.Column(db.String(20))
+    threshold_value = db.Column(db.Float)
+    threshold_unit = db.Column(db.String(20))
+    is_customizable = db.Column(db.Boolean, default=True)
+    target_roles = db.Column(db.String(100))
 
     def __repr__(self):
         return f'<NotificationRule {self.name}>'

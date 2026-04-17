@@ -99,7 +99,7 @@ def update():
     Setting.set('date_format', date_format)
     Setting.set('datetime_format', datetime_format)
 
-    # Preferencias de notificaciones
+    # Preferencias de notificaciones y umbrales
     rules = NotificationRule.query.filter_by(is_active=True).all()
     for rule in rules:
         pref = UserNotificationPreference.query.filter_by(user_id=current_user.id, rule_id=rule.id).first()
@@ -109,7 +109,14 @@ def update():
 
         pref.is_enabled = f'rule_{rule.id}_enabled' in request.form
         pref.channel_email = f'rule_{rule.id}_email' in request.form
-        # channel_in_app siempre True (no se puede desactivar)
+
+        # Guardar umbral personalizado
+        threshold_key = f'rule_{rule.id}_threshold'
+        if threshold_key in request.form and request.form.get(threshold_key):
+            new_threshold = request.form.get(threshold_key)
+            if new_threshold and new_threshold != '':
+                rule.threshold_value = float(new_threshold)
+                db.session.add(rule)
 
     db.session.commit()
     flash('Configuración actualizada', 'success')

@@ -57,7 +57,6 @@
                                 </div>
                             </div>
 
-                            <!-- Vista previa en tiempo real -->
                             <div class="alert alert-info" id="previewBox">
                                 <strong><i class="fas fa-eye"></i> Vista previa (en tiempo real):</strong><br>
                                 <strong>Fecha actual:</strong> <span id="preview_date">{{ format_date(preview_date) }}</span><br>
@@ -123,7 +122,7 @@
                     </div>
 
                     <!-- ============================================ -->
-                    <!-- PESTAÑA NOTIFICACIONES -->
+                    <!-- PESTAÑA NOTIFICACIONES (CON UMBRALES) -->
                     <!-- ============================================ -->
                     <div class="tab-pane fade" id="notifications" role="tabpanel">
                         <form method="POST" action="{{ url_for('settings.update') }}">
@@ -134,20 +133,53 @@
                                 <table class="table table-bordered table-striped align-middle">
                                     <thead class="table-dark">
                                         <tr>
-                                            <th style="width: 25%">Tipo de notificación</th>
-                                            <th style="width: 45%">Descripción</th>
-                                            <th style="width: 15%" class="text-center">Activar</th>
-                                            <th style="width: 15%" class="text-center">Correo electrónico</th>
+                                            <th style="width: 20%">Tipo de notificación</th>
+                                            <th style="width: 35%">Descripción</th>
+                                            <th style="width: 10%" class="text-center">Activar</th>
+                                            <th style="width: 20%" class="text-center">Umbral</th>
+                                            <th style="width: 10%" class="text-center">Correo</th>
                                         </tr>
                                     </thead>
                                     <tbody>
                                         {% for rule in rules %}
                                         {% set pref = user_prefs[rule.id] %}
-                                        <tr>
-                                            <td><strong>{{ rule.name }}</strong></td>
-                                            <td>{{ rule.description }}</td>
+                                        <tr data-rule-id="{{ rule.id }}" data-event-type="{{ rule.event_type }}" data-threshold-unit="{{ rule.threshold_unit }}">
+                                            <td>
+                                                <strong>
+                                                    {% if rule.event_type == 'work_order_overdue' %}
+                                                        OT vencida (<span id="name_threshold_{{ rule.id }}" class="name-threshold-value">{{ rule.threshold_value|default(7)|round(0)|int }}</span> días sin iniciar)
+                                                    {% elif rule.event_type == 'equipment_life_critical' %}
+                                                        Equipo crítico con vida útil restante baja
+                                                    {% elif rule.event_type == 'preventive_due_soon' %}
+                                                        Mantenimiento preventivo próximo
+                                                    {% else %}
+                                                        {{ rule.name }}
+                                                    {% endif %}
+                                                </strong>
+                                            </td>
+                                            <td id="desc_{{ rule.id }}">
+                                                {% if rule.event_type == 'work_order_overdue' %}
+                                                    Una orden lleva más de <span class="threshold-value">{{ rule.threshold_value|default(7)|round(0)|int }}</span> días en estado "asignada" sin iniciarse
+                                                {% elif rule.event_type == 'equipment_life_critical' %}
+                                                    Vida restante &lt; <span class="threshold-value">{{ rule.threshold_value|default(10)|round(0)|int }}</span>% de la estimada
+                                                {% elif rule.event_type == 'preventive_due_soon' %}
+                                                    Faltan <span class="threshold-value">{{ rule.threshold_value|default(5)|round(0)|int }}</span> días para el mantenimiento preventivo programado
+                                                {% else %}
+                                                    {{ rule.description }}
+                                                {% endif %}
+                                            </td>
                                             <td class="text-center">
                                                 <input type="checkbox" name="rule_{{ rule.id }}_enabled" {% if pref.is_enabled %}checked{% endif %} class="form-check-input">
+                                            </td>
+                                            <td class="text-center">
+                                                {% if rule.is_customizable and rule.threshold_value is not none %}
+                                                <div class="d-flex justify-content-center align-items-center">
+                                                    <input type="number" step="1" name="rule_{{ rule.id }}_threshold" value="{{ rule.threshold_value|round(0)|int }}" class="form-control form-control-sm threshold-input" style="width: 80px;" data-rule-id="{{ rule.id }}" data-event-type="{{ rule.event_type }}" data-unit="{{ rule.threshold_unit }}">
+                                                    <span class="text-muted ms-1">{{ rule.threshold_unit }}</span>
+                                                </div>
+                                                {% else %}
+                                                <span class="text-muted">—</span>
+                                                {% endif %}
                                             </td>
                                             <td class="text-center">
                                                 <input type="checkbox" name="rule_{{ rule.id }}_email" {% if pref.channel_email %}checked{% endif %} class="form-check-input">
@@ -272,7 +304,7 @@
     });
 
     // ============================================
-    // CONFIGURACIÓN BREVO (cargar, guardar, toggle, prueba)
+    // CONFIGURACIÓN BREVO
     // ============================================
     const brevoEnabled = document.getElementById('brevo_enabled');
     const brevoFields = document.getElementById('brevoFields');
@@ -362,6 +394,53 @@
             btn.innerHTML = 'Enviar correo de prueba';
             setTimeout(() => document.getElementById('testResult').innerHTML = '', 5000);
         }
+    });
+
+    // ============================================
+    // ACTUALIZAR DESCRIPCIONES DE NOTIFICACIONES EN TIEMPO REAL
+    // ============================================
+    function updateDescription(ruleId, eventType, newValue, unit) {
+        const descSpan = document.getElementById(`desc_${ruleId}`);
+        if (!descSpan) return;
+
+        const thresholdSpan = descSpan.querySelector('.threshold-value');
+        if (!thresholdSpan) return;
+
+        thresholdSpan.textContent = newValue;
+
+        let newText = '';
+        if (eventType === 'work_order_overdue') {
+            newText = `Una orden lleva más de ${newValue} ${unit} en estado "asignada" sin iniciarse`;
+        } else if (eventType === 'equipment_life_critical') {
+            newText = `Vida restante &lt; ${newValue}% de la estimada`;
+        } else if (eventType === 'preventive_due_soon') {
+            newText = `Faltan ${newValue} ${unit} para el mantenimiento preventivo programado`;
+        } else {
+            return;
+        }
+
+        descSpan.innerHTML = newText.replace(newValue, `<span class="threshold-value">${newValue}</span>`);
+    }
+
+    function updateRuleName(ruleId, eventType, newValue, unit) {
+        if (eventType === 'work_order_overdue') {
+            const nameSpan = document.getElementById(`name_threshold_${ruleId}`);
+            if (nameSpan) {
+                nameSpan.textContent = newValue;
+            }
+        }
+    }
+
+    // Escuchar cambios en los inputs de umbral
+    document.querySelectorAll('.threshold-input').forEach(input => {
+        input.addEventListener('change', function() {
+            const ruleId = this.dataset.ruleId;
+            const eventType = this.dataset.eventType;
+            const unit = this.dataset.unit;
+            const newValue = this.value;
+            updateDescription(ruleId, eventType, newValue, unit);
+            updateRuleName(ruleId, eventType, newValue, unit);
+        });
     });
 </script>
 
