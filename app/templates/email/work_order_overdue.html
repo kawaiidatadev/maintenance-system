@@ -1,0 +1,33 @@
+{% extends "email/base_email.html" %}
+
+{% block content %}
+<h2>⚠️ Orden de Trabajo Vencida</h2>
+<p>Hola <strong>{{ user_name }}</strong>,</p>
+<p>La siguiente orden de trabajo lleva más de <strong>7 días</strong> sin iniciarse.</p>
+
+<div class="info-box">
+    <div class="info-item">
+        <span class="info-label">📌 N° OT:</span>
+        <strong>{{ order_number }}</strong>
+    </div>
+    <div class="info-item">
+        <span class="info-label">🔧 Equipo:</span>
+        {{ equipment_name }}
+    </div>
+    <div class="info-item">
+        <span class="info-label">📅 Fecha asignación:</span>
+        {{ assigned_date }}
+    </div>
+    <div class="info-item">
+        <span class="info-label">⏰ Días vencidos:</span>
+        {{ overdue_days }} días
+    </div>
+</div>
+
+<a href="{{ link }}" class="button">🔍 Ver Orden de Trabajo</a>
+
+<hr>
+<p style="font-size: 12px; color: #666;">
+    Por favor, toma acción inmediata sobre esta orden.
+</p>
+{% endblock %}

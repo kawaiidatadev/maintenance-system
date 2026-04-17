@@ -5,6 +5,7 @@ from app.models.setting import Setting
 from app.models.notification_rule import NotificationRule
 from app.models.user_notification_preference import UserNotificationPreference
 import pytz
+import requests
 
 settings_bp = Blueprint('settings', __name__, url_prefix='/settings')
 
@@ -58,6 +59,21 @@ def index():
     from app.utils import localize_datetime, format_datetime
     now_utc = datetime.utcnow()
     now_local = localize_datetime(now_utc)
+
+    timezone = Setting.get('timezone')
+    if not timezone:
+        timezone = 'America/Mexico_City'
+        Setting.set('timezone', timezone)
+
+    date_format = Setting.get('date_format')
+    if not date_format:
+        date_format = '%d/%m/%Y'
+        Setting.set('date_format', date_format)
+
+    datetime_format = Setting.get('datetime_format')
+    if not datetime_format:
+        datetime_format = '%d/%m/%Y %H:%M'
+        Setting.set('datetime_format', datetime_format)
 
     return render_template('settings/index.html',
                            timezone=timezone,
@@ -145,3 +161,62 @@ def update_general():
     Setting.set('datetime_format', datetime_format)
 
     return jsonify({'success': True})
+
+# ========== CONFIGURACIÓN DE CORREO BREVO ==========
+@settings_bp.route('/get_brevo_config', methods=['GET'])
+@login_required
+@admin_required
+def get_brevo_config():
+    return jsonify({
+        'success': True,
+        'enabled': Setting.get('brevo_enabled', 'false') == 'true',
+        'api_key': Setting.get('brevo_api_key', ''),
+        'from_email': Setting.get('brevo_from_email', ''),
+        'from_name': Setting.get('brevo_from_name', '')
+    })
+
+@settings_bp.route('/update_brevo_config', methods=['POST'])
+@login_required
+@admin_required
+def update_brevo_config():
+    data = request.get_json()
+    Setting.set('brevo_enabled', 'true' if data.get('enabled') else 'false')
+    Setting.set('brevo_api_key', data.get('api_key', ''))
+    Setting.set('brevo_from_email', data.get('from_email', ''))
+    Setting.set('brevo_from_name', data.get('from_name', 'Sistema de Mantenimiento'))
+    return jsonify({'success': True})
+
+@settings_bp.route('/test_brevo', methods=['POST'])
+@login_required
+@admin_required
+def test_brevo():
+    """Prueba la configuración de Brevo usando los datos enviados en el cuerpo de la petición."""
+    data = request.get_json()
+    api_key = data.get('api_key')
+    from_email = data.get('from_email')
+    from_name = data.get('from_name', 'Prueba Brevo')
+    to_email = current_user.email
+
+    if not api_key or not from_email:
+        return jsonify({'success': False, 'error': 'Faltan API key o correo remitente'})
+
+    url = "https://api.brevo.com/v3/smtp/email"
+    headers = {
+        "accept": "application/json",
+        "api-key": api_key,
+        "content-type": "application/json"
+    }
+    payload = {
+        "sender": {"name": from_name, "email": from_email},
+        "to": [{"email": to_email}],
+        "subject": "Prueba de correo desde el sistema",
+        "textContent": "Si recibes esto, la configuración de Brevo es correcta."
+    }
+    try:
+        r = requests.post(url, json=payload, headers=headers, timeout=30)
+        if r.status_code == 201:
+            return jsonify({'success': True, 'message': f'Correo enviado a {to_email}'})
+        else:
+            return jsonify({'success': False, 'error': f'Error {r.status_code}: {r.text}'})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})

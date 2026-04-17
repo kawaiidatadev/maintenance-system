@@ -18,22 +18,26 @@ def localize_datetime(dt):
     except:
         return dt
 
-def format_datetime(dt, format_str=None):
-    """Formatea un datetime según la configuración"""
-    if dt is None:
-        return ''
-    local_dt = localize_datetime(dt)
-    if format_str is None:
-        format_str = Setting.get('datetime_format', '%d/%m/%Y %H:%M')
-    return local_dt.strftime(format_str)
-
 def format_date(dt, format_str=None):
-    """Formatea una fecha según la configuración"""
+    """Formatea una fecha según la configuración o un formato dado"""
     if dt is None:
         return ''
     if format_str is None:
-        format_str = Setting.get('date_format', '%d/%m/%Y')
+        format_str = Setting.get('date_format')
+        if not format_str:
+            format_str = '%d/%m/%Y'  # Formato por defecto seguro
     return dt.strftime(format_str)
+
+def format_datetime(dt, format_str=None):
+    """Formatea una fecha y hora según la configuración o un formato dado"""
+    if dt is None:
+        return ''
+    if format_str is None:
+        format_str = Setting.get('datetime_format')
+        if not format_str:
+            format_str = '%d/%m/%Y %H:%M'  # Formato por defecto seguro
+    local_dt = localize_datetime(dt)
+    return local_dt.strftime(format_str)
 
 def time_ago(dt):
     """Devuelve tiempo relativo (hace X minutos/horas/días)"""

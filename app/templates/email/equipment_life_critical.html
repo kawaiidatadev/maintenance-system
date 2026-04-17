@@ -1,0 +1,38 @@
+{% extends "email/base_email.html" %}
+
+{% block content %}
+<h2>⚠️ Alerta: Vida Útil Crítica</h2>
+<p>Hola <strong>{{ user_name }}</strong>,</p>
+<p>El siguiente equipo tiene menos del <strong>10%</strong> de su vida útil restante.</p>
+
+<div class="info-box">
+    <div class="info-item">
+        <span class="info-label">🔧 Equipo:</span>
+        <strong>{{ equipment_code }} - {{ equipment_name }}</strong>
+    </div>
+    <div class="info-item">
+        <span class="info-label">📊 Vida útil estimada:</span>
+        {{ estimated_life_hours|round|int }} horas
+    </div>
+    <div class="info-item">
+        <span class="info-label">⏱️ Horas operadas:</span>
+        {{ total_operating_hours|round|int }} horas
+    </div>
+    <div class="info-item">
+        <span class="info-label">📉 Vida restante:</span>
+        {{ life_remaining_hours|round|int }} horas
+        <span class="badge badge-critical">⚠️ CRÍTICO</span>
+    </div>
+    <div class="info-item">
+        <span class="info-label">📍 Ubicación:</span>
+        {{ equipment_location or 'No especificada' }}
+    </div>
+</div>
+
+<a href="{{ link }}" class="button">🔍 Ver Equipo</a>
+
+<hr>
+<p style="font-size: 12px; color: #666;">
+    Se recomienda planificar la sustitución del equipo a la brevedad.
+</p>
+{% endblock %}

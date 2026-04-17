@@ -1,0 +1,37 @@
+{% extends "email/base_email.html" %}
+
+{% block content %}
+<h2>✅ Orden de Trabajo Completada</h2>
+<p>Hola <strong>{{ user_name }}</strong>,</p>
+<p>La orden de trabajo que reportaste ha sido completada.</p>
+
+<div class="info-box">
+    <div class="info-item">
+        <span class="info-label">📌 N° OT:</span>
+        <strong>{{ order_number }}</strong>
+    </div>
+    <div class="info-item">
+        <span class="info-label">🔧 Equipo:</span>
+        {{ equipment_name }}
+    </div>
+    <div class="info-item">
+        <span class="info-label">🔨 Técnico:</span>
+        {{ technician_name }}
+    </div>
+    <div class="info-item">
+        <span class="info-label">📝 Solución aplicada:</span>
+        {{ resolution or 'No especificada' }}
+    </div>
+    <div class="info-item">
+        <span class="info-label">⏱️ Tiempo de parada:</span>
+        {{ downtime_hours }} horas
+    </div>
+</div>
+
+<a href="{{ link }}" class="button">🔍 Ver Detalle</a>
+
+<hr>
+<p style="font-size: 12px; color: #666;">
+    Si la solución no es satisfactoria, por favor reporta nuevamente el problema.
+</p>
+{% endblock %}
