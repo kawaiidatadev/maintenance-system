@@ -111,6 +111,11 @@
                                     <label class="form-label">Nombre remitente</label>
                                     <input type="text" id="brevo_from_name" class="form-control" placeholder="Sistema de Mantenimiento">
                                 </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Correo central para notificaciones (opcional)</label>
+                                    <input type="email" id="central_notification_email" class="form-control" placeholder="notificaciones@tudominio.com">
+                                    <small class="text-muted">Si se especifica, todas las notificaciones por correo se enviarán a esta dirección en lugar de a cada usuario.</small>
+                                </div>
                                 <button type="button" id="testBrevoBtn" class="btn btn-sm btn-info">Enviar correo de prueba</button>
                                 <span id="testResult" class="ms-2"></span>
                             </div>
@@ -304,13 +309,14 @@
     });
 
     // ============================================
-    // CONFIGURACIÓN BREVO
+    // CONFIGURACIÓN BREVO (con correo central)
     // ============================================
     const brevoEnabled = document.getElementById('brevo_enabled');
     const brevoFields = document.getElementById('brevoFields');
     const brevoApiKey = document.getElementById('brevo_api_key');
     const brevoFromEmail = document.getElementById('brevo_from_email');
     const brevoFromName = document.getElementById('brevo_from_name');
+    const centralNotificationEmail = document.getElementById('central_notification_email');
 
     function toggleBrevoFields() {
         brevoFields.style.display = brevoEnabled.checked ? 'block' : 'none';
@@ -326,6 +332,7 @@
                 brevoApiKey.value = data.api_key || '';
                 brevoFromEmail.value = data.from_email || '';
                 brevoFromName.value = data.from_name || '';
+                centralNotificationEmail.value = data.central_email || '';
                 toggleBrevoFields();
             }
         } catch (error) {
@@ -339,7 +346,8 @@
             enabled: brevoEnabled.checked,
             api_key: brevoApiKey.value,
             from_email: brevoFromEmail.value,
-            from_name: brevoFromName.value
+            from_name: brevoFromName.value,
+            central_email: centralNotificationEmail.value
         };
         try {
             const response = await fetch('/settings/update_brevo_config', {

@@ -16,6 +16,7 @@ def admin_required(func):
             flash('Acceso denegado. Se requieren permisos de administrador.', 'danger')
             return redirect(url_for('dashboard.index'))
         return func(*args, **kwargs)
+
     return decorated_view
 
 
@@ -36,12 +37,14 @@ def create_user():
     password = request.form.get('password')
     role = request.form.get('role')
 
+    # Validar nombre de usuario único
     if User.query.filter_by(username=username).first():
         flash('El nombre de usuario ya existe', 'danger')
         return redirect(url_for('admin.users'))
 
+    # Validar email único
     if User.query.filter_by(email=email).first():
-        flash('El email ya está registrado', 'danger')
+        flash('El correo electrónico ya está registrado', 'danger')
         return redirect(url_for('admin.users'))
 
     user = User(
@@ -53,7 +56,15 @@ def create_user():
     )
     db.session.add(user)
     db.session.commit()
+
     flash(f'Usuario {username} creado exitosamente', 'success')
+
+    # Advertencia si el correo no es Gmail
+    if '@gmail.com' not in email.lower():
+        flash(
+            '⚠️ Advertencia: Las notificaciones por correo podrían no llegar a cuentas que no sean Gmail. Se recomienda usar una cuenta de Gmail para recibir notificaciones.',
+            'warning')
+
     return redirect(url_for('admin.users'))
 
 
@@ -64,10 +75,22 @@ def edit_user(id):
     user = User.query.get_or_404(id)
 
     if request.method == 'POST':
-        user.username = request.form.get('username')
-        user.email = request.form.get('email')
-        user.role = request.form.get('role')
-        user.is_active = 'is_active' in request.form
+        new_username = request.form.get('username')
+        new_email = request.form.get('email')
+        new_role = request.form.get('role')
+        new_is_active = 'is_active' in request.form
+
+        # Validar email único (excepto el del usuario actual)
+        existing = User.query.filter(User.email == new_email, User.id != user.id).first()
+        if existing:
+            flash('El correo electrónico ya está registrado por otro usuario.', 'danger')
+            return redirect(url_for('admin.edit_user', id=id))
+
+        # Actualizar campos
+        user.username = new_username
+        user.email = new_email
+        user.role = new_role
+        user.is_active = new_is_active
 
         new_password = request.form.get('password')
         if new_password and new_password.strip():
@@ -76,6 +99,13 @@ def edit_user(id):
 
         db.session.commit()
         flash(f'Usuario {user.username} actualizado', 'success')
+
+        # Advertencia si el nuevo correo no es Gmail
+        if '@gmail.com' not in new_email.lower():
+            flash(
+                '⚠️ Advertencia: Las notificaciones por correo podrían no llegar a cuentas que no sean Gmail. Se recomienda usar una cuenta de Gmail para recibir notificaciones.',
+                'warning')
+
         return redirect(url_for('admin.users'))
 
     return render_template('admin/edit_user.html', user=user)

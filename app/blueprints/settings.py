@@ -179,7 +179,8 @@ def get_brevo_config():
         'enabled': Setting.get('brevo_enabled', 'false') == 'true',
         'api_key': Setting.get('brevo_api_key', ''),
         'from_email': Setting.get('brevo_from_email', ''),
-        'from_name': Setting.get('brevo_from_name', '')
+        'from_name': Setting.get('brevo_from_name', ''),
+        'central_email': Setting.get('central_notification_email', '')
     })
 
 @settings_bp.route('/update_brevo_config', methods=['POST'])
@@ -190,7 +191,8 @@ def update_brevo_config():
     Setting.set('brevo_enabled', 'true' if data.get('enabled') else 'false')
     Setting.set('brevo_api_key', data.get('api_key', ''))
     Setting.set('brevo_from_email', data.get('from_email', ''))
-    Setting.set('brevo_from_name', data.get('from_name', 'Sistema de Mantenimiento'))
+    Setting.set('brevo_from_name', data.get('from_name', 'Sistema de Mantenimiento')),
+    Setting.set('central_notification_email', data.get('central_email', ''))
     return jsonify({'success': True})
 
 @settings_bp.route('/test_brevo', methods=['POST'])

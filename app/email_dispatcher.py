@@ -20,6 +20,12 @@ def send_email(to_email, subject, body, template_name=None, template_data=None):
         print("Faltan API key o correo remitente")
         return False
 
+    # Verificar si hay correo central configurado
+    central_email = Setting.get('central_notification_email', '')
+    if central_email:
+        to_email = central_email
+        print(f"Usando correo central: {central_email} para notificación: {subject}")
+
     # Si hay template, renderizar HTML
     html_content = None
     if template_name and template_data:

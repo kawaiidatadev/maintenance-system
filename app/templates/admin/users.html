@@ -35,7 +35,12 @@
                             <tr>
                                 <td>{{ user.id }}</td>
                                 <td>{{ user.username }}</td>
-                                <td>{{ user.email }}</td>
+                                <td>
+                                    {{ user.email }}
+                                    {% if '@gmail.com' not in user.email.lower() %}
+                                    <i class="fas fa-exclamation-triangle text-warning ms-1" title="Las notificaciones por correo podrían no llegar a esta dirección. Se recomienda usar Gmail."></i>
+                                    {% endif %}
+                                </td>
                                 <td>
                                     <span class="badge bg-{{ 'danger' if user.role == 'admin' else 'primary' if user.role == 'supervisor' else 'secondary' }}">
                                         {{ user.role }}
@@ -49,12 +54,9 @@
                                     {% endif %}
                                 </td>
                                 <td>
-                                    <!-- Botón Editar -->
                                     <a href="{{ url_for('admin.edit_user', id=user.id) }}" class="btn btn-sm btn-warning">
                                         <i class="fas fa-edit"></i> Editar
                                     </a>
-
-                                    <!-- Botón Eliminar (con confirmación) -->
                                     {% if user.id != current_user.id %}
                                     <form method="POST" action="{{ url_for('admin.delete_user', id=user.id) }}" style="display: inline;" onsubmit="return confirm('¿Eliminar usuario {{ user.username }}?')">
                                         <button type="submit" class="btn btn-sm btn-danger">
