@@ -1,0 +1,47 @@
+version: '3.8'
+
+services:
+  db:
+    image: mysql:8.0
+    container_name: maintenance_db
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_DATABASE: maintenance_db
+      MYSQL_USER: maintenance_user
+      MYSQL_PASSWORD: maintenance_pass
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-prootpassword"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  web:
+    build: .
+    container_name: maintenance_web
+    restart: always
+    ports:
+      - "5000:5000"
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: mysql+pymysql://maintenance_user:maintenance_pass@db:3306/maintenance_db
+      SECRET_KEY: ${SECRET_KEY:-clave_por_defecto_cambiar_en_produccion}
+      BREVO_API_KEY: ${BREVO_API_KEY:-}
+      BREVO_FROM_EMAIL: ${BREVO_FROM_EMAIL:-}
+      BREVO_FROM_NAME: ${BREVO_FROM_NAME:-Sistema de Mantenimiento}
+    volumes:
+      - ./app:/app/app
+      - ./static_uploads:/app/app/static/uploads
+    command: >
+      sh -c "flask db upgrade &&
+             python -c \"from app import create_app, db; from app.models.user import User; from werkzeug.security import generate_password_hash; app = create_app(); app.app_context().push(); if not User.query.filter_by(username='admin').first(): db.session.add(User(username='admin', email='admin@example.com', password_hash=generate_password_hash('admin123'), role='admin', is_active=True)); db.session.commit(); print('Admin created')\" &&
+             python run.py"
+
+volumes:
+  mysql_data:
