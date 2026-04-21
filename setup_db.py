@@ -1,3 +1,4 @@
+
 from app import create_app, db
 from werkzeug.security import generate_password_hash
 
@@ -6,7 +7,7 @@ app = create_app()
 with app.app_context():
     # Importar modelos
     from app.models.user import User
-    from app.models.equipment import Equipment  # <-- Agregar esta línea
+    from app.models.equipment import Equipment
 
     # Crear todas las tablas (incluye equipos)
     db.create_all()
