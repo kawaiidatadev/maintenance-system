@@ -198,11 +198,12 @@ def update_brevo_config():
     Setting.set('central_notification_email', data.get('central_email', ''))
     return jsonify({'success': True})
 
+
 @settings_bp.route('/test_brevo', methods=['POST'])
 @login_required
 @admin_required
 def test_brevo():
-    """Prueba la configuración de Brevo usando los datos enviados en el cuerpo de la petición."""
+    """Prueba la configuración de Brevo con validaciones de dominio"""
     data = request.get_json()
     api_key = data.get('api_key')
     from_email = data.get('from_email')
@@ -211,6 +212,44 @@ def test_brevo():
 
     if not api_key or not from_email:
         return jsonify({'success': False, 'error': 'Faltan API key o correo remitente'})
+
+    # Validar dominio del destinatario
+    import re
+    from dns import resolver  # Necesitas instalar dnspython: pip install dnspython
+
+    def get_domain(email):
+        return email.split('@')[-1].lower()
+
+    def has_mx_record(domain):
+        try:
+            resolver.resolve(domain, 'MX')
+            return True
+        except:
+            return False
+
+    def is_public_provider(domain):
+        public_providers = ['gmail.com', 'outlook.com', 'hotmail.com', 'yahoo.com', 'protonmail.com', 'icloud.com']
+        return domain in public_providers
+
+    recipient_domain = get_domain(to_email)
+
+    # Verificar si el dominio del destinatario es válido (tiene registro MX)
+    if not has_mx_record(recipient_domain):
+        return jsonify({
+            'success': False,
+            'error': f'El dominio "{recipient_domain}" no tiene registros MX. Es probable que el correo no llegue.'
+        })
+
+    # Verificar si es un dominio público (Gmail, etc.) o corporativo
+    if not is_public_provider(recipient_domain):
+        # Advertencia, pero permitir el envío
+        warning_msg = f"⚠️ El dominio {recipient_domain} es corporativo. Para que los correos lleguen, debes configurar los registros SPF y DKIM de Brevo en tu dominio. De lo contrario, podrían ir a spam o ser rechazados."
+    else:
+        warning_msg = None
+
+    # Validar que el remitente esté verificado en Brevo (esto requiere una llamada a la API de Brevo)
+    # Brevo no tiene un endpoint directo para verificar remitentes, pero podemos intentar enviar y ver el error.
+    # Haremos una prueba real y capturaremos errores de autenticación.
 
     url = "https://api.brevo.com/v3/smtp/email"
     headers = {
@@ -227,9 +266,25 @@ def test_brevo():
     try:
         r = requests.post(url, json=payload, headers=headers, timeout=30)
         if r.status_code == 201:
-            return jsonify({'success': True, 'message': f'Correo enviado a {to_email}'})
+            msg = f'✅ Correo enviado a {to_email}'
+            if warning_msg:
+                msg += f'\n\n{warning_msg}'
+            return jsonify({'success': True, 'message': msg})
         else:
-            return jsonify({'success': False, 'error': f'Error {r.status_code}: {r.text}'})
+            # Analizar el error para dar mensajes más claros
+            error_text = r.text
+            if 'sender not allowed' in error_text.lower() or 'from' in error_text.lower():
+                error_msg = "❌ El correo remitente no está autorizado en Brevo. Debes verificarlo en 'Remitentes y dominios'."
+            elif 'domain not verified' in error_text.lower():
+                error_msg = "❌ El dominio del remitente no está verificado en Brevo. Agrega y verifica tu dominio en 'Remitentes y dominios'."
+            elif 'authentication' in error_text.lower():
+                error_msg = "❌ Error de autenticación. Verifica tu API key."
+            else:
+                error_msg = f'Error {r.status_code}: {error_text}'
+
+            if warning_msg and r.status_code == 402:  # posible bloqueo por SPF
+                error_msg += f"\n\n{warning_msg}"
+            return jsonify({'success': False, 'error': error_msg})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
 
