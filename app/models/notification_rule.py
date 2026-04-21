@@ -18,6 +18,7 @@ class NotificationRule(db.Model):
     threshold_unit = db.Column(db.String(20))
     is_customizable = db.Column(db.Boolean, default=True)
     target_roles = db.Column(db.String(100))
+    recipient_config = db.Column(db.JSON, nullable=True)  # <-- AGREGAR ESTA LÍNEA
 
     def __repr__(self):
         return f'<NotificationRule {self.name}>'

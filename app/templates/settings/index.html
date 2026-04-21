@@ -58,7 +58,7 @@
                             </div>
 
                             <div class="alert alert-info" id="previewBox">
-                                <strong><i class="fas fa-eye"></i> Vista previa (en tiempo real):</strong><br>
+                                <strong><i class="fas fa-eye"></i> Vista previa:</strong><br>
                                 <strong>Fecha actual:</strong> <span id="preview_date">{{ format_date(preview_date) }}</span><br>
                                 <strong>Fecha y hora actual:</strong> <span id="preview_datetime">{{ format_datetime(preview_datetime) }}</span>
                             </div>
@@ -143,6 +143,7 @@
                                             <th style="width: 10%" class="text-center">Activar</th>
                                             <th style="width: 20%" class="text-center">Umbral</th>
                                             <th style="width: 10%" class="text-center">Correo</th>
+                                            <th style="width: 15%" class="text-center">Destinatarios</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -189,6 +190,12 @@
                                             <td class="text-center">
                                                 <input type="checkbox" name="rule_{{ rule.id }}_email" {% if pref.channel_email %}checked{% endif %} class="form-check-input">
                                             </td>
+                                            <td class="text-center">
+                                                <button type="button" class="btn btn-sm btn-outline-info configure-recipients"
+                                                        data-rule-id="{{ rule.id }}" data-rule-name="{{ rule.name }}">
+                                                    <i class="fas fa-users"></i> Configurar
+                                                </button>
+                                            </td>
                                         </tr>
                                         {% endfor %}
                                     </tbody>
@@ -201,6 +208,66 @@
                     </div>
 
                 </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Configurar Destinatarios -->
+<div class="modal fade" id="recipientModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-info text-white">
+                <h5 class="modal-title"><i class="fas fa-users"></i> Configurar Destinatarios</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="recipient_rule_id">
+                <div class="mb-3">
+                    <label class="form-label">Regla: <strong id="recipient_rule_name"></strong></label>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Tipo de destinatario</label>
+                    <select id="recipient_type" class="form-control">
+                        <option value="none">Ninguno (solo notificaciones internas)</option>
+                        <option value="all">Todos los usuarios (con correo)</option>
+                        <option value="roles">Roles específicos</option>
+                        <option value="users">Usuarios específicos</option>
+                        <option value="external">Correos externos</option>
+                    </select>
+                </div>
+                <div id="recipient_roles_group" style="display: none;">
+                    <label class="form-label">Seleccionar roles</label>
+                    <div class="form-check">
+                        <input type="checkbox" value="tecnico" class="form-check-input role-checkbox"> Técnico
+                    </div>
+                    <div class="form-check">
+                        <input type="checkbox" value="supervisor" class="form-check-input role-checkbox"> Supervisor
+                    </div>
+                    <div class="form-check">
+                        <input type="checkbox" value="admin" class="form-check-input role-checkbox"> Administrador
+                    </div>
+                    <div class="form-check">
+                        <input type="checkbox" value="viewer" class="form-check-input role-checkbox"> Visualizador
+                    </div>
+                </div>
+                <div id="recipient_users_group" style="display: none;">
+                    <label class="form-label">Seleccionar usuarios</label>
+                    <select id="recipient_users" class="form-control" multiple size="8">
+                        {% for user in users %}
+                        <option value="{{ user.id }}">{{ user.username }} ({{ user.email }})</option>
+                        {% endfor %}
+                    </select>
+                    <small class="text-muted">Múltiple: Ctrl+clic (Windows/Linux) o Cmd+clic (Mac)</small>
+                </div>
+                <div id="recipient_external_group" style="display: none;">
+                    <label class="form-label">Correos externos (separados por comas)</label>
+                    <textarea id="recipient_external" class="form-control" rows="3" placeholder="correo1@dominio.com, correo2@dominio.com"></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                <button type="button" class="btn btn-primary" id="saveRecipientsBtn">Guardar</button>
             </div>
         </div>
     </div>
@@ -450,6 +517,95 @@
             updateRuleName(ruleId, eventType, newValue, unit);
         });
     });
+    // ============================================
+// CONFIGURACIÓN DE DESTINATARIOS POR REGLA
+// ============================================
+let currentRuleId = null;
+
+function toggleRecipientFields() {
+    const type = document.getElementById('recipient_type').value;
+    document.getElementById('recipient_roles_group').style.display = type === 'roles' ? 'block' : 'none';
+    document.getElementById('recipient_users_group').style.display = type === 'users' ? 'block' : 'none';
+    document.getElementById('recipient_external_group').style.display = type === 'external' ? 'block' : 'none';
+}
+
+document.getElementById('recipient_type').addEventListener('change', toggleRecipientFields);
+
+// Abrir modal y cargar configuración actual
+document.querySelectorAll('.configure-recipients').forEach(btn => {
+    btn.addEventListener('click', async function() {
+        currentRuleId = this.dataset.ruleId;
+        document.getElementById('recipient_rule_name').textContent = this.dataset.ruleName;
+        document.getElementById('recipient_rule_id').value = currentRuleId;
+
+        try {
+            const response = await fetch(`/settings/get_recipient_config/${currentRuleId}`);
+            const data = await response.json();
+            if (data.success && data.config) {
+                const config = data.config;
+                document.getElementById('recipient_type').value = config.type || 'none';
+
+                // Roles
+                document.querySelectorAll('.role-checkbox').forEach(cb => {
+                    cb.checked = config.type === 'roles' && config.targets && config.targets.includes(cb.value);
+                });
+
+                // Usuarios
+                if (config.type === 'users' && config.targets) {
+                    const userSelect = document.getElementById('recipient_users');
+                    for (let i = 0; i < userSelect.options.length; i++) {
+                        userSelect.options[i].selected = config.targets.includes(parseInt(userSelect.options[i].value));
+                    }
+                }
+
+                // Externos
+                if (config.type === 'external' && config.targets) {
+                    document.getElementById('recipient_external').value = config.targets.join(', ');
+                }
+            }
+            toggleRecipientFields();
+        } catch (error) {
+            console.error('Error cargando configuración:', error);
+        }
+
+        new bootstrap.Modal(document.getElementById('recipientModal')).show();
+    });
+});
+
+// Guardar configuración
+document.getElementById('saveRecipientsBtn').addEventListener('click', async () => {
+    const ruleId = document.getElementById('recipient_rule_id').value;
+    const type = document.getElementById('recipient_type').value;
+    let targets = [];
+
+    if (type === 'roles') {
+        targets = Array.from(document.querySelectorAll('.role-checkbox:checked')).map(cb => cb.value);
+    } else if (type === 'users') {
+        targets = Array.from(document.getElementById('recipient_users').selectedOptions).map(opt => parseInt(opt.value));
+    } else if (type === 'external') {
+        const emails = document.getElementById('recipient_external').value;
+        targets = emails.split(',').map(e => e.trim()).filter(e => e);
+    }
+
+    const config = { type, targets };
+
+    try {
+        const response = await fetch('/settings/save_recipient_config', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ rule_id: ruleId, config: config })
+        });
+        const data = await response.json();
+        if (data.success) {
+            alert('Configuración guardada');
+            bootstrap.Modal.getInstance(document.getElementById('recipientModal')).hide();
+        } else {
+            alert('Error: ' + data.error);
+        }
+    } catch (error) {
+        alert('Error al guardar');
+    }
+});
 </script>
 
 {% endblock %}

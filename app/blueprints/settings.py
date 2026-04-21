@@ -6,6 +6,7 @@ from app.models.notification_rule import NotificationRule
 from app.models.user_notification_preference import UserNotificationPreference
 import pytz
 import requests
+from app.models.user import User
 
 settings_bp = Blueprint('settings', __name__, url_prefix='/settings')
 
@@ -74,6 +75,7 @@ def index():
     if not datetime_format:
         datetime_format = '%d/%m/%Y %H:%M'
         Setting.set('datetime_format', datetime_format)
+    users = User.query.all()  # Agregar esta línea después de obtener user_prefs
 
     return render_template('settings/index.html',
                            timezone=timezone,
@@ -83,7 +85,8 @@ def index():
                            rules=rules,
                            user_prefs=user_prefs,
                            preview_date=now_local,
-                           preview_datetime=now_local)
+                           preview_datetime=now_local,
+                           users=users)
 
 
 @settings_bp.route('/update', methods=['POST'])
@@ -229,3 +232,27 @@ def test_brevo():
             return jsonify({'success': False, 'error': f'Error {r.status_code}: {r.text}'})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
+
+# ========== CONFIGURACIÓN DE DESTINATARIOS POR REGLA ==========
+@settings_bp.route('/get_recipient_config/<int:rule_id>', methods=['GET'])
+@login_required
+@admin_required
+def get_recipient_config(rule_id):
+    from app.models.notification_rule import NotificationRule
+    rule = NotificationRule.query.get_or_404(rule_id)
+    config = rule.recipient_config if rule.recipient_config else None
+    return jsonify({'success': True, 'config': config})
+
+
+@settings_bp.route('/save_recipient_config', methods=['POST'])
+@login_required
+@admin_required
+def save_recipient_config():
+    from app.models.notification_rule import NotificationRule
+    data = request.get_json()
+    rule_id = data.get('rule_id')
+    config = data.get('config')
+    rule = NotificationRule.query.get_or_404(rule_id)
+    rule.recipient_config = config
+    db.session.commit()
+    return jsonify({'success': True})

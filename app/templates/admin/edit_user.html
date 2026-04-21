@@ -18,6 +18,11 @@
                         <input type="email" class="form-control" id="email" name="email" value="{{ user.email }}" required>
                     </div>
                     <div class="mb-3">
+                        <label for="alternative_email" class="form-label">Correo alternativo para notificaciones (opcional)</label>
+                        <input type="email" class="form-control" id="alternative_email" name="alternative_email" value="{{ alternative_email }}">
+                        <small class="text-muted">Si se especifica, las notificaciones por correo se enviarán a esta dirección en lugar del correo principal.</small>
+                    </div>
+                    <div class="mb-3">
                         <label for="role" class="form-label">Rol</label>
                         <select class="form-control" id="role" name="role">
                             <option value="tecnico" {% if user.role == 'tecnico' %}selected{% endif %}>Técnico</option>
