@@ -256,3 +256,31 @@ def save_recipient_config():
     rule.recipient_config = config
     db.session.commit()
     return jsonify({'success': True})
+
+@settings_bp.route('/get_email_stats', methods=['GET'])
+@login_required
+@admin_required
+def get_email_stats():
+    """Devuelve estadísticas de correos enviados hoy"""
+    from datetime import date
+    today_count = int(Setting.get('brevo_today_count', '0'))
+    daily_limit = 300  # Límite de Brevo
+    remaining = max(0, daily_limit - today_count)
+    return jsonify({
+        'success': True,
+        'today_count': today_count,
+        'daily_limit': daily_limit,
+        'remaining': remaining,
+        'percentage': round((today_count / daily_limit) * 100, 1) if daily_limit > 0 else 0
+    })
+
+@settings_bp.route('/check_counter', methods=['GET'])
+@login_required
+@admin_required
+def check_counter():
+    """Verifica el estado del contador (para depuración)"""
+    return jsonify({
+        'today_count': Setting.get('brevo_today_count', '0'),
+        'last_date': Setting.get('brevo_last_date', ''),
+        'current_date': date.today().isoformat()
+    })

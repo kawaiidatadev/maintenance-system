@@ -116,10 +116,27 @@
                                     <input type="email" id="central_notification_email" class="form-control" placeholder="notificaciones@tudominio.com">
                                     <small class="text-muted">Si se especifica, todas las notificaciones por correo se enviarán a esta dirección en lugar de a cada usuario.</small>
                                 </div>
+
                                 <button type="button" id="testBrevoBtn" class="btn btn-sm btn-info">Enviar correo de prueba</button>
                                 <span id="testResult" class="ms-2"></span>
                             </div>
-
+                            <!-- Contador de correos -->
+                            <div class="mt-3 p-3 border rounded bg-light" id="emailStatsContainer">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <i class="fas fa-envelope-open-text"></i>
+                                        <strong>Correos enviados hoy:</strong>
+                                        <span id="email_today_count">0</span> / <span id="email_daily_limit">300</span>
+                                    </div>
+                                    <div>
+                                        <span id="email_remaining" class="badge bg-success">300 restantes</span>
+                                    </div>
+                                </div>
+                                <div class="progress mt-2" style="height: 10px;">
+                                    <div id="email_progress_bar" class="progress-bar bg-info" role="progressbar" style="width: 0%;"></div>
+                                </div>
+                                <small class="text-muted mt-2 d-block">El límite gratuito de Brevo es de 300 correos por día. El contador se reinicia automáticamente cada día.</small>
+                            </div>
                             <div class="mt-3">
                                 <button type="button" id="saveBrevoBtn" class="btn btn-primary">Guardar configuración</button>
                             </div>
@@ -606,6 +623,56 @@ document.getElementById('saveRecipientsBtn').addEventListener('click', async () 
         alert('Error al guardar');
     }
 });
+
+// ============================================
+// CARGAR ESTADÍSTICAS DE CORREOS
+// ============================================
+async function loadEmailStats() {
+    try {
+        const response = await fetch('/settings/get_email_stats');
+        const data = await response.json();
+        if (data.success) {
+            document.getElementById('email_today_count').textContent = data.today_count;
+            document.getElementById('email_daily_limit').textContent = data.daily_limit;
+            document.getElementById('email_remaining').textContent = `${data.remaining} restantes`;
+
+            // Cambiar color según el porcentaje
+            const progressBar = document.getElementById('email_progress_bar');
+            progressBar.style.width = `${data.percentage}%`;
+            if (data.percentage >= 90) {
+                progressBar.classList.remove('bg-info');
+                progressBar.classList.add('bg-danger');
+                document.getElementById('email_remaining').className = 'badge bg-danger';
+            } else if (data.percentage >= 70) {
+                progressBar.classList.remove('bg-info');
+                progressBar.classList.add('bg-warning');
+                document.getElementById('email_remaining').className = 'badge bg-warning';
+            } else {
+                progressBar.classList.remove('bg-danger', 'bg-warning');
+                progressBar.classList.add('bg-info');
+                document.getElementById('email_remaining').className = 'badge bg-success';
+            }
+
+            // Si se alcanzó el límite, mostrar advertencia
+            if (data.remaining === 0) {
+                const alertDiv = document.createElement('div');
+                alertDiv.className = 'alert alert-warning mt-2 mb-0';
+                alertDiv.innerHTML = '<i class="fas fa-exclamation-triangle"></i> ⚠️ Has alcanzado el límite diario de 300 correos. Los nuevos correos no se enviarán hasta mañana.';
+                const container = document.getElementById('emailStatsContainer');
+                if (!container.querySelector('.alert-warning')) {
+                    container.appendChild(alertDiv);
+                }
+            }
+        }
+    } catch (error) {
+        console.error('Error cargando estadísticas de correo:', error);
+    }
+}
+
+// Cargar estadísticas al iniciar la página y cada 30 segundos
+loadEmailStats();
+setInterval(loadEmailStats, 30000);
+
 </script>
 
 {% endblock %}
