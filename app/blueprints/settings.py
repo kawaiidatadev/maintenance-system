@@ -215,7 +215,7 @@ def test_brevo():
 
     # Validar dominio del destinatario
     import re
-    from dns import resolver  # Necesitas instalar dnspython: pip install dnspython
+    from dns import resolver
 
     def get_domain(email):
         return email.split('@')[-1].lower()
