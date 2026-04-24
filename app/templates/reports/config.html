@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="container">
+    <div class="card">
+        <div class="card-header bg-primary text-white">
+            <h4><i class="fas fa-print"></i> Configuración de Reportes PDF</h4>
+        </div>
+        <div class="card-body">
+            <form method="POST" enctype="multipart/form-data">
+                <div class="mb-3">
+                    <label class="form-label">Encabezado HTML (personalizable)</label>
+                    <textarea name="header_html" rows="4" class="form-control">{{ config.header_html }}</textarea>
+                    <small>Puedes usar HTML, incluir imágenes con <code>&lt;img src="..."&gt;</code> usando rutas estáticas.</small>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Pie de página HTML</label>
+                    <textarea name="footer_html" rows="3" class="form-control">{{ config.footer_html }}</textarea>
+                    <small>Incluye <code>&lt;span class="pageNumber"&gt;&lt;/span&gt;</code> para número de página.</small>
+                </div>
+                <div class="mb-3 form-check">
+                    <input type="checkbox" class="form-check-input" name="use_company_logo" id="use_logo" {% if config.use_company_logo %}checked{% endif %}>
+                    <label class="form-check-label">Incluir logo de la empresa (configuración general)</label>
+                </div>
+                <div class="mb-3 form-check">
+                    <input type="checkbox" class="form-check-input" name="use_company_name" id="use_name" {% if config.use_company_name %}checked{% endif %}>
+                    <label class="form-check-label">Incluir nombre de la empresa</label>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Imagen personalizada para encabezado (reemplaza logo)</label>
+                    <input type="file" class="form-control" name="header_image" accept="image/*">
+                    {% if config.custom_header_image %}
+                        <div class="mt-1">
+                            <img src="{{ url_for('static', filename=config.custom_header_image) }}" style="height: 40px;">
+                            <small>Actual: {{ config.custom_header_image }}</small>
+                        </div>
+                    {% endif %}
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Imagen personalizada para pie de página</label>
+                    <input type="file" class="form-control" name="footer_image" accept="image/*">
+                    {% if config.custom_footer_image %}
+                        <div class="mt-1">
+                            <img src="{{ url_for('static', filename=config.custom_footer_image) }}" style="height: 30px;">
+                        </div>
+                    {% endif %}
+                </div>
+                <button type="submit" class="btn btn-primary">Guardar configuración</button>
+                <a href="{{ url_for('reports.index') }}" class="btn btn-secondary">Ver reportes generados</a>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card">
+    <div class="card-header bg-info text-white">
+        <h4><i class="fas fa-file-pdf"></i> Reportes de Cierre de Órdenes</h4>
+    </div>
+    <div class="card-body">
+        <form method="GET" class="row g-3 mb-4">
+            <div class="col-md-3">
+                <label>Equipo</label>
+                <select name="equipment_id" class="form-control">
+                    <option value="">Todos</option>
+                    {% for eq in equipments %}
+                    <option value="{{ eq.id }}" {% if request.args.get('equipment_id')|int == eq.id %}selected{% endif %}>{{ eq.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label>ID OT</label>
+                <input type="number" name="wo_id" class="form-control" value="{{ request.args.get('wo_id', '') }}">
+            </div>
+            <div class="col-md-2">
+                <label>Desde</label>
+                <input type="date" name="from_date" class="form-control" value="{{ request.args.get('from_date', '') }}">
+            </div>
+            <div class="col-md-2">
+                <label>Hasta</label>
+                <input type="date" name="to_date" class="form-control" value="{{ request.args.get('to_date', '') }}">
+            </div>
+            <div class="col-md-3 d-flex align-items-end">
+                <button type="submit" class="btn btn-primary me-2">Filtrar</button>
+                <a href="{{ url_for('reports.index') }}" class="btn btn-secondary">Limpiar</a>
+            </div>
+        </form>
+
+        <div class="table-responsive">
+            <table class="table table-striped">
+                <thead>
+                    <tr><th>ID OT</th><th>Equipo</th><th>Técnico</th><th>Fecha cierre</th><th>Tamaño</th><th>Acciones</th></tr>
+                </thead>
+                <tbody>
+                    {% for report in reports %}
+                    <tr>
+                        <td>{{ report.work_order_id }}</td>
+                        <td>{{ report.work_order.equipment.name if report.work_order.equipment else '-' }}</td>
+                        <td>{{ report.work_order.assigned_to.username if report.work_order.assigned_to else '-' }}</td>
+                        <td>{{ report.created_at.strftime('%d/%m/%Y %H:%M') }}</td>
+                        <td>{{ (report.file_size / 1024)|round(1) }} KB</td>
+                        <td>
+                            <a href="{{ url_for('reports.download', report_id=report.id) }}" class="btn btn-sm btn-success">
+                                <i class="fas fa-download"></i> PDF
+                            </a>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr><td colspan="6" class="text-center">No hay reportes generados</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

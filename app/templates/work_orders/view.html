@@ -30,21 +30,28 @@
                     </div>
                     <div class="col-md-6">
                         <strong>Estado:</strong>
-                       {% if order.status == 'open' %}
-            <span class="badge bg-secondary">Abierta</span>
-                {% elif order.status == 'assigned' %}
-                    <span class="badge bg-info">Asignada</span>
-                {% elif order.status == 'in_progress' %}
-                    <span class="badge bg-warning">En Progreso</span>
-                {% elif order.status == 'completed' %}
-                    <span class="badge bg-success">Completada</span>
-                {% elif order.status == 'closed' %}
-                    <span class="badge bg-primary">Cerrada</span>
-                {% elif order.status == 'cancelled' %}
-                    <span class="badge bg-danger">Cancelada</span>
-                {% else %}
-                    <span class="badge bg-secondary">{{ order.status }}</span>
-                {% endif %}
+                        {% if order.status == 'open' %}
+                            <span class="badge bg-secondary">Abierta</span>
+                        {% elif order.status == 'assigned' %}
+                            <span class="badge bg-info">Asignada</span>
+                        {% elif order.status == 'in_progress' %}
+                            <span class="badge bg-warning">En Progreso</span>
+                        {% elif order.status == 'completed' %}
+                            <span class="badge bg-success">Completada</span>
+                        {% elif order.status == 'closed' %}
+                            <span class="badge bg-primary">Cerrada</span>
+                        {% elif order.status == 'cancelled' %}
+                            <span class="badge bg-danger">Cancelada</span>
+                        {% else %}
+                            <span class="badge bg-secondary">{{ order.status }}</span>
+                        {% endif %}
+
+                        <!-- Mostrar enlace al PDF si está cerrada y existe reporte -->
+                        {% if order.status == 'closed' and order.report %}
+                            <a href="{{ url_for('reports.download', report_id=order.report.id) }}" class="btn btn-sm btn-success ms-2">
+                                <i class="fas fa-file-pdf"></i> Ver Reporte PDF
+                            </a>
+                        {% endif %}
                     </div>
                 </div>
 
@@ -63,15 +70,23 @@
                 {% if order.start_date %}
                 <div class="row mb-3">
                     <div class="col-md-4">
-                       <strong>Fecha inicio:</strong> {{ format_datetime(order.start_date) }}
-
+                        <strong>Fecha inicio:</strong> {{ format_datetime(order.start_date) }}
                     </div>
                     <div class="col-md-4">
-<strong>Fecha fin:</strong> {{ format_datetime(order.completion_date) }}
-
+                        <strong>Fecha fin:</strong> {{ format_datetime(order.completion_date) }}
                     </div>
                     <div class="col-md-4">
                         <strong>Tiempo parada:</strong> {{ order.downtime_hours }} horas
+                    </div>
+                </div>
+                {% endif %}
+
+                {% if order.closed_at %}
+                <div class="row mb-3">
+                    <div class="col-md-12">
+                        <strong>Fecha de cierre:</strong> {{ format_datetime(order.closed_at) }}
+                        <br>
+                        <strong>Cerrado por:</strong> {{ order.closed_by.username if order.closed_by else 'Sistema' }}
                     </div>
                 </div>
                 {% endif %}
@@ -87,123 +102,177 @@
                 </div>
                 {% endif %}
 
-
-               <!-- ============================================ -->
-<!-- SECCIÓN DE EVIDENCIAS -->
-<!-- ============================================ -->
-<div class="card mt-4">
-    <div class="card-header bg-info text-white">
-        <h5><i class="fas fa-paperclip"></i> Evidencias y Archivos</h5>
-    </div>
-    <div class="card-body">
-        <!-- Formulario de subida -->
-        <form method="POST" action="{{ url_for('attachments.upload_file', order_id=order.id) }}" enctype="multipart/form-data" class="mb-4">
-            <div class="row">
-                <div class="col-md-6">
-                    <input type="file" class="form-control" name="file" accept="image/*,application/pdf" required>
+                <!-- Notas de resolución -->
+                {% if order.resolution_summary %}
+                <div class="alert alert-secondary mt-3">
+                    <strong><i class="fas fa-sticky-note"></i> Notas de cierre:</strong><br>
+                    {{ order.resolution_summary }}
                 </div>
-                <div class="col-md-4">
-                    <input type="text" class="form-control" name="description" placeholder="Descripción (opcional)">
-                </div>
-                <div class="col-md-2">
-                    <button type="submit" class="btn btn-primary w-100">
-                        <i class="fas fa-upload"></i> Subir
-                    </button>
-                </div>
-            </div>
-            <small class="text-muted">Formatos permitidos: imágenes, PDF, Word, Excel. Máx 16MB</small>
-        </form>
+                {% endif %}
 
-        <!-- Lista de archivos -->
-        {% if order.attachments %}
-        <div class="table-responsive">
-            <table class="table table-sm">
-                <thead>
-                    <tr>
-                        <th>Archivo</th>
-                        <th>Descripción</th>
-                        <th>Subido por</th>
-                        <th>Fecha</th>
-                        <th>Tamaño</th>
-                        <th>Acciones</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for att in order.attachments|sort(attribute='uploaded_at', reverse=true) %}
-                    <tr>
-                        <td>
-                            {% if att.file_type and att.file_type.startswith('image/') %}
-                                <a href="#" data-bs-toggle="modal" data-bs-target="#imageModal{{ att.id }}">
-                                    <i class="fas fa-image"></i> {{ att.original_filename }}
-                                </a>
-                            {% else %}
-                                <i class="fas fa-file"></i> {{ att.original_filename }}
-                            {% endif %}
-                        </td>
-                        <td>{{ att.description or '-' }}</td>
-                        <td>{{ att.uploaded_by.username if att.uploaded_by else '-' }}</td>
-                        <td>{{ format_date(att.uploaded_at) }}</td>
-                        <td>{{ (att.file_size / 1024)|round|int }} KB</td>
-                        <td>
-                            <a href="{{ url_for('attachments.download_file', id=att.id) }}" class="btn btn-sm btn-success">
-                                <i class="fas fa-download"></i>
-                            </a>
-                            {% if current_user.role in ['admin', 'supervisor'] %}
-                            <a href="{{ url_for('attachments.delete_file', id=att.id) }}" class="btn btn-sm btn-danger" onclick="return confirm('¿Eliminar este archivo?')">
-                                <i class="fas fa-trash"></i>
-                            </a>
-                            {% endif %}
-                        </td>
-                    </tr>
-
-                    <!-- Modal para imagen -->
-                    {% if att.file_type and att.file_type.startswith('image/') %}
-                    <div class="modal fade" id="imageModal{{ att.id }}" tabindex="-1">
-                        <div class="modal-dialog modal-lg">
-                            <div class="modal-content">
-                                <div class="modal-header">
-                                    <h5 class="modal-title">{{ att.original_filename }}</h5>
-                                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                <!-- ============================================ -->
+                <!-- SECCIÓN DE EVIDENCIAS -->
+                <!-- ============================================ -->
+                <div class="card mt-4">
+                    <div class="card-header bg-info text-white">
+                        <h5><i class="fas fa-paperclip"></i> Evidencias y Archivos</h5>
+                    </div>
+                    <div class="card-body">
+                        <!-- Formulario de subida -->
+                        <form method="POST" action="{{ url_for('attachments.upload_file', order_id=order.id) }}" enctype="multipart/form-data" class="mb-4">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <input type="file" class="form-control" name="file" accept="image/*,application/pdf" required>
                                 </div>
-                                <div class="modal-body text-center">
-                                    <img src="{{ url_for('static', filename=att.file_path) }}" class="img-fluid" alt="{{ att.original_filename }}">
+                                <div class="col-md-4">
+                                    <input type="text" class="form-control" name="description" placeholder="Descripción (opcional)">
+                                </div>
+                                <div class="col-md-2">
+                                    <button type="submit" class="btn btn-primary w-100">
+                                        <i class="fas fa-upload"></i> Subir
+                                    </button>
                                 </div>
                             </div>
+                            <small class="text-muted">Formatos permitidos: imágenes, PDF, Word, Excel. Máx 16MB</small>
+                        </form>
+
+                        <!-- Lista de archivos -->
+                        {% if order.attachments %}
+                        <div class="table-responsive">
+                            <table class="table table-sm">
+                                <thead>
+                                    </table>
+                                        <th>Archivo</th>
+                                        <th>Descripción</th>
+                                        <th>Subido por</th>
+                                        <th>Fecha</th>
+                                        <th>Tamaño</th>
+                                        <th>Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for att in order.attachments|sort(attribute='uploaded_at', reverse=true) %}
+                                    <tr>
+                                        <table>
+                                            {% if att.file_type and att.file_type.startswith('image/') %}
+                                                <a href="#" data-bs-toggle="modal" data-bs-target="#imageModal{{ att.id }}">
+                                                    <i class="fas fa-image"></i> {{ att.original_filename }}
+                                                </a>
+                                            {% else %}
+                                                <i class="fas fa-file"></i> {{ att.original_filename }}
+                                            {% endif %}
+                                         </td>
+                                        <td>{{ att.description or '-' }}</td>
+                                        <td>{{ att.uploaded_by.username if att.uploaded_by else '-' }}</td>
+                                        <td>{{ format_date(att.uploaded_at) }}</td>
+                                        <td>{{ (att.file_size / 1024)|round|int }} KB</td>
+                                        <td>
+                                            <a href="{{ url_for('attachments.download_file', id=att.id) }}" class="btn btn-sm btn-success">
+                                                <i class="fas fa-download"></i>
+                                            </a>
+                                            {% if current_user.role in ['admin', 'supervisor'] %}
+                                            <a href="{{ url_for('attachments.delete_file', id=att.id) }}" class="btn btn-sm btn-danger" onclick="return confirm('¿Eliminar este archivo?')">
+                                                <i class="fas fa-trash"></i>
+                                            </a>
+                                            {% endif %}
+                                        </td>
+                                    </tr>
+
+                                    <!-- Modal para imagen -->
+                                    {% if att.file_type and att.file_type.startswith('image/') %}
+                                    <div class="modal fade" id="imageModal{{ att.id }}" tabindex="-1">
+                                        <div class="modal-dialog modal-lg">
+                                            <div class="modal-content">
+                                                <div class="modal-header">
+                                                    <h5 class="modal-title">{{ att.original_filename }}</h5>
+                                                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                                </div>
+                                                <div class="modal-body text-center">
+                                                    <img src="{{ url_for('static', filename=att.file_path) }}" class="img-fluid" alt="{{ att.original_filename }}">
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    {% endif %}
+                                    {% endfor %}
+                                </tbody>
+                            </table>
                         </div>
+                        {% else %}
+                        <p class="text-muted">No hay archivos adjuntos</p>
+                        {% endif %}
                     </div>
+                </div>
+
+                <!-- ============================================ -->
+                <!-- BOTONES DE ACCIÓN (CON MODAL PARA CERRAR) -->
+                <!-- ============================================ -->
+                <div class="mt-4">
+                    {% if order.can_start(current_user) %}
+                    <form method="POST" action="{{ url_for('work_orders.start_order', id=order.id) }}" style="display: inline;">
+                        <button type="submit" class="btn btn-warning" onclick="return confirm('¿Confirmas iniciar esta orden?')">
+                            <i class="fas fa-play"></i> Iniciar OT
+                        </button>
+                    </form>
                     {% endif %}
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-        {% else %}
-        <p class="text-muted">No hay archivos adjuntos</p>
-        {% endif %}
-    </div>
-</div>
 
-                <!-- Botones de acción -->
-<div class="mt-4">
-    {% if order.can_start(current_user) %}
-    <form method="POST" action="{{ url_for('work_orders.start_order', id=order.id) }}" style="display: inline;">
-        <button type="submit" class="btn btn-warning">Iniciar OT</button>
-    </form>
-    {% endif %}
+                    {% if order.can_complete(current_user) %}
+                    <a href="{{ url_for('work_orders.complete_order', id=order.id) }}" class="btn btn-success">
+                        <i class="fas fa-check-circle"></i> Completar OT
+                    </a>
+                    {% endif %}
 
-    {% if order.can_complete(current_user) %}
-    <a href="{{ url_for('work_orders.complete_order', id=order.id) }}" class="btn btn-success">Completar OT</a>
-    {% endif %}
+                    {% if order.can_close(current_user) %}
+                    <!-- Botón que abre modal para cerrar con notas -->
+                    <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#closeOrderModal">
+                        <i class="fas fa-lock"></i> Cerrar OT
+                    </button>
+                    {% endif %}
 
-    {% if order.can_close(current_user) %}
-    <form method="POST" action="{{ url_for('work_orders.close_order', id=order.id) }}" style="display: inline;">
-        <button type="submit" class="btn btn-primary">Cerrar OT</button>
-    </form>
-    {% endif %}
-
-    <a href="{{ url_for('work_orders.list_orders') }}" class="btn btn-secondary">Volver</a>
-</div>
+                    <a href="{{ url_for('work_orders.list_orders') }}" class="btn btn-secondary">
+                        <i class="fas fa-arrow-left"></i> Volver
+                    </a>
+                </div>
             </div>
         </div>
     </div>
 </div>
+
+<!-- ============================================ -->
+<!-- MODAL PARA CERRAR ORDEN CON NOTAS -->
+<!-- ============================================ -->
+{% if order.can_close(current_user) %}
+<div class="modal fade" id="closeOrderModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title">
+                    <i class="fas fa-lock"></i> Cerrar Orden de Trabajo #{{ order.number }}
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form method="POST" action="{{ url_for('work_orders.close_order', id=order.id) }}" onsubmit="return confirm('¿Estás seguro de cerrar esta OT? Se generará un reporte PDF.')">
+                <div class="modal-body">
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle"></i> Al cerrar esta orden se generará automáticamente un reporte en PDF que quedará guardado en el sistema.
+                    </div>
+                    <div class="mb-3">
+                        <label for="closure_notes" class="form-label">Notas de cierre (opcional)</label>
+                        <textarea name="closure_notes" id="closure_notes" class="form-control" rows="4"
+                                  placeholder="Ej: Trabajo completado satisfactoriamente, se realizaron pruebas y el equipo funciona correctamente..."></textarea>
+                        <small class="text-muted">Estas notas aparecerán en el reporte PDF y en el historial.</small>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-check"></i> Confirmar Cierre
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endif %}
+
 {% endblock %}

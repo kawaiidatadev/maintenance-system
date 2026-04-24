@@ -37,11 +37,10 @@ def create_app():
     from app.blueprints.work_orders import work_orders_bp
     from app.blueprints.attachments import attachments_bp
     from app.blueprints.criticality import criticality_bp
-    from app.blueprints.settings import settings_bp  # <-- Importar settings
-    from app.scheduler import start_scheduler
+    from app.blueprints.settings import settings_bp
     from app.blueprints.notifications import notifications_bp
-    scheduler = start_scheduler(app)
-    app.scheduler = scheduler
+    from app.scheduler import start_scheduler
+    from app.blueprints.reports import reports_bp
 
     # Registrar blueprints
     app.register_blueprint(auth_bp, url_prefix='/auth')
@@ -51,8 +50,17 @@ def create_app():
     app.register_blueprint(work_orders_bp)
     app.register_blueprint(attachments_bp)
     app.register_blueprint(criticality_bp)
-    app.register_blueprint(settings_bp)  # <-- Registrar settings
+    app.register_blueprint(settings_bp)
     app.register_blueprint(notifications_bp)
+    app.register_blueprint(reports_bp)
+
+    # Iniciar scheduler
+    scheduler = start_scheduler(app)
+    app.scheduler = scheduler
+
+    # ============================================
+    # CONTEXT PROCESSORS (DENTRO de create_app)
+    # ============================================
 
     @app.context_processor
     def inject_notifications():
@@ -64,7 +72,14 @@ def create_app():
             return dict(unread_count=unread_count, recent_notifications=recent)
         return dict(unread_count=0, recent_notifications=[])
 
-    # Context processor para funciones de formato (DENTRO de create_app)
+    @app.context_processor
+    def inject_company():
+        from app.models.setting import Setting
+        return {
+            'company_name': Setting.get('company_name', 'Sistema de Mantenimiento'),
+            'company_logo': Setting.get('company_logo', '')
+        }
+
     @app.context_processor
     def utility_processor():
         from app.utils import format_datetime, format_date, localize_datetime, time_ago

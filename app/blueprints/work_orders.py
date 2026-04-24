@@ -5,8 +5,12 @@ from app.models.work_order import WorkOrder
 from app.models.equipment import Equipment
 from app.models.user import User
 from datetime import datetime
-from app.notifications_helper import create_notification  # 🔔 Importar helper de notificaciones
-from flask import url_for  # ya lo tienes
+from app.notifications_helper import create_notification
+from flask import url_for
+from app.models.work_order_report import WorkOrderReport
+from app.services.pdf_generator import generate_work_order_pdf
+from app.models.setting import Setting
+from app.email_dispatcher import send_work_order_closed_email
 
 work_orders_bp = Blueprint('work_orders', __name__, url_prefix='/work-orders')
 
@@ -235,9 +239,51 @@ def close_order(id):
         flash('No tienes permiso para cerrar esta OT', 'danger')
         return redirect(url_for('work_orders.view_order', id=id))
 
+    # Evitar doble cierre
+    if order.status == 'closed':
+        flash('Esta OT ya está cerrada', 'warning')
+        return redirect(url_for('work_orders.view_order', id=id))
+
+    # Capturar notas de cierre (si vienen del formulario)
+    closure_notes = request.form.get('closure_notes', '')
+    if closure_notes:
+        # Puedes guardarlo en un campo existente, por ejemplo resolution_summary
+        order.resolution_summary = closure_notes
+
+    # Actualizar estado y fechas
     order.status = 'closed'
     order.closed_by_id = current_user.id
     order.closed_at = datetime.utcnow()
     db.session.commit()
-    flash(f'OT {order.number} cerrada', 'success')
+
+    # ============================================
+    # GENERAR PDF Y REGISTRAR EN BD
+    # ============================================
+    try:
+        pdf_info = generate_work_order_pdf(order)
+        report = WorkOrderReport(
+            work_order_id=order.id,
+            file_path=pdf_info['file_path'],
+            filename=pdf_info['filename'],
+            file_size=pdf_info['file_size']
+        )
+        db.session.add(report)
+        db.session.commit()
+        flash(f'OT {order.number} cerrada. Reporte PDF generado.', 'success')
+    except Exception as e:
+        # Si falla la generación del PDF, igual se cierra la OT pero se informa el error
+        flash(f'OT cerrada pero no se pudo generar el PDF: {str(e)}', 'warning')
+        db.session.rollback()
+        return redirect(url_for('work_orders.view_order', id=id))
+
+    # ============================================
+    # ENVIAR CORREO CON ADJUNTO (SI BREVO ACTIVADO)
+    # ============================================
+    if Setting.get('brevo_enabled') == 'true':
+        try:
+            send_work_order_closed_email(order, pdf_info['absolute_path'])
+            flash('Correo con reporte enviado al técnico/supervisor', 'info')
+        except Exception as e:
+            flash(f'OT cerrada pero no se pudo enviar el correo: {str(e)}', 'warning')
+
     return redirect(url_for('work_orders.view_order', id=id))

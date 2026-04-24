@@ -157,3 +157,80 @@ def send_email(to_emails, subject, body, template_name=None, template_data=None,
         except Exception as e:
             print(f"❌ Excepción inesperada: {e}")
             return False
+
+def send_work_order_closed_email(work_order, pdf_path):
+    """Envía correo con el PDF adjunto cuando se cierra una OT"""
+    from app.models.setting import Setting
+    import requests
+    import base64
+    import os
+    from datetime import date
+
+    if Setting.get('brevo_enabled') != 'true':
+        return False
+
+    api_key = Setting.get('brevo_api_key')
+    from_email = Setting.get('brevo_from_email')
+    from_name = Setting.get('brevo_from_name', 'Sistema de Mantenimiento')
+    central_email = Setting.get('central_notification_email')
+
+    # Destinatarios: si hay correo central, se usa; sino, al técnico y creador
+    if central_email:
+        to_emails = [central_email]
+    else:
+        recipients = set()
+        if work_order.assigned_to and work_order.assigned_to.email:
+            recipients.add(work_order.assigned_to.email)
+        if work_order.created_by and work_order.created_by.email:
+            recipients.add(work_order.created_by.email)
+        to_emails = list(recipients)
+
+    if not to_emails:
+        return False
+
+    # Leer PDF y codificar en base64
+    with open(pdf_path, 'rb') as f:
+        file_content = base64.b64encode(f.read()).decode()
+
+    attachment = {
+        "name": os.path.basename(pdf_path),
+        "content": file_content
+    }
+
+    subject = f"Orden de Trabajo #{work_order.id} cerrada - Reporte adjunto"
+    html_content = f"""
+    <p>La orden de trabajo <strong>#{work_order.id}</strong> ha sido cerrada.</p>
+    <p>Equipo: {work_order.equipment.name if work_order.equipment else 'N/A'}</p>
+    <p>Adjunto encontrará el reporte en PDF.</p>
+    <p>Gracias.</p>
+    """
+
+    payload = {
+        "sender": {"name": from_name, "email": from_email},
+        "to": [{"email": email} for email in to_emails],
+        "subject": subject,
+        "htmlContent": html_content,
+        "attachment": [attachment]
+    }
+
+    headers = {"api-key": api_key, "content-type": "application/json"}
+    url = "https://api.brevo.com/v3/smtp/email"
+
+    try:
+        response = requests.post(url, json=payload, headers=headers, timeout=30)
+        if response.status_code == 201:
+            # Incrementar contador diario
+            today = date.today().isoformat()
+            last_date = Setting.get('brevo_last_date', '')
+            count = int(Setting.get('brevo_today_count', '0'))
+            if last_date != today:
+                count = 0
+            Setting.set('brevo_today_count', str(count + 1))
+            Setting.set('brevo_last_date', today)
+            return True
+        else:
+            print(f"Error Brevo: {response.text}")
+            return False
+    except Exception as e:
+        print(f"Excepción enviando correo: {e}")
+        return False
