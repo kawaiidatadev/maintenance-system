@@ -107,4 +107,11 @@ def create_app():
             return redirect(url_for('dashboard.index'))
         return redirect(url_for('auth.login'))
 
+    @app.context_processor
+    def inject_pdf_templates():
+        from app.models.pdf_template import PDFTemplate
+        templates = PDFTemplate.query.filter_by(is_active=True).all()
+        return dict(pdf_templates=templates)
+
     return app
+

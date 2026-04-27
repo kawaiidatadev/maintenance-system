@@ -1,18 +1,23 @@
-from flask import Blueprint, render_template, request, send_from_directory, flash, redirect, url_for, current_app
+from flask import Blueprint, render_template, request, send_from_directory, flash, redirect, url_for, current_app, \
+    send_file, make_response
 from flask_login import login_required, current_user
 from app import db
 from app.models.work_order_report import WorkOrderReport
 from app.models.equipment import Equipment
 from app.models.work_order import WorkOrder
 from app.models.report_config import ReportConfig
+from app.models.report_template import ReportTemplate
 from app.utils.file_utils import sanitize_filename, ensure_dir
 import os
+from datetime import datetime
 from werkzeug.utils import secure_filename
+from app.models.pdf_template import PDFTemplate
+from app.models.pdf_template_config import PDFTemplateConfig
 
 reports_bp = Blueprint('reports', __name__, url_prefix='/reports')
 
 
-# Decorador para administradores (usado en configuración)
+# Decorador para administradores
 def admin_required(func):
     from functools import wraps
     @wraps(func)
@@ -25,59 +30,208 @@ def admin_required(func):
     return decorated
 
 
-# ------------------ Configuración de reportes (admin) ------------------
-@reports_bp.route('/config', methods=['GET', 'POST'])
+# ------------------ Listado de plantillas ------------------
+@reports_bp.route('/templates')
 @login_required
 @admin_required
-def config():
-    config = ReportConfig.get_config()
+def list_templates():
+    """Lista todas las plantillas disponibles"""
+    templates = ReportTemplate.query.filter_by(is_active=True).all()
+    return render_template('reports/templates.html', templates=templates)
+
+
+# ------------------ Crear nueva plantilla ------------------
+@reports_bp.route('/templates/new', methods=['GET', 'POST'])
+@login_required
+@admin_required
+def new_template():
+    """Crea una nueva plantilla de reporte"""
     if request.method == 'POST':
-        config.header_html = request.form.get('header_html', '')
-        config.footer_html = request.form.get('footer_html', '')
+        name = request.form.get('name', '').strip().lower().replace(' ', '_')
+        display_name = request.form.get('display_name', '')
+
+        # Validar nombre único
+        existing = ReportTemplate.query.filter_by(name=name).first()
+        if existing:
+            flash('Ya existe una plantilla con ese nombre', 'danger')
+            return redirect(url_for('reports.new_template'))
+
+        template = ReportTemplate(
+            name=name,
+            display_name=display_name,
+            description=request.form.get('description', '')
+        )
+        db.session.add(template)
+        db.session.commit()
+
+        # Crear configuración asociada a esta plantilla
+        config = ReportConfig(template_id=template.id, template_name=name)
+        db.session.add(config)
+        db.session.commit()
+
+        flash(f'Plantilla "{display_name}" creada exitosamente', 'success')
+        return redirect(url_for('reports.config_template', template_id=template.id))
+
+    return render_template('reports/template_form.html')
+
+
+# ------------------ Configuración de reportes por plantilla ------------------
+@reports_bp.route('/config/<int:template_id>', methods=['GET', 'POST'])
+@login_required
+@admin_required
+def config_template(template_id):
+    """Configura una plantilla específica"""
+    template = ReportTemplate.query.get_or_404(template_id)
+    config = ReportConfig.query.filter_by(template_id=template_id).first()
+
+    if not config:
+        config = ReportConfig(template_id=template_id, template_name=template.name)
+        db.session.add(config)
+        db.session.commit()
+
+    if request.method == 'POST':
+        # Guardar textos
+        for col in ['left', 'center', 'right']:
+            setattr(config, f'header_{col}', request.form.get(f'header_{col}', ''))
+            setattr(config, f'footer_{col}', request.form.get(f'footer_{col}', ''))
+
+        # Guardar anchos
+        for col in ['left', 'center', 'right']:
+            w_header = request.form.get(f'header_{col}_img_width')
+            if w_header:
+                setattr(config, f'header_{col}_img_width', int(w_header))
+            w_footer = request.form.get(f'footer_{col}_img_width')
+            if w_footer:
+                setattr(config, f'footer_{col}_img_width', int(w_footer))
+
+        # Procesar subida de imágenes y eliminación
+        for section in ['header', 'footer']:
+            for col in ['left', 'center', 'right']:
+                img_field = f'{section}_{col}_img'
+                # Si hay solicitud de eliminar imagen
+                if request.form.get(f'remove_{img_field}'):
+                    if getattr(config, img_field):
+                        old_path = os.path.join(current_app.root_path, 'static', getattr(config, img_field))
+                        if os.path.exists(old_path):
+                            os.remove(old_path)
+                        setattr(config, img_field, None)
+                # Subir nueva imagen
+                if img_field in request.files:
+                    file = request.files[img_field]
+                    if file and file.filename:
+                        ext = file.filename.rsplit('.', 1)[1].lower()
+                        if ext in {'png', 'jpg', 'jpeg', 'gif', 'svg'}:
+                            filename = secure_filename(
+                                f"{section}_{col}_{template.name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.{ext}")
+                            upload_folder = os.path.join(current_app.root_path, 'static', 'uploads', 'reports_config')
+                            ensure_dir(upload_folder)
+                            filepath = os.path.join(upload_folder, filename)
+                            file.save(filepath)
+                            old = getattr(config, img_field)
+                            if old:
+                                old_path = os.path.join(current_app.root_path, 'static', old)
+                                if os.path.exists(old_path):
+                                    os.remove(old_path)
+                            setattr(config, img_field, f'uploads/reports_config/{filename}')
+                            setattr(config, f'{section}_{col}', '')
+
         config.use_company_logo = 'use_company_logo' in request.form
         config.use_company_name = 'use_company_name' in request.form
-
-        # Manejo de imagen personalizada para encabezado
-        if 'header_image' in request.files:
-            file = request.files['header_image']
-            if file and file.filename:
-                ext = file.filename.rsplit('.', 1)[1].lower()
-                if ext in {'png', 'jpg', 'jpeg', 'gif'}:
-                    filename = secure_filename(f"header_{datetime.now().strftime('%Y%m%d_%H%M%S')}.{ext}")
-                    upload_folder = os.path.join(current_app.root_path, 'static', 'uploads', 'reports_config')
-                    ensure_dir(upload_folder)
-                    filepath = os.path.join(upload_folder, filename)
-                    file.save(filepath)
-                    config.custom_header_image = f'uploads/reports_config/{filename}'
-                else:
-                    flash('Formato de imagen no válido para encabezado', 'warning')
-
-        if 'footer_image' in request.files:
-            file = request.files['footer_image']
-            if file and file.filename:
-                ext = file.filename.rsplit('.', 1)[1].lower()
-                if ext in {'png', 'jpg', 'jpeg', 'gif'}:
-                    filename = secure_filename(f"footer_{datetime.now().strftime('%Y%m%d_%H%M%S')}.{ext}")
-                    upload_folder = os.path.join(current_app.root_path, 'static', 'uploads', 'reports_config')
-                    ensure_dir(upload_folder)
-                    filepath = os.path.join(upload_folder, filename)
-                    file.save(filepath)
-                    config.custom_footer_image = f'uploads/reports_config/{filename}'
-                else:
-                    flash('Formato de imagen no válido para pie', 'warning')
-
         db.session.commit()
-        flash('Configuración de reportes guardada', 'success')
-        return redirect(url_for('reports.config'))
+        flash(f'Configuración de "{template.display_name}" guardada', 'success')
+        return redirect(url_for('reports.config_template', template_id=template_id))
 
-    return render_template('reports/config.html', config=config)
+    all_templates = ReportTemplate.query.filter_by(is_active=True).all()
+    return render_template('reports/config.html', config=config, template=template, all_templates=all_templates)
 
 
-# ------------------ Listado de reportes (acceso técnico y superiores) ------------------
+# ------------------ Configuración por defecto (redirige a la plantilla principal) ------------------
+@reports_bp.route('/config/<template_key>', methods=['GET', 'POST'])
+@login_required
+@admin_required
+def config(template_key):
+    template = PDFTemplate.get_by_key(template_key)
+    if not template:
+        flash('Plantilla no encontrada', 'danger')
+        return redirect(url_for('reports.index'))
+
+    config = PDFTemplateConfig.get_or_create(template.id)
+
+    if request.method == 'POST':
+        # Guardar textos
+        for col in ['left', 'center', 'right']:
+            setattr(config, f'header_{col}', request.form.get(f'header_{col}', ''))
+            setattr(config, f'footer_{col}', request.form.get(f'footer_{col}', ''))
+        # Guardar anchos de imagen
+        for col in ['left', 'center', 'right']:
+            w_header = request.form.get(f'header_{col}_img_width')
+            if w_header:
+                setattr(config, f'header_{col}_img_width', int(w_header))
+            w_footer = request.form.get(f'footer_{col}_img_width')
+            if w_footer:
+                setattr(config, f'footer_{col}_img_width', int(w_footer))
+        # Opciones de empresa
+        config.use_company_logo = 'use_company_logo' in request.form
+        config.use_company_name = 'use_company_name' in request.form
+        # Subida de imágenes (similar a antes)...
+        # (Código de subida de imágenes)
+        db.session.commit()
+        flash(f'Configuración de {template.name} guardada', 'success')
+        return redirect(url_for('reports.config', template_key=template_key))
+
+    return render_template('reports/config.html', config=config, template=template)
+
+
+# ------------------ Vista previa por plantilla ------------------
+@reports_bp.route('/preview/<int:template_id>')
+@login_required
+@admin_required
+def preview_template(template_id):
+    """Genera un PDF de ejemplo con la configuración actual y lo muestra en el navegador"""
+    from app.services.pdf_generator import generate_preview_pdf
+    from flask import send_file, make_response
+    from app.models.pdf_template import PDFTemplate
+    from app.models.pdf_template_config import PDFTemplateConfig
+
+    # Obtener la plantilla
+    template = PDFTemplate.query.get_or_404(template_id)
+
+    # Obtener o crear la configuración para esta plantilla
+    config = PDFTemplateConfig.query.filter_by(template_id=template_id).first()
+    if not config:
+        config = PDFTemplateConfig(template_id=template_id)
+        db.session.add(config)
+        db.session.commit()
+
+    # Generar vista previa
+    pdf_bytes = generate_preview_pdf(template_id=template_id)
+
+    response = make_response(send_file(
+        pdf_bytes,
+        mimetype='application/pdf',
+        as_attachment=False,
+        download_name=f'vista_previa_{template.key}.pdf'
+    ))
+    response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+    response.headers['Pragma'] = 'no-cache'
+    response.headers['Expires'] = '0'
+    return response
+
+# ------------------ Vista previa por defecto (compatibilidad) ------------------
+@reports_bp.route('/preview/<template_key>')
+@login_required
+def preview(template_key):
+    from app.services.pdf_generator import generate_preview_pdf
+    pdf_bytes = generate_preview_pdf(template_key)
+    response = make_response(pdf_bytes)
+    response.headers['Content-Type'] = 'application/pdf'
+    return response
+
+
+# ------------------ Listado de reportes ------------------
 @reports_bp.route('/')
 @login_required
 def index():
-    # Filtros
     equipment_id = request.args.get('equipment_id', type=int)
     wo_id = request.args.get('wo_id', type=int)
     from_date = request.args.get('from_date')
@@ -85,32 +239,29 @@ def index():
 
     query = WorkOrderReport.query.join(WorkOrder).join(Equipment)
 
-    # Restricción por rol: técnico solo ve OTs donde fue asignado
     if current_user.role == 'tecnico':
         query = query.filter(WorkOrder.assigned_to_id == current_user.id)
-    # Para supervisor y admin no se filtra (o se puede limitar a equipos a su cargo si se requiere)
 
     if equipment_id:
         query = query.filter(WorkOrder.equipment_id == equipment_id)
     if wo_id:
         query = query.filter(WorkOrderReport.work_order_id == wo_id)
-    if from_date:
-        query = query.filter(WorkOrderReport.created_at >= from_date)
-    if to_date:
-        query = query.filter(WorkOrderReport.created_at <= to_date)
+        if from_date:
+            query = query.filter(WorkOrderReport.created_at >= from_date)
+        if to_date:
+            query = query.filter(WorkOrderReport.created_at <= to_date)
 
-    reports = query.order_by(WorkOrderReport.created_at.desc()).all()
-    equipments = Equipment.query.all()
+        reports = query.order_by(WorkOrderReport.created_at.desc()).all()
+        equipments = Equipment.query.all()
 
-    return render_template('reports/index.html', reports=reports, equipments=equipments)
+        return render_template('reports/index.html', reports=reports, equipments=equipments)
 
 
-# ------------------ Descarga de PDF ------------------
+    # ------------------ Descarga de PDF ------------------
 @reports_bp.route('/download/<int:report_id>')
 @login_required
 def download(report_id):
     report = WorkOrderReport.query.get_or_404(report_id)
-    # Verificar permiso: técnico solo puede descargar si fue asignado
     if current_user.role == 'tecnico' and report.work_order.assigned_to_id != current_user.id:
         flash('No tienes permiso para descargar este reporte', 'danger')
         return redirect(url_for('reports.index'))

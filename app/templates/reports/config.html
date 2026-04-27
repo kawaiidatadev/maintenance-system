@@ -1,53 +1,233 @@
 {% extends "base.html" %}
+
 {% block content %}
-<div class="container">
-    <div class="card">
-        <div class="card-header bg-primary text-white">
-            <h4><i class="fas fa-print"></i> Configuración de Reportes PDF</h4>
+<div class="container-fluid px-4 py-3">
+    <div class="row g-4">
+        <!-- COLUMNA IZQUIERDA: CONFIGURACIÓN -->
+        <div class="col-lg-8">
+            <div class="card shadow-sm">
+                <div class="card-header bg-primary text-white py-3">
+                    <h4 class="mb-0"><i class="fas fa-print me-2"></i> Configuración: {{ template.name }}</h4>
+                </div>
+                <div class="card-body">
+                    <form id="configForm" method="POST" enctype="multipart/form-data" action="{{ url_for('reports.config', template_key=template.key) }}">
+
+                        <!-- ========================================== -->
+                        <!-- ENCABEZADO (tres tarjetas) -->
+                        <!-- ========================================== -->
+                        <div class="mb-5">
+                            <h5 class="border-bottom pb-2"><i class="fas fa-heading text-primary me-2"></i> Encabezado</h5>
+                            <div class="row g-3 mt-2">
+                                {% for col, label in [('left', 'Izquierda'), ('center', 'Centro'), ('right', 'Derecha')] %}
+                                <div class="col-md-4">
+                                    <div class="card h-100 border shadow-sm">
+                                        <div class="card-header bg-light fw-bold">{{ label }}</div>
+                                        <div class="card-body p-3">
+                                            <!-- Texto -->
+                                            <div class="mb-2">
+                                                <label class="form-label small fw-bold">Texto</label>
+                                                <textarea name="header_{{ col }}" rows="3" class="form-control form-control-sm font-monospace" style="font-size: 12px;">{{ config['header_' + col] or '' }}</textarea>
+                                            </div>
+                                            <!-- Imagen actual -->
+                                            {% set img_field = 'header_' + col + '_img' %}
+                                            {% if config[img_field] %}
+                                            <div class="mb-2 p-2 bg-light rounded">
+                                                <div class="d-flex justify-content-between align-items-center">
+                                                    <img src="{{ url_for('static', filename=config[img_field]) }}" style="max-height: 40px;">
+                                                    <button type="button" class="btn btn-sm btn-outline-danger remove-image" data-target="header_{{ col }}">Eliminar</button>
+                                                </div>
+                                                <small class="text-muted">{{ config[img_field].split('/')[-1] }}</small>
+                                            </div>
+                                            {% endif %}
+                                            <!-- Subir imagen -->
+                                            <div class="mb-2">
+                                                <label class="form-label small">Nueva imagen</label>
+                                                <input type="file" class="form-control form-control-sm" name="header_{{ col }}_img" accept="image/*" data-column="header_{{ col }}">
+                                            </div>
+                                            <div class="mt-2">
+                                                <label class="form-label small">Ancho (mm)</label>
+                                                <input type="number" step="5" class="form-control form-control-sm" name="header_{{ col }}_img_width"
+                                                       value="{{ config['header_' + col + '_img_width'] or 30 }}" min="5" max="80">
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+
+                        <!-- ========================================== -->
+                        <!-- PIE DE PÁGINA -->
+                        <!-- ========================================== -->
+                        <div class="mb-5">
+                            <h5 class="border-bottom pb-2"><i class="fas fa-italic text-primary me-2"></i> Pie de página</h5>
+                            <div class="row g-3 mt-2">
+                                {% for col, label in [('left', 'Izquierda'), ('center', 'Centro'), ('right', 'Derecha')] %}
+                                <div class="col-md-4">
+                                    <div class="card h-100 border shadow-sm">
+                                        <div class="card-header bg-light fw-bold">{{ label }}</div>
+                                        <div class="card-body p-3">
+                                            <div class="mb-2">
+                                                <label class="form-label small fw-bold">Texto</label>
+                                                <textarea name="footer_{{ col }}" rows="3" class="form-control form-control-sm font-monospace" style="font-size: 12px;">{{ config['footer_' + col] or '' }}</textarea>
+                                            </div>
+                                            {% set img_field = 'footer_' + col + '_img' %}
+                                            {% if config[img_field] %}
+                                            <div class="mb-2 p-2 bg-light rounded">
+                                                <div class="d-flex justify-content-between align-items-center">
+                                                    <img src="{{ url_for('static', filename=config[img_field]) }}" style="max-height: 40px;">
+                                                    <button type="button" class="btn btn-sm btn-outline-danger remove-image" data-target="footer_{{ col }}">Eliminar</button>
+                                                </div>
+                                                <small class="text-muted">{{ config[img_field].split('/')[-1] }}</small>
+                                            </div>
+                                            {% endif %}
+                                            <div class="mb-2">
+                                                <label class="form-label small">Nueva imagen</label>
+                                                <input type="file" class="form-control form-control-sm" name="footer_{{ col }}_img" accept="image/*" data-column="footer_{{ col }}">
+                                            </div>
+                                            <div class="mt-2">
+                                                <label class="form-label small">Ancho (mm)</label>
+                                                <input type="number" step="5" class="form-control form-control-sm" name="footer_{{ col }}_img_width"
+                                                       value="{{ config['footer_' + col + '_img_width'] or 25 }}" min="5" max="80">
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+
+                        <!-- OPCIONES DE EMPRESA -->
+                        <div class="mb-3 p-3 bg-light rounded d-flex justify-content-between align-items-center">
+                            <div>
+                                <div class="form-check form-check-inline">
+                                    <input class="form-check-input" type="checkbox" name="use_company_logo" id="use_company_logo" {% if config.use_company_logo %}checked{% endif %}>
+                                    <label class="form-check-label" for="use_company_logo">Logo como marca de agua</label>
+                                </div>
+                                <div class="form-check form-check-inline">
+                                    <input class="form-check-input" type="checkbox" name="use_company_name" id="use_company_name" {% if config.use_company_name %}checked{% endif %}>
+                                    <label class="form-check-label" for="use_company_name">Nombre como marca de agua</label>
+                                </div>
+                            </div>
+                            <button type="submit" class="btn btn-primary px-4">
+                                <i class="fas fa-save me-2"></i> Guardar configuración
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
         </div>
-        <div class="card-body">
-            <form method="POST" enctype="multipart/form-data">
-                <div class="mb-3">
-                    <label class="form-label">Encabezado HTML (personalizable)</label>
-                    <textarea name="header_html" rows="4" class="form-control">{{ config.header_html }}</textarea>
-                    <small>Puedes usar HTML, incluir imágenes con <code>&lt;img src="..."&gt;</code> usando rutas estáticas.</small>
+
+        <!-- COLUMNA DERECHA: VISTA PREVIA -->
+        <div class="col-lg-4">
+            <div class="card shadow-sm sticky-top" style="top: 20px;">
+                <div class="card-header bg-secondary text-white py-2">
+                    <h5 class="mb-0"><i class="fas fa-eye me-2"></i> Vista previa en vivo</h5>
                 </div>
-                <div class="mb-3">
-                    <label class="form-label">Pie de página HTML</label>
-                    <textarea name="footer_html" rows="3" class="form-control">{{ config.footer_html }}</textarea>
-                    <small>Incluye <code>&lt;span class="pageNumber"&gt;&lt;/span&gt;</code> para número de página.</small>
+                <div class="card-body p-0">
+                    <iframe id="previewFrame" src="{{ url_for('reports.preview', template_key=template.key) }}"
+                            style="width: 100%; height: calc(100vh - 140px); min-height: 550px; border: none;"></iframe>
                 </div>
-                <div class="mb-3 form-check">
-                    <input type="checkbox" class="form-check-input" name="use_company_logo" id="use_logo" {% if config.use_company_logo %}checked{% endif %}>
-                    <label class="form-check-label">Incluir logo de la empresa (configuración general)</label>
+                <div class="card-footer text-muted small text-center">
+                    Guarde para actualizar la vista previa
                 </div>
-                <div class="mb-3 form-check">
-                    <input type="checkbox" class="form-check-input" name="use_company_name" id="use_name" {% if config.use_company_name %}checked{% endif %}>
-                    <label class="form-check-label">Incluir nombre de la empresa</label>
-                </div>
-                <div class="mb-3">
-                    <label class="form-label">Imagen personalizada para encabezado (reemplaza logo)</label>
-                    <input type="file" class="form-control" name="header_image" accept="image/*">
-                    {% if config.custom_header_image %}
-                        <div class="mt-1">
-                            <img src="{{ url_for('static', filename=config.custom_header_image) }}" style="height: 40px;">
-                            <small>Actual: {{ config.custom_header_image }}</small>
-                        </div>
-                    {% endif %}
-                </div>
-                <div class="mb-3">
-                    <label class="form-label">Imagen personalizada para pie de página</label>
-                    <input type="file" class="form-control" name="footer_image" accept="image/*">
-                    {% if config.custom_footer_image %}
-                        <div class="mt-1">
-                            <img src="{{ url_for('static', filename=config.custom_footer_image) }}" style="height: 30px;">
-                        </div>
-                    {% endif %}
-                </div>
-                <button type="submit" class="btn btn-primary">Guardar configuración</button>
-                <a href="{{ url_for('reports.index') }}" class="btn btn-secondary">Ver reportes generados</a>
-            </form>
+            </div>
         </div>
     </div>
 </div>
+
+<script>
+    const templateKey = '{{ template.key }}';
+
+    function refreshPreview() {
+        const iframe = document.getElementById('previewFrame');
+        if (!iframe) return;
+        const url = new URL('{{ url_for("reports.preview", template_key=template.key) }}', window.location.href);
+        url.searchParams.set('_t', Date.now());
+        iframe.src = url.toString();
+    }
+
+    // Al seleccionar archivo, vaciar textarea correspondiente
+    document.querySelectorAll('input[type="file"][data-column]').forEach(fileInput => {
+        fileInput.addEventListener('change', function() {
+            const column = this.dataset.column;
+            if (this.files.length > 0) {
+                const textareaId = `${column}_text`;
+                const textarea = document.getElementById(textareaId);
+                if (textarea) textarea.value = '';
+            }
+        });
+    });
+
+    // Eliminar imagen
+    document.querySelectorAll('.remove-image').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const target = this.dataset.target;
+            let hiddenInput = document.querySelector(`input[name="remove_${target}_img"]`);
+            if (!hiddenInput) {
+                hiddenInput = document.createElement('input');
+                hiddenInput.type = 'hidden';
+                hiddenInput.name = `remove_${target}_img`;
+                hiddenInput.value = '1';
+                this.closest('form').appendChild(hiddenInput);
+            } else {
+                hiddenInput.value = '1';
+            }
+            const imgBlock = this.closest('.bg-light');
+            if (imgBlock && imgBlock.querySelector('img')) imgBlock.style.display = 'none';
+        });
+    });
+
+    // Submit con fetch
+    const form = document.getElementById('configForm');
+    form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const formData = new FormData(form);
+        const btn = form.querySelector('button[type="submit"]');
+        const originalText = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Guardando...';
+        try {
+            const response = await fetch('{{ url_for("reports.config", template_key=template.key) }}', {
+                method: 'POST',
+                body: formData
+            });
+            if (response.ok) {
+                alert('✅ Configuración guardada');
+                refreshPreview();
+            } else {
+                alert('❌ Error al guardar');
+            }
+        } catch (error) {
+            alert('❌ Error de red');
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = originalText;
+        }
+    });
+</script>
+
+<style>
+    textarea {
+        font-family: 'Consolas', monospace;
+        font-size: 12px;
+        resize: vertical;
+    }
+    .sticky-top {
+        position: sticky;
+        top: 20px;
+        z-index: 100;
+    }
+    input[type="file"]::file-selector-button {
+        background-color: #e9ecef;
+        border: 1px solid #ced4da;
+        border-radius: 0.25rem;
+        padding: 0.2rem 0.5rem;
+        font-size: 12px;
+        cursor: pointer;
+    }
+    .card-header {
+        font-weight: 500;
+    }
+</style>
 {% endblock %}

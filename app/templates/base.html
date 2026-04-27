@@ -65,6 +65,26 @@
                     </li>
                     {% endif %}
 
+                    <!-- ============================================ -->
+                    <!-- MENÚ DESPLEGABLE PARA REPORTES PDF (solo admin) -->
+                    <!-- ============================================ -->
+                    {% if current_user.role == 'admin' and pdf_templates %}
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" id="reportsDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="fas fa-print"></i> Reportes PDF
+                        </a>
+                        <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="reportsDropdown">
+                            {% for tpl in pdf_templates %}
+                            <li>
+                                <a class="dropdown-item" href="{{ url_for('reports.config', template_key=tpl.key) }}">
+                                    <i class="fas fa-file-pdf me-2"></i> {{ tpl.name }}
+                                </a>
+                            </li>
+                            {% endfor %}
+                        </ul>
+                    </li>
+                    {% endif %}
+
                     <!-- Notificaciones -->
                     <li class="nav-item dropdown">
                         <a class="nav-link dropdown-toggle" href="#" id="notificationsDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
@@ -74,6 +94,7 @@
                             {% endif %}
                         </a>
                         <div class="dropdown-menu dropdown-menu-end dropdown-notifications" aria-labelledby="notificationsDropdown">
+                            <!-- ... (tu contenido de notificaciones, sin cambios) ... -->
                             <div class="d-flex justify-content-between align-items-center px-3 py-2 border-bottom">
                                 <h6 class="mb-0">🔔 Notificaciones</h6>
                                 <div>
