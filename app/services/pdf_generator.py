@@ -538,16 +538,41 @@ class WorkOrderPDF(FPDF):
 # Funciones principales
 # ------------------------------------------------------------------
 def generate_work_order_pdf(work_order):
+    """Genera el PDF final de una orden de trabajo."""
+    from app.models.pdf_template import PDFTemplate
+    from app.models.pdf_template_config import PDFTemplateConfig
+
+    # Obtener plantilla y configuración
     template = PDFTemplate.get_by_key('work_order')
+    if not template:
+        raise Exception("No se encontró la plantilla 'work_order'")
+
     config = PDFTemplateConfig.get_or_create(template.id)
     company_name = Setting.get('company_name', 'Mi Empresa')
     company_logo = Setting.get('company_logo', '')
 
-    # ... resto igual (carpeta, filename)
+    equipment_name = work_order.equipment.name if work_order.equipment else "sin_equipo"
+    safe_name = sanitize_filename(equipment_name)
+    base_dir = os.path.join(current_app.root_path, 'static', 'uploads', 'reports', safe_name)
+    ensure_dir(base_dir)
+
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    filename = f"OT_{work_order.id}_{timestamp}.pdf"
+    filepath = os.path.join(base_dir, filename)  # 👈 ahora se define antes de cualquier posible error
+
     pdf = WorkOrderPDF(config, company_name, company_logo)
     pdf.draw_report(work_order=work_order, preview_mode=False)
     pdf.output(filepath)
-    # ...
+
+    file_size = os.path.getsize(filepath)
+    relative_path = os.path.join('uploads', 'reports', safe_name, filename).replace('\\', '/')
+
+    return {
+        'file_path': relative_path,
+        'filename': filename,
+        'file_size': file_size,
+        'absolute_path': filepath
+    }
 
 
 def generate_preview_pdf(template_key=None):
