@@ -9,17 +9,19 @@
             </div>
             <div class="card-body">
                 <form method="POST">
-                    {% if not group %}
+                    <!-- SELECTOR DE EQUIPOS (SIEMPRE visible) -->
                     <div class="mb-3">
-                        <label class="form-label">Equipo *</label>
-                        <select name="equipment_id" class="form-control" required>
-                            <option value="">Seleccione...</option>
+                        <label class="form-label">Equipos asignados *</label>
+                        <select name="equipment_ids" multiple class="form-control" size="5" required>
                             {% for eq in equipments %}
-                            <option value="{{ eq.id }}">{{ eq.name }} ({{ eq.code }})</option>
+                            <option value="{{ eq.id }}"
+                                {% if group and eq in group.equipments %}selected{% endif %}>
+                                {{ eq.name }} ({{ eq.code }})
+                            </option>
                             {% endfor %}
                         </select>
+                        <small class="text-muted">Puede seleccionar varios equipos (Ctrl+clic).</small>
                     </div>
-                    {% endif %}
 
                     <div class="mb-3">
                         <label class="form-label">Nombre del grupo *</label>

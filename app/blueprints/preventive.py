@@ -34,12 +34,8 @@ def admin_required(func):
 @preventive_bp.route('/')
 @login_required
 def dashboard():
-    from app.models.frequency_group import FrequencyGroup
-    from app.models.preventive_schedule import PreventiveSchedule
-
     groups = FrequencyGroup.query.filter_by(is_active=True).all()
     schedules = {s.group_id: s for s in PreventiveSchedule.query.all()}
-
     today = datetime.utcnow().date()
 
     for group in groups:
@@ -311,13 +307,17 @@ def groups_list():
 @admin_required
 def group_create():
     technicians = User.query.filter(User.role.in_(['tecnico', 'specialized'])).all()
+    equipments = Equipment.query.order_by(Equipment.name).all()
 
     if request.method == 'POST':
-        equipment_id = request.form.get('equipment_id')
-        equipment = Equipment.query.get_or_404(equipment_id)
+        # Obtener lista de IDs de equipos seleccionados (múltiple)
+        equipment_ids = request.form.getlist('equipment_ids')
+        if not equipment_ids:
+            flash('Debe seleccionar al menos un equipo.', 'danger')
+            return redirect(request.url)
 
+        # Crear el grupo SIN equipment_id (ahora usamos la relación muchos a muchos)
         group = FrequencyGroup(
-            equipment_id=equipment.id,
             name=request.form.get('name'),
             description=request.form.get('description', ''),
             freq_type=request.form.get('freq_type'),
@@ -329,6 +329,7 @@ def group_create():
             legal_reference=request.form.get('legal_reference', '')
         )
 
+        # Asignar técnico responsable (si aplica)
         assigned_to_id = request.form.get('assigned_to_id')
         if assigned_to_id and assigned_to_id != '':
             group.assigned_to_id = int(assigned_to_id)
@@ -338,6 +339,12 @@ def group_create():
         db.session.add(group)
         db.session.commit()
 
+        # Asignar los equipos seleccionados (relación muchos a muchos)
+        selected_equipments = Equipment.query.filter(Equipment.id.in_(equipment_ids)).all()
+        group.equipments = selected_equipments
+        db.session.commit()
+
+        # Crear un único schedule para el grupo (la próxima fecha es la misma para todos los equipos)
         today = datetime.utcnow()
         if group.freq_type == 'days':
             next_date = today + timedelta(days=group.freq_value)
@@ -350,17 +357,17 @@ def group_create():
 
         schedule = PreventiveSchedule(
             group_id=group.id,
-            equipment_id=equipment.id,
+            equipment_id=None,  # El schedule ya no está ligado a un solo equipo
             next_due_date=next_date,
             status='pending'
         )
         db.session.add(schedule)
         db.session.commit()
 
-        flash(f'Grupo "{group.name}" creado correctamente', 'success')
+        flash(f'Grupo "{group.name}" creado correctamente con {len(selected_equipments)} equipo(s).', 'success')
         return redirect(url_for('preventive.groups_list'))
 
-    equipments = Equipment.query.order_by(Equipment.name).all()
+    # GET: mostrar formulario
     freq_types = [('days', 'Días'), ('weeks', 'Semanas'), ('months', 'Meses'), ('years', 'Años')]
     responsible_roles = [('autonomous', 'Autónomo'), ('specialized', 'Especializado'), ('external', 'Externo')]
     return render_template('preventive/group_form.html',
@@ -377,8 +384,10 @@ def group_create():
 def group_edit(group_id):
     group = FrequencyGroup.query.get_or_404(group_id)
     technicians = User.query.filter(User.role.in_(['tecnico', 'specialized'])).all()
+    equipments = Equipment.query.order_by(Equipment.name).all()
 
     if request.method == 'POST':
+        # Actualizar campos básicos
         group.name = request.form.get('name')
         group.description = request.form.get('description', '')
         group.freq_type = request.form.get('freq_type')
@@ -389,21 +398,35 @@ def group_edit(group_id):
         group.is_legal_requirement = 'is_legal_requirement' in request.form
         group.legal_reference = request.form.get('legal_reference', '')
 
+        # Actualizar técnico asignado
         assigned_to_id = request.form.get('assigned_to_id')
         if assigned_to_id and assigned_to_id != '':
             group.assigned_to_id = int(assigned_to_id)
         else:
             group.assigned_to_id = None
 
+        # Actualizar equipos asignados (relación muchos a muchos)
+        equipment_ids = request.form.getlist('equipment_ids')
+        if equipment_ids:
+            selected_equipments = Equipment.query.filter(Equipment.id.in_(equipment_ids)).all()
+            group.equipments = selected_equipments
+        else:
+            group.equipments = []  # Sin equipos (no debería ocurrir, pero por seguridad)
+
         db.session.commit()
-        flash('Grupo actualizado', 'success')
+
+        # Nota: El schedule no se actualiza automáticamente; se mantiene la misma próxima fecha.
+        # Si cambia la frecuencia, debería recalcularse, pero eso lo hará el sistema al cerrar la OT.
+
+        flash(f'Grupo "{group.name}" actualizado correctamente.', 'success')
         return redirect(url_for('preventive.groups_list'))
 
+    # GET: mostrar formulario con datos actuales
     freq_types = [('days', 'Días'), ('weeks', 'Semanas'), ('months', 'Meses'), ('years', 'Años')]
     responsible_roles = [('autonomous', 'Autónomo'), ('specialized', 'Especializado'), ('external', 'Externo')]
     return render_template('preventive/group_form.html',
                            group=group,
-                           equipments=None,
+                           equipments=equipments,
                            freq_types=freq_types,
                            responsible_roles=responsible_roles,
                            technicians=technicians)
@@ -597,34 +620,37 @@ def catalog_delete(id):
 @preventive_bp.route('/tasks')
 @login_required
 def tasks():
-    """Bandeja de tareas pendientes para el usuario actual"""
-    from app.models.frequency_group import FrequencyGroup
-    from app.models.preventive_schedule import PreventiveSchedule
-
-    # Obtener grupos donde el usuario es asignado o autónomos (visibles para todos)
-    query = FrequencyGroup.query.filter_by(is_active=True)
-    if current_user.role not in ['admin', 'supervisor']:
-        query = query.filter(
-            (FrequencyGroup.assigned_to_id == current_user.id) |
-            (FrequencyGroup.responsible_role == 'autonomous')
-        )
-    groups = query.all()
-
-    # Calcular días restantes y filtrar solo pendientes (no vencidos ni completados)
+    # Obtener grupos activos
+    groups = FrequencyGroup.query.filter_by(is_active=True).all()
     today = datetime.utcnow().date()
     pending_tasks = []
+
     for group in groups:
+        # Verificar permisos (solo si el usuario es asignado o grupo autónomo)
+        if group.assigned_to_id and group.assigned_to_id != current_user.id and current_user.role not in ['admin', 'supervisor']:
+            continue
+
         schedule = PreventiveSchedule.query.filter_by(group_id=group.id).first()
-        if schedule and schedule.next_due_date:
-            days_left = (schedule.next_due_date.date() - today).days
-            if days_left <= group.tolerance_days:  # solo próximos a vencer o vencidos
-                group.days_left = days_left
-                group.next_date = schedule.next_due_date
-                pending_tasks.append(group)
+        if not schedule or not schedule.next_due_date:
+            continue
+
+        days_left = (schedule.next_due_date.date() - today).days
+        if days_left > group.tolerance_days:
+            continue   # todavía no es urgente
+
+        # Para cada equipo asociado al grupo, crear una tarea
+        for equipment in group.equipments:
+            # Verificar si el usuario tiene permiso para ese equipo (opcional, según roles)
+            pending_tasks.append({
+                'group': group,
+                'equipment': equipment,
+                'days_left': days_left,
+                'next_date': schedule.next_due_date,
+                'schedule_id': schedule.id
+            })
 
     # Ordenar por fecha más próxima
-    pending_tasks.sort(key=lambda x: x.next_date)
-
+    pending_tasks.sort(key=lambda x: x['next_date'])
     return render_template('preventive/tasks.html', tasks=pending_tasks)
 
 
@@ -662,3 +688,14 @@ def group_activity_add_from_catalog(group_id, std_id):
     db.session.commit()
     flash(f'Actividad "{std.name}" agregada desde el catálogo', 'success')
     return redirect(url_for('preventive.group_activities', group_id=group.id))
+
+@preventive_bp.route('/execute-group/<int:group_id>/<int:equipment_id>', methods=['GET', 'POST'])
+@login_required
+def execute_group_for_equipment(group_id, equipment_id):
+    group = FrequencyGroup.query.get_or_404(group_id)
+    equipment = Equipment.query.get_or_404(equipment_id)
+    # Verificar que el equipo pertenezca al grupo
+    if equipment not in group.equipments:
+        flash('Este equipo no está asociado a este grupo.', 'danger')
+        return redirect(url_for('preventive.tasks'))
+
