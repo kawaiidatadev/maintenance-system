@@ -18,6 +18,9 @@ class FrequencyGroup(db.Model):
     legal_reference = db.Column(db.String(100))
     is_active = db.Column(db.Boolean, default=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    # app/models/frequency_group.py
+    assigned_to_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True)
+    assigned_to = db.relationship('User', foreign_keys=[assigned_to_id])
 
     # Relaciones
     equipment = db.relationship('Equipment', backref='frequency_groups')

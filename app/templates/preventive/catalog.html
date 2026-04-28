@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card">
+    <div class="card-header bg-primary text-white">
+        <h4>Catálogo de Actividades Estándar</h4>
+    </div>
+    <div class="card-body">
+        <a href="{{ url_for('preventive.catalog_create') }}" class="btn btn-success mb-3">Nueva actividad estándar</a>
+        <div class="table-responsive">
+            <table class="table table-striped">
+                <thead>
+                    <tr><th>Nombre</th><th>Categoría</th><th>Frecuencia sugerida</th><th>Responsable</th><th>Requiere parada</th><th>Acciones</th></tr>
+                </thead>
+                <tbody>
+                {% for act in activities %}
+                <tr>
+                    <td>{{ act.name }}</td>
+                    <td>{{ act.category or '-' }}</td>
+                    <td>Cada {{ act.default_freq_value or '-' }} {{ act.default_freq_type or '-' }}</td>
+                    <td>{{ act.default_responsible_role or '-' }}</td>
+                    <td>{{ 'Sí' if act.requires_shutdown else 'No' }}</td>
+                    <td>
+                        <a href="{{ url_for('preventive.catalog_edit', id=act.id) }}" class="btn btn-warning btn-sm">Editar</a>
+                        <form method="POST" action="{{ url_for('preventive.catalog_delete', id=act.id) }}" style="display:inline;">
+                            <button class="btn btn-danger btn-sm" onclick="return confirm('¿Desactivar?')">Eliminar</button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

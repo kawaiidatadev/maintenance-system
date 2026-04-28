@@ -43,9 +43,6 @@
                                 <li><a class="dropdown-item" href="{{ url_for('admin.users') }}">
                                     <i class="fas fa-users"></i> Usuarios
                                 </a></li>
-                                <li><a class="dropdown-item" href="{{ url_for('standard_activities.index') }}">
-                                    <i class="fas fa-book"></i> Catálogo de actividades
-                                </a></li>
                                 <li><hr class="dropdown-divider"></li>
                                 <li><a class="dropdown-item" href="{{ url_for('settings.index') }}">
                                     <i class="fas fa-cog"></i> Configuración
@@ -66,12 +63,18 @@
                         </a>
                     </li>
 
-                <!-- Enlace para  Preventivos-->
-                <li class="nav-item">
-                    <a class="nav-link" href="{{ url_for('preventive.dashboard') }}">
-                        <i class="fas fa-calendar-check"></i> Preventivos
-                    </a>
-                </li>
+                    <!-- Enlace para  Preventivos-->
+                    <!-- MENÚ PREVENTIVOS (único punto de entrada) -->
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" id="preventiveDropdown" role="button" data-bs-toggle="dropdown">
+                            <i class="fas fa-calendar-check"></i> Preventivos
+                        </a>
+                        <ul class="dropdown-menu">
+                            <li><a class="dropdown-item" href="{{ url_for('preventive.dashboard') }}">Tablero de grupos</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('preventive.groups_list') }}">Administrar grupos</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('preventive.catalog') }}">Catálogo de actividades</a></li>
+                        </ul>
+                    </li>
 
                     <!-- Enlace para Análisis de Criticidad -->
                     <li class="nav-item">

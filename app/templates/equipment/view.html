@@ -255,18 +255,13 @@
                     <a href="{{ url_for('equipment.edit_equipment', id=equipment.id) }}" class="btn btn-warning">
                         <i class="fas fa-edit"></i> Editar equipo
                     </a>
-                    <!-- NUEVO BOTÓN PARA ACTIVIDADES PREVENTIVAS -->
-                    <a href="{{ url_for('equipment.list_preventive_activities', id=equipment.id) }}" class="btn btn-info">
-                        <i class="fas fa-tasks"></i> Actividades Preventivas
-                    </a>
+
                     {% endif %}
                     <a href="{{ url_for('equipment.list_equipment') }}" class="btn btn-secondary">
                         <i class="fas fa-arrow-left"></i> Volver
                     </a>
 
-                    <a href="{{ url_for('frequency_groups.for_equipment', equipment_id=equipment.id) }}" class="btn btn-info">
-                        <i class="fas fa-layer-group"></i> Grupos de mantenimiento
-                    </a>
+
                 </div>
             </div>
         </div>
