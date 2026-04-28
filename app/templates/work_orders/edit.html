@@ -2,137 +2,145 @@
 
 {% block content %}
 <div class="row">
-    <div class="col-md-10 mx-auto">
+    <div class="col-md-8 mx-auto">
         <div class="card">
             <div class="card-header bg-warning">
-                <h4><i class="fas fa-edit"></i> Editar OT: {{ order.number }}</h4>
+                <h4><i class="fas fa-edit"></i> Editar Orden de Trabajo: {{ order.number }}</h4>
             </div>
             <div class="card-body">
-                <form method="POST">
-                    <!-- Sección 1: Información básica (visible para admin/supervisor) -->
-                    <div class="alert alert-info">
-                        <strong><i class="fas fa-info-circle"></i> Información del reporte original</strong>
-                    </div>
 
-                    <div class="mb-3">
-                        <label for="problem_description" class="form-label">Problema reportado *</label>
-                        <textarea class="form-control" id="problem_description" name="problem_description" rows="3" required>{{ order.problem_description }}</textarea>
-                    </div>
+                <!-- Indicador del tipo de OT -->
+                <div class="alert alert-info mb-3">
+                    <i class="fas fa-info-circle"></i>
+                    Tipo de mantenimiento:
+                    {% if order.work_type == 'corrective' %}
+                        <span class="badge bg-primary">Correctivo</span>
+                    {% else %}
+                        <span class="badge bg-success">Preventivo</span>
+                    {% endif %}
+                </div>
 
-                    <!-- Gestión de equipo -->
-                    <div class="mb-3">
-                        <label class="form-label">Equipo</label>
-                        {% if order.needs_equipment_registration %}
-                            <div class="alert alert-warning">
-                                <strong>⚠️ Equipo pendiente de registro</strong><br>
-                                <strong>Ubicación temporal:</strong> {{ order.temporary_location }}<br>
-                                <strong>Descripción temporal:</strong> {{ order.temporary_description }}
-                            </div>
-                            <div class="form-check mb-2">
-                                <input class="form-check-input" type="checkbox" id="assign_equipment" name="assign_equipment" value="yes">
-                                <label class="form-check-label" for="assign_equipment">
-                                    Asignar un equipo registrado a esta OT
-                                </label>
-                            </div>
-                            <div id="equipment_select_section" style="display: none;">
-                                <label for="equipment_id" class="form-label">Seleccionar equipo</label>
-                                <select class="form-control" id="equipment_id" name="equipment_id">
-                                    <option value="">Seleccionar...</option>
+                <form method="POST" id="editForm">
+                    <!-- DATOS COMUNES -->
+                    <div class="card mb-3">
+                        <div class="card-header bg-light">
+                            <i class="fas fa-info-circle"></i> Datos generales
+                        </div>
+                        <div class="card-body">
+                            <div class="mb-3">
+                                <label class="form-label">Equipo</label>
+                                <select name="equipment_id" class="form-control" id="equipmentSelect">
+                                    <option value="">Seleccione un equipo...</option>
                                     {% for eq in equipments %}
-                                    <option value="{{ eq.id }}">{{ eq.code }} - {{ eq.name }} ({{ eq.location }})</option>
+                                    <option value="{{ eq.id }}" {% if order.equipment_id == eq.id %}selected{% endif %}>
+                                        {{ eq.code }} - {{ eq.name }}
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                                {% if order.needs_equipment_registration %}
+                                    <small class="text-muted">Ubicación temporal: {{ order.temporary_location }}</small>
+                                {% endif %}
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label">Descripción del problema *</label>
+                                <textarea name="problem_description" rows="3" class="form-control" required>{{ order.problem_description }}</textarea>
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label">Técnico asignado</label>
+                                <select name="assigned_to_id" class="form-control">
+                                    <option value="">-- Sin asignar --</option>
+                                    {% for tech in technicians %}
+                                    <option value="{{ tech.id }}" {% if order.assigned_to_id == tech.id %}selected{% endif %}>
+                                        {{ tech.username }} ({{ tech.role }})
+                                    </option>
                                     {% endfor %}
                                 </select>
                             </div>
-                        {% else %}
-                            <div class="form-control bg-light">
-                                {{ order.equipment.code }} - {{ order.equipment.name }} ({{ order.equipment.location }})
+
+                            <div class="mb-3">
+                                <label class="form-label">Estado</label>
+                                <select name="status" class="form-control">
+                                    {% for value, label in status_choices %}
+                                    <option value="{{ value }}" {% if order.status == value %}selected{% endif %}>{{ label }}</option>
+                                    {% endfor %}
+                                </select>
                             </div>
-                            <input type="hidden" name="equipment_id" value="{{ order.equipment_id }}">
-                        {% endif %}
-                    </div>
-
-                    <!-- Asignación -->
-                    <div class="mb-3">
-    <label for="assigned_to_id" class="form-label">Asignar a técnico</label>
-    <select class="form-control" id="assigned_to_id" name="assigned_to_id">
-        <option value="">No asignado</option>
-        {% for tech in technicians %}
-        <option value="{{ tech.id }}" {% if order.assigned_to_id == tech.id %}selected{% endif %}>
-            {{ tech.username }} ({{ tech.role }})
-        </option>
-        {% endfor %}
-    </select>
-</div>
-
-                    <!-- Estado -->
-                    <div class="mb-3">
-    <label for="status" class="form-label">Estado</label>
-    <select class="form-control" id="status" name="status">
-        <option value="open" {% if order.status == 'open' %}selected{% endif %}>Abierta</option>
-        <option value="assigned" {% if order.status == 'assigned' %}selected{% endif %}>Asignada</option>
-        <option value="in_progress" {% if order.status == 'in_progress' %}selected{% endif %}>En Progreso</option>
-        <option value="completed" {% if order.status == 'completed' %}selected{% endif %}>Completada</option>
-        <option value="closed" {% if order.status == 'closed' %}selected{% endif %}>Cerrada</option>
-        <option value="cancelled" {% if order.status == 'cancelled' %}selected{% endif %}>Cancelada</option>
-    </select>
-    <small class="form-text text-muted">
-        <strong>📌 Significado de los estados:</strong><br>
-        • <strong>Abierta:</strong> Orden reportada, aún no asignada a un técnico.<br>
-        • <strong>Asignada:</strong> Un técnico ha sido designado responsable.<br>
-        • <strong>En Progreso:</strong> El técnico ha comenzado a trabajar en la orden.<br>
-        • <strong>Completada:</strong> El trabajo ha finalizado, pendiente de revisión (si aplica).<br>
-        • <strong>Cerrada:</strong> La orden ha sido revisada y aceptada (estado final).<br>
-        • <strong>Cancelada:</strong> La orden no se ejecutó y se da de baja.
-    </small>
-</div>
-
-                    <!-- Sección técnica (para técnicos y supervisores) -->
-                    <div class="alert alert-success mt-3">
-                        <strong><i class="fas fa-wrench"></i> Información técnica (completar durante/después de la reparación)</strong>
-                    </div>
-
-                    <div class="mb-3">
-                        <label for="failure_type" class="form-label">Tipo de falla</label>
-                        <select class="form-control" id="failure_type" name="failure_type">
-                            <option value="">Seleccionar...</option>
-                            <option value="electrico" {% if order.failure_type == 'electrico' %}selected{% endif %}>Eléctrico</option>
-                            <option value="mecanico" {% if order.failure_type == 'mecanico' %}selected{% endif %}>Mecánico</option>
-                            <option value="hidraulico" {% if order.failure_type == 'hidraulico' %}selected{% endif %}>Hidráulico</option>
-                            <option value="neumatico" {% if order.failure_type == 'neumatico' %}selected{% endif %}>Neumático</option>
-                            <option value="electronico" {% if order.failure_type == 'electronico' %}selected{% endif %}>Electrónico</option>
-                            <option value="operacion" {% if order.failure_type == 'operacion' %}selected{% endif %}>Error de operación</option>
-                            <option value="otro" {% if order.failure_type == 'otro' %}selected{% endif %}>Otro</option>
-                        </select>
-                    </div>
-
-                    <div class="mb-3">
-                        <label for="root_cause" class="form-label">Causa raíz</label>
-                        <textarea class="form-control" id="root_cause" name="root_cause" rows="2">{{ order.root_cause or '' }}</textarea>
-                    </div>
-
-                    <div class="mb-3">
-                        <label for="work_performed" class="form-label">Trabajo realizado</label>
-                        <textarea class="form-control" id="work_performed" name="work_performed" rows="3">{{ order.work_performed or '' }}</textarea>
-                    </div>
-
-                    <div class="mb-3">
-                        <label for="parts_used" class="form-label">Repuestos utilizados</label>
-                        <textarea class="form-control" id="parts_used" name="parts_used" rows="2">{{ order.parts_used or '' }}</textarea>
-                    </div>
-
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label for="downtime_hours" class="form-label">Tiempo de parada (horas)</label>
-                            <input type="number" step="0.5" class="form-control" id="downtime_hours" name="downtime_hours" value="{{ order.downtime_hours or 0 }}">
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <label for="resolution_summary" class="form-label">Resumen de cierre</label>
-                            <textarea class="form-control" id="resolution_summary" name="resolution_summary" rows="2">{{ order.resolution_summary or '' }}</textarea>
                         </div>
                     </div>
 
-                    <button type="submit" class="btn btn-primary">Guardar Cambios</button>
-                    <a href="{{ url_for('work_orders.list_orders') }}" class="btn btn-secondary">Cancelar</a>
+                    <!-- CAMPOS PARA CORRECTIVO -->
+                    <div id="correctiveFields" class="card mb-3" {% if order.work_type != 'corrective' %}style="display: none;"{% endif %}>
+                        <div class="card-header bg-light">
+                            <i class="fas fa-chart-line"></i> Análisis de falla (Correctivo)
+                        </div>
+                        <div class="card-body">
+                            <div class="mb-3">
+                                <label class="form-label">Tipo de falla</label>
+                                <select name="failure_type" class="form-control">
+                                    <option value="">Seleccione...</option>
+                                    <option value="Eléctrica" {% if order.failure_type == 'Eléctrica' %}selected{% endif %}>Eléctrica</option>
+                                    <option value="Mecánica" {% if order.failure_type == 'Mecánica' %}selected{% endif %}>Mecánica</option>
+                                    <option value="Electrónica" {% if order.failure_type == 'Electrónica' %}selected{% endif %}>Electrónica</option>
+                                    <option value="Hidráulica" {% if order.failure_type == 'Hidráulica' %}selected{% endif %}>Hidráulica</option>
+                                    <option value="Neumática" {% if order.failure_type == 'Neumática' %}selected{% endif %}>Neumática</option>
+                                    <option value="Estructural" {% if order.failure_type == 'Estructural' %}selected{% endif %}>Estructural</option>
+                                    <option value="Operacional" {% if order.failure_type == 'Operacional' %}selected{% endif %}>Operacional</option>
+                                </select>
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label">Causa raíz</label>
+                                <textarea name="root_cause" rows="2" class="form-control">{{ order.root_cause or '' }}</textarea>
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label">Trabajo realizado</label>
+                                <textarea name="work_performed" rows="3" class="form-control">{{ order.work_performed or '' }}</textarea>
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label">Repuestos utilizados</label>
+                                <textarea name="parts_used" rows="2" class="form-control">{{ order.parts_used or '' }}</textarea>
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label">Tiempo de parada (horas)</label>
+                                <input type="number" step="0.5" name="downtime_hours" class="form-control" value="{{ order.downtime_hours or 0 }}">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- CAMPOS PARA PREVENTIVO -->
+                    <div id="preventiveFields" class="card mb-3" {% if order.work_type != 'preventive' %}style="display: none;"{% endif %}>
+                        <div class="card-header bg-light">
+                            <i class="fas fa-tasks"></i> Información Preventiva
+                        </div>
+                        <div class="card-body">
+                            <div class="mb-3">
+                                <label class="form-label">Instrucciones específicas</label>
+                                <textarea name="preventive_instructions" rows="3" class="form-control">{{ order.instructions or '' }}</textarea>
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label">Fecha planificada</label>
+                                <input type="date" name="planned_date" class="form-control" value="{{ order.planned_date.strftime('%Y-%m-%d') if order.planned_date else '' }}">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Resumen / Notas de cierre</label>
+                        <textarea name="resolution_summary" rows="3" class="form-control" placeholder="Resumen de lo realizado, observaciones finales...">{{ order.resolution_summary or '' }}</textarea>
+                    </div>
+
+                    <div class="mt-3">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save"></i> Guardar cambios
+                        </button>
+                        <a href="{{ url_for('work_orders.view_order', id=order.id) }}" class="btn btn-secondary">Cancelar</a>
+                    </div>
                 </form>
             </div>
         </div>
@@ -140,17 +148,8 @@
 </div>
 
 <script>
-    const assignCheckbox = document.getElementById('assign_equipment');
-    const equipmentSection = document.getElementById('equipment_select_section');
-
-    if (assignCheckbox) {
-        assignCheckbox.addEventListener('change', function() {
-            if (this.checked) {
-                equipmentSection.style.display = 'block';
-            } else {
-                equipmentSection.style.display = 'none';
-            }
-        });
-    }
+    // Nota: No necesitamos toggle porque el tipo ya está definido al cargar la página
+    // Pero si el usuario pudiera cambiar el tipo (no recomendado), se podría agregar.
+    // Por ahora, solo mostramos los campos correspondientes al tipo existente.
 </script>
 {% endblock %}

@@ -1,0 +1,221 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Tarjetas de estadísticas -->
+    <div class="row mb-4">
+        <div class="col-md-3">
+            <div class="card text-white bg-primary">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="mb-0">Total Actividades</h6>
+                            <h2 class="mb-0">{{ stats.total }}</h2>
+                        </div>
+                        <i class="fas fa-tasks fa-2x opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-white bg-danger">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="mb-0">Vencidas</h6>
+                            <h2 class="mb-0">{{ stats.overdue }}</h2>
+                        </div>
+                        <i class="fas fa-exclamation-triangle fa-2x opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-white bg-warning">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="mb-0">Próximas a vencer</h6>
+                            <h2 class="mb-0">{{ stats.due_soon }}</h2>
+                        </div>
+                        <i class="fas fa-clock fa-2x opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card text-white bg-success">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="mb-0">Completadas</h6>
+                            <h2 class="mb-0">{{ stats.completed }}</h2>
+                        </div>
+                        <i class="fas fa-check-circle fa-2x opacity-50"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tabla de actividades -->
+    <div class="card">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0"><i class="fas fa-calendar-alt me-2"></i> Actividades Preventivas Programadas</h5>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover" id="preventiveTable">
+                    <thead>
+                        <tr>
+                            <th>Código</th>
+                            <th>Equipo</th>
+                            <th>Actividad</th>
+                            <th>Próxima fecha</th>
+                            <th>Días</th>
+                            <th>Responsable</th>
+                            <th>Estado</th>
+                            <th>Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for s in schedules %}
+                        <tr class="table-{{ s.status_class }}">
+                            <td>
+                                <small class="text-muted">{{ s.activity.code }}</small>
+                            </td>
+                            <td>{{ s.equipment.name }}<br>
+                                <small class="text-muted">{{ s.equipment.code }}</small>
+                            </td>
+                            <td>
+                                <strong>{{ s.activity.name }}</strong><br>
+                                <small class="text-muted">{{ s.activity.responsible_role }}</small>
+                            </td>
+                            <td>{{ s.next_due_date.strftime('%d/%m/%Y') if s.next_due_date else 'N/A' }}</td>
+                            <td>{{ s.days_display }}</td>
+                            <td>
+                                {% if s.activity.responsible_role == 'autonomous' %}
+                                    <span class="badge bg-info">Autónomo</span>
+                                {% elif s.activity.responsible_role == 'specialized' %}
+                                    <span class="badge bg-primary">Especializado</span>
+                                {% else %}
+                                    <span class="badge bg-secondary">Externo</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <span class="badge bg-{{ s.status_class }}">
+                                    <i class="fas {{ s.status_icon }}"></i> {{ s.status_text }}
+                                </span>
+                            </td>
+                            <td>
+                                <div class="btn-group btn-group-sm">
+                                    <!-- Botón Ejecutar (para especializados y externos) -->
+                                    {% if s.activity.responsible_role == 'specialized' or s.activity.responsible_role == 'external' %}
+                                    <a href="{{ url_for('preventive.execute', schedule_id=s.id) }}" class="btn btn-success" title="Generar orden de trabajo">
+                                        <i class="fas fa-play"></i>
+                                    </a>
+                                    {% endif %}
+
+                                    <!-- Botón Completar Directo (solo para autónomos) -->
+                                    {% if s.activity.responsible_role == 'autonomous' %}
+                                    <button type="button" class="btn btn-success" data-bs-toggle="modal" data-bs-target="#completeModal{{ s.id }}" title="Completar actividad">
+                                        <i class="fas fa-check"></i>
+                                    </button>
+                                    {% endif %}
+
+                                    <!-- Botón Reprogramar (todos) -->
+                                    <button type="button" class="btn btn-warning" data-bs-toggle="modal" data-bs-target="#postponeModal{{ s.id }}" title="Reprogramar">
+                                        <i class="fas fa-calendar-alt"></i>
+                                    </button>
+                                </div>
+
+                                <!-- Modal para Completar Directo (solo autónomos) -->
+                                {% if s.activity.responsible_role == 'autonomous' %}
+                                <div class="modal fade" id="completeModal{{ s.id }}" tabindex="-1">
+                                    <div class="modal-dialog modal-sm">
+                                        <div class="modal-content">
+                                            <form method="POST" action="{{ url_for('preventive.complete_direct', schedule_id=s.id) }}">
+                                                <div class="modal-header bg-success text-white">
+                                                    <h6 class="modal-title">Confirmar ejecución</h6>
+                                                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                                </div>
+                                                <div class="modal-body">
+                                                    <div class="mb-2">
+                                                        <label class="form-label">Observaciones (opcional)</label>
+                                                        <textarea name="notes" class="form-control" rows="2" placeholder="Ej: Limpieza realizada sin novedad"></textarea>
+                                                    </div>
+                                                </div>
+                                                <div class="modal-footer">
+                                                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+                                                    <button type="submit" class="btn btn-success btn-sm">Confirmar</button>
+                                                </div>
+                                            </form>
+                                        </div>
+                                    </div>
+                                </div>
+                                {% endif %}
+
+                                <!-- Modal para reprogramar (todos) -->
+                                <div class="modal fade" id="postponeModal{{ s.id }}" tabindex="-1">
+                                    <div class="modal-dialog modal-sm">
+                                        <div class="modal-content">
+                                            <form method="POST" action="{{ url_for('preventive.postpone', schedule_id=s.id) }}">
+                                                <div class="modal-header bg-warning">
+                                                    <h6 class="modal-title">Reprogramar actividad</h6>
+                                                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                                </div>
+                                                <div class="modal-body">
+                                                    <div class="mb-2">
+                                                        <label class="form-label">Días a posponer</label>
+                                                        <input type="number" name="days" class="form-control" value="7" min="1" max="90">
+                                                    </div>
+                                                    <div class="mb-2">
+                                                        <label class="form-label">Motivo</label>
+                                                        <textarea name="reason" class="form-control" rows="2" placeholder="Ej: Producción no permite parada"></textarea>
+                                                    </div>
+                                                </div>
+                                                <div class="modal-footer">
+                                                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancelar</button>
+                                                    <button type="submit" class="btn btn-primary btn-sm">Reprogramar</button>
+                                                </div>
+                                            </form>
+                                        </div>
+                                    </div>
+                                </div>
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="8" class="text-center py-4">
+                                <i class="fas fa-check-circle fa-3x text-muted mb-2 d-block"></i>
+                                No hay actividades preventivas programadas.
+                                <a href="{{ url_for('equipment.list_equipment') }}" class="d-block mt-2">Ir a equipos para crear actividades</a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Opcional: Inicializar DataTable para mejor búsqueda/ordenamiento
+    // if (typeof $.fn.DataTable !== 'undefined') {
+    //     $('#preventiveTable').DataTable({
+    //         language: { url: '//cdn.datatables.net/plug-ins/1.13.4/i18n/es-ES.json' },
+    //         pageLength: 25
+    //     });
+    // }
+</script>
+
+<style>
+    .opacity-50 {
+        opacity: 0.5;
+    }
+    .table-danger, .table-warning, .table-success {
+        transition: all 0.2s;
+    }
+</style>
+{% endblock %}

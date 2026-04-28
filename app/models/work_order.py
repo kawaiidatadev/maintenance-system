@@ -1,6 +1,7 @@
 from app import db
 from datetime import datetime
 
+
 class WorkOrder(db.Model):
     __tablename__ = 'work_orders'
 
@@ -42,6 +43,14 @@ class WorkOrder(db.Model):
 
     # Estado
     status = db.Column(db.String(20), default='open')
+
+    # ============================================
+    # NUEVOS CAMPOS PARA MANTENIMIENTO PREVENTIVO
+    # ============================================
+    work_type = db.Column(db.String(20), default='corrective')  # 'corrective', 'preventive'
+    preventive_schedule_id = db.Column(db.Integer, db.ForeignKey('preventive_schedules.id'), nullable=True)
+    preventive_schedule = db.relationship('PreventiveSchedule', foreign_keys=[preventive_schedule_id],
+                                          backref='work_orders')
 
     # Métodos de permisos
     def can_edit(self, user):

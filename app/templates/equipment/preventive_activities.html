@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header bg-primary text-white">
+        <h4><i class="fas fa-tasks"></i> Actividades Preventivas - {{ equipment.name }}</h4>
+    </div>
+    <div class="card-body">
+        <a href="{{ url_for('equipment.create_preventive_activity', id=equipment.id) }}" class="btn btn-success mb-3">
+            <i class="fas fa-plus"></i> Nueva actividad preventiva
+        </a>
+
+        {% if activities %}
+        <div class="table-responsive">
+            <table class="table table-striped">
+                <thead>
+                    <tr>
+                        <th>Código</th>
+                        <th>Actividad</th>
+                        <th>Frecuencia</th>
+                        <th>Responsable</th>
+                        <th>Requiere parada</th>
+                        <th>Estado</th>
+                        <th>Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for act in activities %}
+                <tr>
+                    <td>{{ act.code }}</td>
+                    <td>{{ act.name }}</td>
+                    <td>Cada {{ act.freq_value }} {{ act.freq_type }}</td>
+                    <td>{{ act.responsible_role }}</td>
+                    <td>{{ 'Sí' if act.requires_shutdown else 'No' }}</td>
+                    <td><span class="badge bg-success">Activa</span></td>
+                    <td>
+                        <a href="{{ url_for('equipment.edit_preventive_activity', activity_id=act.id) }}" class="btn btn-sm btn-warning">
+                            <i class="fas fa-edit"></i>
+                        </a>
+                        <form method="POST" action="{{ url_for('equipment.delete_preventive_activity', activity_id=act.id) }}" style="display: inline;">
+                            <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('¿Desactivar esta actividad?')">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="alert alert-info">No hay actividades preventivas registradas para este equipo.</div>
+        {% endif %}
+
+        <a href="{{ url_for('equipment.view_equipment', id=equipment.id) }}" class="btn btn-secondary mt-3">
+            <i class="fas fa-arrow-left"></i> Volver al equipo
+        </a>
+    </div>
+</div>
+{% endblock %}

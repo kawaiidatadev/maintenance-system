@@ -1,0 +1,156 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-8 mx-auto">
+        <div class="card shadow-sm">
+            <div class="card-header bg-warning text-dark">
+                <h4 class="mb-0"><i class="fas fa-edit"></i> Editar Actividad Preventiva</h4>
+            </div>
+            <div class="card-body">
+                <h5 class="text-muted">Equipo: {{ equipment.name }}</h5>
+                <hr>
+
+                <form method="POST" id="preventiveForm" novalidate>
+                    <!-- DATOS GENERALES -->
+                    <div class="card mb-3">
+                        <div class="card-header bg-light fw-bold">
+                            <i class="fas fa-info-circle"></i> Datos generales
+                        </div>
+                        <div class="card-body">
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">
+                                    Nombre de la actividad <span class="text-danger">*</span>
+                                    <i class="fas fa-question-circle text-muted" data-bs-toggle="tooltip" title="Ej: 'Lubricación de rodamientos', 'Inspección visual mensual'"></i>
+                                </label>
+                                <input type="text" name="name" class="form-control" value="{{ activity.name }}" required>
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">
+                                    Descripción
+                                </label>
+                                <textarea name="description" rows="2" class="form-control">{{ activity.description or '' }}</textarea>
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">
+                                    Instrucciones detalladas
+                                </label>
+                                <textarea name="instructions" rows="4" class="form-control">{{ activity.instructions or '' }}</textarea>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- FRECUENCIA Y PLANIFICACIÓN -->
+                    <div class="card mb-3">
+                        <div class="card-header bg-light fw-bold">
+                            <i class="fas fa-calendar-alt"></i> Frecuencia y planificación
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-4 mb-3">
+                                    <label class="form-label fw-bold">Tipo de frecuencia <span class="text-danger">*</span></label>
+                                    <select name="freq_type" class="form-control" required>
+                                        {% for value, label in freq_types %}
+                                        <option value="{{ value }}" {% if activity.freq_type == value %}selected{% endif %}>{{ label }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                                <div class="col-md-3 mb-3">
+                                    <label class="form-label fw-bold">Cada <span class="text-danger">*</span></label>
+                                    <input type="number" name="freq_value" class="form-control" value="{{ activity.freq_value }}" min="1" required>
+                                </div>
+                                <div class="col-md-3 mb-3">
+                                    <label class="form-label fw-bold">Días de tolerancia</label>
+                                    <input type="number" name="tolerance_days" class="form-control" value="{{ activity.tolerance_days }}">
+                                </div>
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">Responsable <span class="text-danger">*</span></label>
+                                <select name="responsible_role" class="form-control" required>
+                                    {% for value, label in responsible_roles %}
+                                    <option value="{{ value }}" {% if activity.responsible_role == value %}selected{% endif %}>{{ label }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- REQUISITOS ESPECIALES -->
+                    <div class="card mb-3">
+                        <div class="card-header bg-light fw-bold">
+                            <i class="fas fa-exclamation-triangle"></i> Requisitos especiales
+                        </div>
+                        <div class="card-body">
+                            <div class="form-check mb-2">
+                                <input type="checkbox" name="requires_shutdown" class="form-check-input" id="shutdownCheck" {% if activity.requires_shutdown %}checked{% endif %}>
+                                <label class="form-check-label" for="shutdownCheck">Requiere parada de equipo</label>
+                            </div>
+
+                            <div class="form-check mb-2">
+                                <input type="checkbox" name="is_legal_requirement" class="form-check-input" id="legalCheck" {% if activity.is_legal_requirement %}checked{% endif %}>
+                                <label class="form-check-label" for="legalCheck">Es requerimiento legal o normativo</label>
+                            </div>
+
+                            <div class="mb-3" id="legalRefDiv" style="display: {% if activity.is_legal_requirement %}block{% else %}none{% endif %};">
+                                <label class="form-label fw-bold">Referencia legal</label>
+                                <input type="text" name="legal_reference" class="form-control" value="{{ activity.legal_reference or '' }}">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="alert alert-info">
+                        <i class="fas fa-lightbulb"></i> <strong>Consejo:</strong> Mantener las instrucciones actualizadas ayuda a que cualquier técnico ejecute la actividad sin dudas.
+                    </div>
+
+                    <div class="d-flex justify-content-between mt-3">
+                        <button type="submit" class="btn btn-primary px-4">
+                            <i class="fas fa-save"></i> Actualizar actividad
+                        </button>
+                        <a href="{{ url_for('equipment.list_preventive_activities', id=equipment.id) }}" class="btn btn-secondary">
+                            <i class="fas fa-times"></i> Cancelar
+                        </a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Inicializar tooltips
+    const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+    tooltipTriggerList.map(function (tooltipTriggerEl) {
+        return new bootstrap.Tooltip(tooltipTriggerEl);
+    });
+
+    // Mostrar/ocultar referencia legal
+    const legalCheck = document.getElementById('legalCheck');
+    const legalRefDiv = document.getElementById('legalRefDiv');
+    function toggleLegalRef() {
+        legalRefDiv.style.display = legalCheck.checked ? 'block' : 'none';
+    }
+    legalCheck.addEventListener('change', toggleLegalRef);
+    toggleLegalRef();
+
+    // Validación
+    const form = document.getElementById('preventiveForm');
+    form.addEventListener('submit', function(e) {
+        const nameInput = document.querySelector('input[name="name"]');
+        if (!nameInput.value.trim()) {
+            alert('El nombre de la actividad es obligatorio.');
+            e.preventDefault();
+            return false;
+        }
+        const freqValue = document.querySelector('input[name="freq_value"]');
+        if (freqValue.value < 1) {
+            alert('El valor de frecuencia debe ser al menos 1.');
+            e.preventDefault();
+            return false;
+        }
+        return true;
+    });
+</script>
+{% endblock %}

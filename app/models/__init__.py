@@ -9,3 +9,4 @@ from app.models.user_notification_preference import UserNotificationPreference
 from app.models.notification import Notification
 from app.models.report_config import ReportConfig
 from app.models.work_order_report import WorkOrderReport
+from app.models.standard_activity import StandardActivity

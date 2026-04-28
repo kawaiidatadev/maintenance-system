@@ -2,30 +2,62 @@
 
 {% block content %}
 <div class="row">
-    <div class="col-12">
-        <h1><i class="fas fa-clipboard-list"></i> Órdenes de Trabajo</h1>
-        <hr>
-        {% if current_user.role in ['admin', 'supervisor'] %}
-        <a href="{{ url_for('work_orders.create_order') }}" class="btn btn-primary mb-3">
-            <i class="fas fa-plus"></i> Nueva OT
-        </a>
-        {% endif %}
-    </div>
-</div>
-
-<div class="row">
-    <div class="col-12">
+    <div class="col-md-12">
         <div class="card">
-            <div class="card-header">
-                <h5>Todas las Órdenes</h5>
+            <div class="card-header bg-primary text-white">
+                <h4><i class="fas fa-clipboard-list"></i> Órdenes de Trabajo</h4>
             </div>
             <div class="card-body">
+
+                <!-- Botón nueva OT y filtros -->
+                <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap">
+                    <div>
+                        <a href="{{ url_for('work_orders.create_order') }}" class="btn btn-success">
+                            <i class="fas fa-plus"></i> Nueva OT
+                        </a>
+                    </div>
+
+                    <!-- Segmentadores (filtros rápidos tipo Excel) -->
+                    <div class="btn-group" role="group">
+                        <a href="{{ url_for('work_orders.list_orders', tipo='todos', status=status_actual) }}"
+                           class="btn btn-outline-secondary {% if tipo_actual == 'todos' %}active{% endif %}">
+                            <i class="fas fa-list"></i> Todos
+                        </a>
+                        <a href="{{ url_for('work_orders.list_orders', tipo='corrective', status=status_actual) }}"
+                           class="btn btn-outline-primary {% if tipo_actual == 'corrective' %}active{% endif %}">
+                            <i class="fas fa-wrench"></i> Correctivos
+                        </a>
+                        <a href="{{ url_for('work_orders.list_orders', tipo='preventive', status=status_actual) }}"
+                           class="btn btn-outline-success {% if tipo_actual == 'preventive' %}active{% endif %}">
+                            <i class="fas fa-calendar-check"></i> Preventivos
+                        </a>
+                    </div>
+
+                    <!-- Filtro por estado (opcional) -->
+                    <div class="dropdown">
+                        <button class="btn btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                            <i class="fas fa-filter"></i> Estado: {{ status_actual|capitalize or 'Todos' }}
+                        </button>
+                        <ul class="dropdown-menu">
+                            <li><a class="dropdown-item" href="{{ url_for('work_orders.list_orders', tipo=tipo_actual, status='') }}">Todos</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('work_orders.list_orders', tipo=tipo_actual, status='open') }}">Abiertas</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('work_orders.list_orders', tipo=tipo_actual, status='assigned') }}">Asignadas</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('work_orders.list_orders', tipo=tipo_actual, status='in_progress') }}">En Progreso</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('work_orders.list_orders', tipo=tipo_actual, status='completed') }}">Completadas</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('work_orders.list_orders', tipo=tipo_actual, status='closed') }}">Cerradas</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('work_orders.list_orders', tipo=tipo_actual, status='cancelled') }}">Canceladas</a></li>
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Tabla de órdenes -->
                 <div class="table-responsive">
-                    <table class="table table-striped">
-                        <thead>
+                    <table class="table table-hover table-bordered">
+                        <thead class="table-dark">
                             <tr>
                                 <th>N° OT</th>
                                 <th>Equipo</th>
+                                <th>Tipo</th>
                                 <th>Problema</th>
                                 <th>Asignado a</th>
                                 <th>Estado</th>
@@ -36,18 +68,41 @@
                         <tbody>
                             {% for order in orders %}
                             <tr>
-                                <td>{{ order.number }}</td>
                                 <td>
-                                    {% if order.needs_equipment_registration %}
-                                        <span class="badge bg-warning">⚠️ Equipo por registrar</span>
-                                        <br>
-                                        <small>{{ order.temporary_location }} - {{ order.temporary_description }}</small>
+                                    <strong>{{ order.number }}</strong>
+                                    {% if order.work_type == 'preventive' %}
+                                        <i class="fas fa-calendar-check text-success" title="Mantenimiento preventivo"></i>
                                     {% else %}
-                                        {{ order.equipment.code if order.equipment else '-' }} - {{ order.equipment.name if order.equipment else '-' }}
+                                        <i class="fas fa-wrench text-primary" title="Mantenimiento correctivo"></i>
                                     {% endif %}
                                 </td>
-                                <td>{{ order.problem_description[:50] }}{% if order.problem_description|length > 50 %}...{% endif %}</td>
-                                <td>{{ order.assigned_to.username if order.assigned_to else 'No asignado' }}</td>
+                                <td>
+                                    {{ order.equipment.code if order.equipment else '-' }}<br>
+                                    <small class="text-muted">{{ order.equipment.name if order.equipment else 'Sin equipo' }}</small>
+                                </td>
+                                <td>
+                                    {% if order.work_type == 'corrective' %}
+                                        <span class="badge bg-primary">
+                                            <i class="fas fa-wrench"></i> Correctivo
+                                        </span>
+                                    {% elif order.work_type == 'preventive' %}
+                                        <span class="badge bg-success">
+                                            <i class="fas fa-calendar-check"></i> Preventivo
+                                        </span>
+                                    {% else %}
+                                        <span class="badge bg-secondary">-</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {{ order.problem_description[:80] }}{% if order.problem_description|length > 80 %}...{% endif %}
+                                 </td>
+                                <td>
+                                    {% if order.assigned_to %}
+                                        {{ order.assigned_to.username }}
+                                    {% else %}
+                                        <span class="text-muted">No asignado</span>
+                                    {% endif %}
+                                 </td>
                                 <td>
                                     {% if order.status == 'open' %}
                                         <span class="badge bg-secondary">Abierta</span>
@@ -58,26 +113,33 @@
                                     {% elif order.status == 'completed' %}
                                         <span class="badge bg-success">Completada</span>
                                     {% elif order.status == 'closed' %}
-                                        <span class="badge bg-primary">Cerrada</span>
+                                        <span class="badge bg-dark">Cerrada</span>
                                     {% elif order.status == 'cancelled' %}
                                         <span class="badge bg-danger">Cancelada</span>
                                     {% endif %}
-                                </td>
-                                <td>{{ format_datetime(order.created_at) }}</td>
+                                 </td>
                                 <td>
-                                    <a href="{{ url_for('work_orders.view_order', id=order.id) }}" class="btn btn-sm btn-info">
-                                        <i class="fas fa-eye"></i>
-                                    </a>
-                                    {% if current_user.role in ['admin', 'supervisor'] and order.status not in ['completed', 'closed', 'cancelled'] %}
-                                    <a href="{{ url_for('work_orders.edit_order', id=order.id) }}" class="btn btn-sm btn-warning">
-                                        <i class="fas fa-edit"></i>
-                                    </a>
-                                    {% endif %}
+                                    {{ order.created_at.strftime('%d/%m/%Y %H:%M') }}
+                                 </td>
+                                <td>
+                                    <div class="btn-group btn-group-sm">
+                                        <a href="{{ url_for('work_orders.view_order', id=order.id) }}" class="btn btn-info" title="Ver detalles">
+                                            <i class="fas fa-eye"></i>
+                                        </a>
+                                        {% if order.can_edit(current_user) %}
+                                        <a href="{{ url_for('work_orders.edit_order', id=order.id) }}" class="btn btn-warning" title="Editar">
+                                            <i class="fas fa-edit"></i>
+                                        </a>
+                                        {% endif %}
+                                    </div>
                                  </td>
                             </tr>
                             {% else %}
                             <tr>
-                                <td colspan="7" class="text-center">No hay órdenes de trabajo registradas</td>
+                                <td colspan="8" class="text-center py-4">
+                                    <i class="fas fa-inbox fa-3x text-muted mb-2 d-block"></i>
+                                    No hay órdenes de trabajo registradas.
+                                </td>
                             </tr>
                             {% endfor %}
                         </tbody>

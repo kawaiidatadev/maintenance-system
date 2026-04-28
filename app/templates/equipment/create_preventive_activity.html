@@ -1,0 +1,295 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-8 mx-auto">
+        <div class="card shadow-sm">
+            <div class="card-header bg-primary text-white">
+                <h4 class="mb-0"><i class="fas fa-plus-circle"></i> Nueva Actividad Preventiva</h4>
+            </div>
+            <div class="card-body">
+                <h5 class="text-muted">Equipo: {{ equipment.name }}</h5>
+                <hr>
+
+                <form method="POST" id="preventiveForm" novalidate>
+
+                    <!-- SELECTOR DE ACTIVIDAD ESTÁNDAR -->
+                    <div class="card mb-3 border-info">
+                        <div class="card-header bg-info text-white">
+                            <i class="fas fa-book"></i> <strong>Biblioteca de actividades estándar</strong>
+                        </div>
+                        <div class="card-body">
+                            <div class="mb-3">
+                                <label class="form-label">Cargar desde el catálogo</label>
+                                <select id="standardActivitySelect" class="form-control">
+                                    <option value="">-- Seleccionar una actividad predefinida --</option>
+                                    {% for act in standard_activities %}
+                                    <option value="{{ act.id }}">{{ act.name }} ({{ act.category }})</option>
+                                    {% endfor %}
+                                </select>
+                                <small class="text-muted">Selecciona una actividad estándar para precargar sus datos automáticamente.</small>
+                            </div>
+                            <div id="stdActivityMessage"></div>
+                        </div>
+                    </div>
+
+                    <!-- DATOS GENERALES -->
+                    <div class="card mb-3">
+                        <div class="card-header bg-light fw-bold">
+                            <i class="fas fa-info-circle"></i> Datos generales
+                        </div>
+                        <div class="card-body">
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">
+                                    Nombre de la actividad <span class="text-danger">*</span>
+                                </label>
+                                <input type="text" name="name" id="actName" class="form-control" required
+                                       placeholder="Ej: Lubricación de rodamientos del compresor">
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">Descripción</label>
+                                <textarea name="description" id="actDescription" rows="2" class="form-control"></textarea>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">Instrucciones detalladas</label>
+                                <textarea name="instructions" id="actInstructions" rows="4" class="form-control"></textarea>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- FRECUENCIA Y PLANIFICACIÓN -->
+                    <div class="card mb-3">
+                        <div class="card-header bg-light fw-bold">
+                            <i class="fas fa-calendar-alt"></i> Frecuencia y planificación
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-4 mb-3">
+                                    <label class="form-label fw-bold">Tipo de frecuencia *</label>
+                                    <select name="freq_type" id="freqType" class="form-control" required>
+                                        {% for value, label in freq_types %}
+                                        <option value="{{ value }}">{{ label }}</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                                <div class="col-md-3 mb-3">
+                                    <label class="form-label fw-bold">Cada *</label>
+                                    <input type="number" name="freq_value" id="freqValue" class="form-control" value="1" min="1" required>
+                                </div>
+                                <div class="col-md-3 mb-3">
+                                    <label class="form-label fw-bold">Días de tolerancia</label>
+                                    <input type="number" name="tolerance_days" id="toleranceDays" class="form-control" value="2" min="0">
+                                </div>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label fw-bold">Responsable *</label>
+                                <select name="responsible_role" id="responsibleRole" class="form-control" required>
+                                    {% for value, label in responsible_roles %}
+                                    <option value="{{ value }}">{{ label }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- REQUISITOS ESPECIALES -->
+                    <div class="card mb-3">
+                        <div class="card-header bg-light fw-bold">
+                            <i class="fas fa-exclamation-triangle"></i> Requisitos especiales
+                        </div>
+                        <div class="card-body">
+                            <div class="form-check mb-2">
+                                <input type="checkbox" name="requires_shutdown" id="shutdownCheck" class="form-check-input">
+                                <label class="form-check-label" for="shutdownCheck">Requiere parada de equipo</label>
+                            </div>
+                            <div class="form-check mb-2">
+                                <input type="checkbox" name="is_legal_requirement" id="legalCheck" class="form-check-input">
+                                <label class="form-check-label" for="legalCheck">Es requerimiento legal o normativo</label>
+                            </div>
+                            <div class="mb-3" id="legalRefDiv" style="display: none;">
+                                <label class="form-label fw-bold">Referencia legal</label>
+                                <input type="text" name="legal_reference" id="legalReference" class="form-control">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="alert alert-info">
+                        <i class="fas fa-lightbulb"></i> <strong>Consejo:</strong> Las actividades preventivas bien definidas ayudan a estandarizar el mantenimiento.
+                    </div>
+
+                    <div class="d-flex justify-content-between mt-3">
+                        <button type="submit" class="btn btn-primary px-4">
+                            <i class="fas fa-save"></i> Guardar actividad
+                        </button>
+                        <a href="{{ url_for('equipment.list_preventive_activities', id=equipment.id) }}" class="btn btn-secondary">
+                            <i class="fas fa-times"></i> Cancelar
+                        </a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Esperar a que el DOM esté completamente cargado
+    document.addEventListener('DOMContentLoaded', function() {
+        // Inicializar tooltips solo si Bootstrap está definido
+        if (typeof bootstrap !== 'undefined') {
+            const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+            tooltipTriggerList.forEach(function(tooltipTriggerEl) {
+                new bootstrap.Tooltip(tooltipTriggerEl);
+            });
+        }
+
+        // Mostrar/ocultar referencia legal
+        const legalCheck = document.getElementById('legalCheck');
+        const legalRefDiv = document.getElementById('legalRefDiv');
+        function toggleLegalRef() {
+            legalRefDiv.style.display = legalCheck.checked ? 'block' : 'none';
+        }
+        if (legalCheck) legalCheck.addEventListener('change', toggleLegalRef);
+        toggleLegalRef();
+
+        // ============================================
+        // CARGA DESDE CATÁLOGO DE ACTIVIDADES ESTÁNDAR
+        // ============================================
+        const stdSelect = document.getElementById('standardActivitySelect');
+        const nameInput = document.getElementById('actName');
+        const descInput = document.getElementById('actDescription');
+        const instrInput = document.getElementById('actInstructions');
+        const freqTypeSelect = document.getElementById('freqType');
+        const freqValueInput = document.getElementById('freqValue');
+        const toleranceInput = document.getElementById('toleranceDays');
+        const responsibleSelect = document.getElementById('responsibleRole');
+        const shutdownCheck = document.getElementById('shutdownCheck');
+        const legalCheckbox = document.getElementById('legalCheck');
+        const legalRefInput = document.getElementById('legalReference');
+        const msgDiv = document.getElementById('stdActivityMessage');
+
+        function disableCatalogFields(disabled) {
+            nameInput.disabled = disabled;
+            descInput.disabled = disabled;
+            instrInput.disabled = disabled;
+            shutdownCheck.disabled = disabled;
+            legalCheckbox.disabled = disabled;
+            legalRefInput.disabled = disabled;
+            if (disabled) {
+                nameInput.classList.add('bg-light');
+                descInput.classList.add('bg-light');
+                instrInput.classList.add('bg-light');
+            } else {
+                nameInput.classList.remove('bg-light');
+                descInput.classList.remove('bg-light');
+                instrInput.classList.remove('bg-light');
+            }
+        }
+
+        function clearForm() {
+            nameInput.value = '';
+            descInput.value = '';
+            instrInput.value = '';
+            shutdownCheck.checked = false;
+            legalCheckbox.checked = false;
+            legalRefInput.value = '';
+            toggleLegalRef();
+            // Resetear frecuencia a valores por defecto (opcional)
+            freqTypeSelect.value = 'months';
+            freqValueInput.value = 1;
+            toleranceInput.value = 2;
+            responsibleSelect.value = 'specialized';
+        }
+
+        if (stdSelect) {
+            stdSelect.addEventListener('change', function() {
+                const activityId = this.value;
+                if (activityId) {
+                    msgDiv.innerHTML = '<div class="alert alert-info">Cargando actividad...</div>';
+                    stdSelect.disabled = true;
+
+                    fetch(`/standard-activities/api/${activityId}`)
+                        .then(response => {
+                            if (!response.ok) throw new Error('Error en la respuesta del servidor');
+                            return response.json();
+                        })
+                        .then(data => {
+                            // Rellenar campos
+                            nameInput.value = data.name || '';
+                            descInput.value = data.description || '';
+                            instrInput.value = data.instructions || '';
+                            shutdownCheck.checked = data.requires_shutdown || false;
+                            legalCheckbox.checked = false; // Por defecto no marcar requerimiento legal a menos que venga
+                            legalRefInput.value = '';
+                            toggleLegalRef();
+                            // Actualizar frecuencia y responsable (editables)
+                            if (data.default_freq_type) freqTypeSelect.value = data.default_freq_type;
+                            if (data.default_freq_value) freqValueInput.value = data.default_freq_value;
+                            if (data.default_responsible_role) responsibleSelect.value = data.default_responsible_role;
+
+                            // Bloquear campos
+                            disableCatalogFields(true);
+
+                            msgDiv.innerHTML = `
+                                <div class="alert alert-success alert-dismissible fade show">
+                                    <i class="fas fa-check-circle"></i> Datos cargados desde "${data.name}". Los campos de datos generales están bloqueados.
+                                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                                    <hr>
+                                    <button type="button" id="clearStdBtn" class="btn btn-sm btn-outline-secondary">Usar actividad personalizada</button>
+                                </div>
+                            `;
+                            const clearBtn = document.getElementById('clearStdBtn');
+                            if (clearBtn) {
+                                clearBtn.addEventListener('click', function() {
+                                    disableCatalogFields(false);
+                                    clearForm();
+                                    stdSelect.value = '';
+                                    msgDiv.innerHTML = '';
+                                });
+                            }
+                        })
+                        .catch(error => {
+                            console.error('Error:', error);
+                            msgDiv.innerHTML = '<div class="alert alert-danger">Error al cargar la actividad. Intente nuevamente.</div>';
+                            setTimeout(() => { if (msgDiv) msgDiv.innerHTML = ''; }, 3000);
+                        })
+                        .finally(() => {
+                            stdSelect.disabled = false;
+                        });
+                } else {
+                    // Si se deselecciona, habilitar campos
+                    disableCatalogFields(false);
+                    clearForm();
+                    msgDiv.innerHTML = '';
+                }
+            });
+        }
+
+        // Validación del formulario antes de enviar
+        const form = document.getElementById('preventiveForm');
+        form.addEventListener('submit', function(e) {
+            if (!nameInput.value.trim()) {
+                alert('El nombre de la actividad es obligatorio.');
+                e.preventDefault();
+                return false;
+            }
+            const freqVal = parseInt(freqValueInput.value);
+            if (isNaN(freqVal) || freqVal < 1) {
+                alert('El valor de frecuencia debe ser al menos 1.');
+                e.preventDefault();
+                return false;
+            }
+            return true;
+        });
+    });
+</script>
+
+<style>
+    input:disabled, textarea:disabled, select:disabled {
+        background-color: #e9ecef !important;
+        cursor: not-allowed;
+    }
+    .bg-light {
+        background-color: #f8f9fa !important;
+    }
+</style>
+{% endblock %}

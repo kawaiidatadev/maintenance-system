@@ -5,59 +5,127 @@
     <div class="col-md-8 mx-auto">
         <div class="card">
             <div class="card-header bg-primary text-white">
-                <h4><i class="fas fa-bug"></i> Reportar Problema</h4>
+                <h4><i class="fas fa-plus-circle"></i> Nueva Orden de Trabajo</h4>
             </div>
             <div class="card-body">
-                <form method="POST">
-                    <div class="mb-3">
-                        <label class="form-label">Selecciona el equipo o indica que no está registrado</label>
-                        <div class="form-check">
-                            <input class="form-check-input" type="radio" name="equipment_option" id="existing" value="existing" checked>
-                            <label class="form-check-label" for="existing">
-                                El equipo está en la lista
-                            </label>
+
+                <!-- SELECTOR DE TIPO DE OT -->
+                <div class="mb-4">
+                    <label class="form-label fw-bold">Tipo de mantenimiento</label>
+                    <div class="btn-group w-100" role="group">
+                        <input type="radio" class="btn-check" name="work_type" id="type_corrective" value="corrective" autocomplete="off" checked>
+                        <label class="btn btn-outline-primary" for="type_corrective">
+                            <i class="fas fa-wrench"></i> Correctivo
+                        </label>
+
+                        <input type="radio" class="btn-check" name="work_type" id="type_preventive" value="preventive" autocomplete="off">
+                        <label class="btn btn-outline-success" for="type_preventive">
+                            <i class="fas fa-calendar-check"></i> Preventivo
+                        </label>
+                    </div>
+                    <small class="text-muted">Seleccione el tipo de mantenimiento que se va a realizar.</small>
+                </div>
+
+                <form method="POST" id="otForm">
+                    <!-- DATOS COMUNES (ambos tipos) -->
+                    <div class="card mb-3">
+                        <div class="card-header bg-light">
+                            <i class="fas fa-info-circle"></i> Datos generales
                         </div>
-                        <div class="form-check">
-                            <input class="form-check-input" type="radio" name="equipment_option" id="new_equipment" value="new_equipment">
-                            <label class="form-check-label" for="new_equipment">
-                                El equipo NO está registrado o no sé identificarlo
-                            </label>
+                        <div class="card-body">
+                            <div class="mb-3">
+                                <label class="form-label">Equipo *</label>
+                                <select name="equipment_id" class="form-control" id="equipmentSelect">
+                                    <option value="">Seleccione un equipo...</option>
+                                    {% for eq in equipments %}
+                                    <option value="{{ eq.id }}">{{ eq.code }} - {{ eq.name }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label">Descripción del problema *</label>
+                                <textarea name="problem_description" rows="3" class="form-control" required></textarea>
+                            </div>
                         </div>
                     </div>
 
-                    <div id="existing_equipment_section">
-                        <div class="mb-3">
-                            <label for="equipment_id" class="form-label">Equipo *</label>
-                            <select class="form-control" id="equipment_id" name="equipment_id">
-                                <option value="">Seleccionar equipo...</option>
-                                {% for eq in equipments %}
-                                <option value="{{ eq.id }}">{{ eq.code }} - {{ eq.name }} - {{ eq.location }}</option>
-                                {% endfor %}
-                            </select>
+                    <!-- CAMPOS PARA CORRECTIVO (ocultos por defecto) -->
+                    <div id="correctiveFields" class="card mb-3">
+                        <div class="card-header bg-light">
+                            <i class="fas fa-chart-line"></i> Análisis de falla (Correctivo)
+                        </div>
+                        <div class="card-body">
+                            <div class="mb-3">
+                                <label class="form-label">Tipo de falla</label>
+                                <select name="failure_type" class="form-control">
+                                    <option value="">Seleccione...</option>
+                                    <option value="Eléctrica">Eléctrica</option>
+                                    <option value="Mecánica">Mecánica</option>
+                                    <option value="Electrónica">Electrónica</option>
+                                    <option value="Hidráulica">Hidráulica</option>
+                                    <option value="Neumática">Neumática</option>
+                                    <option value="Estructural">Estructural</option>
+                                    <option value="Operacional">Operacional</option>
+                                </select>
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label">Causa raíz</label>
+                                <textarea name="root_cause" rows="2" class="form-control" placeholder="Ej: Desgaste por falta de lubricación..."></textarea>
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label">Trabajo realizado</label>
+                                <textarea name="work_performed" rows="3" class="form-control" placeholder="Ej: Se reemplazó el rodamiento y se ajustó la alineación..."></textarea>
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label">Repuestos utilizados</label>
+                                <textarea name="parts_used" rows="2" class="form-control" placeholder="Ej: Rodamiento 6204 (2 unidades)..."></textarea>
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label">Tiempo de parada (horas)</label>
+                                <input type="number" step="0.5" name="downtime_hours" class="form-control" value="0">
+                            </div>
                         </div>
                     </div>
 
-                    <div id="new_equipment_section" style="display: none;">
-                        <div class="alert alert-info">
-                            <i class="fas fa-info-circle"></i> No te preocupes. Describe dónde está el equipo y sus características.
+                    <!-- CAMPOS PARA PREVENTIVO (ocultos por defecto) -->
+                    <div id="preventiveFields" class="card mb-3" style="display: none;">
+                        <div class="card-header bg-light">
+                            <i class="fas fa-tasks"></i> Planificación Preventiva
                         </div>
-                        <div class="mb-3">
-                            <label for="temporary_location" class="form-label">Ubicación *</label>
-                            <input type="text" class="form-control" id="temporary_location" name="temporary_location" placeholder="Ej: Taller de soldadura, lado norte, cerca del compresor">
-                        </div>
-                        <div class="mb-3">
-                            <label for="temporary_description" class="form-label">Descripción del equipo *</label>
-                            <input type="text" class="form-control" id="temporary_description" name="temporary_description" placeholder="Ej: Máquina de soldar marca Lincoln, color rojo, número de serie desconocido">
+                        <div class="card-body">
+                            <div class="mb-3">
+                                <label class="form-label">Instrucciones específicas</label>
+                                <textarea name="preventive_instructions" rows="3" class="form-control" placeholder="Describa las actividades a realizar, herramientas necesarias, precauciones..."></textarea>
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label">Fecha planificada</label>
+                                <input type="date" name="planned_date" class="form-control" value="{{ now.date() if now else '' }}">
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label">Técnico sugerido</label>
+                                <select name="suggested_technician" class="form-control">
+                                    <option value="">-- Sin asignar --</option>
+                                    {% for tech in technicians %}
+                                    <option value="{{ tech.id }}">{{ tech.username }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
                         </div>
                     </div>
 
-                    <div class="mb-3">
-                        <label for="problem_description" class="form-label">¿Qué problema presenta? *</label>
-                        <textarea class="form-control" id="problem_description" name="problem_description" rows="4" required placeholder="Ej: Hace un ruido extraño, no enciende, vibra mucho, sale humo..."></textarea>
+                    <div class="mt-3">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save"></i> Crear OT
+                        </button>
+                        <a href="{{ url_for('work_orders.list_orders') }}" class="btn btn-secondary">Cancelar</a>
                     </div>
-
-                    <button type="submit" class="btn btn-primary">Reportar Problema</button>
-                    <a href="{{ url_for('work_orders.list_orders') }}" class="btn btn-secondary">Cancelar</a>
                 </form>
             </div>
         </div>
@@ -65,30 +133,27 @@
 </div>
 
 <script>
-    const existingRadio = document.getElementById('existing');
-    const newRadio = document.getElementById('new_equipment');
-    const existingSection = document.getElementById('existing_equipment_section');
-    const newSection = document.getElementById('new_equipment_section');
-    const equipmentSelect = document.getElementById('equipment_id');
+    // Mostrar/ocultar campos según el tipo de OT seleccionado
+    const typeCorrective = document.getElementById('type_corrective');
+    const typePreventive = document.getElementById('type_preventive');
+    const correctiveFields = document.getElementById('correctiveFields');
+    const preventiveFields = document.getElementById('preventiveFields');
 
-    existingRadio.addEventListener('change', function() {
-        if (this.checked) {
-            existingSection.style.display = 'block';
-            newSection.style.display = 'none';
-            equipmentSelect.required = true;
-            document.getElementById('temporary_location').required = false;
-            document.getElementById('temporary_description').required = false;
+    function toggleFields() {
+        if (typeCorrective.checked) {
+            correctiveFields.style.display = 'block';
+            preventiveFields.style.display = 'none';
+            // Hacer requeridos los campos de correctivo? (opcional)
+        } else {
+            correctiveFields.style.display = 'none';
+            preventiveFields.style.display = 'block';
         }
-    });
+    }
 
-    newRadio.addEventListener('change', function() {
-        if (this.checked) {
-            existingSection.style.display = 'none';
-            newSection.style.display = 'block';
-            equipmentSelect.required = false;
-            document.getElementById('temporary_location').required = true;
-            document.getElementById('temporary_description').required = true;
-        }
-    });
+    typeCorrective.addEventListener('change', toggleFields);
+    typePreventive.addEventListener('change', toggleFields);
+
+    // Inicializar estado
+    toggleFields();
 </script>
 {% endblock %}

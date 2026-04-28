@@ -33,14 +33,26 @@
         <div class="collapse navbar-collapse" id="navbarNav">
             <ul class="navbar-nav ms-auto">
                 {% if current_user.is_authenticated %}
-                    <!-- Enlace de administración solo para admin -->
+                    <!-- Enlace de administración y catálogo solo para admin -->
                     {% if current_user.role == 'admin' %}
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('admin.users') }}">
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" id="adminDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                             <i class="fas fa-users-cog"></i> Admin
                         </a>
-                    </li>
-                    {% endif %}
+                            <ul class="dropdown-menu" aria-labelledby="adminDropdown">
+                                <li><a class="dropdown-item" href="{{ url_for('admin.users') }}">
+                                    <i class="fas fa-users"></i> Usuarios
+                                </a></li>
+                                <li><a class="dropdown-item" href="{{ url_for('standard_activities.index') }}">
+                                    <i class="fas fa-book"></i> Catálogo de actividades
+                                </a></li>
+                                <li><hr class="dropdown-divider"></li>
+                                <li><a class="dropdown-item" href="{{ url_for('settings.index') }}">
+                                    <i class="fas fa-cog"></i> Configuración
+                                </a></li>
+                            </ul>
+                        </li>
+                        {% endif %}
 
                     <li class="nav-item">
                         <a class="nav-link" href="{{ url_for('equipment.list_equipment') }}">
@@ -53,6 +65,13 @@
                             <i class="fas fa-clipboard-list"></i> Órdenes
                         </a>
                     </li>
+
+                <!-- Enlace para  Preventivos-->
+                <li class="nav-item">
+                    <a class="nav-link" href="{{ url_for('preventive.dashboard') }}">
+                        <i class="fas fa-calendar-check"></i> Preventivos
+                    </a>
+                </li>
 
                     <!-- Enlace para Análisis de Criticidad -->
                     <li class="nav-item">

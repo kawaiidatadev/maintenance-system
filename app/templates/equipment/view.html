@@ -249,10 +249,15 @@
                 </div>
 
                 <!-- Botones de acción -->
+                <!-- Botones de acción -->
                 <div class="mt-4">
                     {% if current_user.role in ['admin', 'supervisor'] %}
                     <a href="{{ url_for('equipment.edit_equipment', id=equipment.id) }}" class="btn btn-warning">
                         <i class="fas fa-edit"></i> Editar equipo
+                    </a>
+                    <!-- NUEVO BOTÓN PARA ACTIVIDADES PREVENTIVAS -->
+                    <a href="{{ url_for('equipment.list_preventive_activities', id=equipment.id) }}" class="btn btn-info">
+                        <i class="fas fa-tasks"></i> Actividades Preventivas
                     </a>
                     {% endif %}
                     <a href="{{ url_for('equipment.list_equipment') }}" class="btn btn-secondary">

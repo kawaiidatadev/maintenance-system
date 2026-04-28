@@ -11,6 +11,7 @@ from app.models.work_order_report import WorkOrderReport
 from app.services.pdf_generator import generate_work_order_pdf
 from app.models.setting import Setting
 from app.email_dispatcher import send_work_order_closed_email
+from app.models.preventive_schedule import PreventiveSchedule
 
 work_orders_bp = Blueprint('work_orders', __name__, url_prefix='/work-orders')
 
@@ -30,26 +31,51 @@ def admin_or_supervisor_required(func):
 @work_orders_bp.route('/')
 @login_required
 def list_orders():
+    # Obtener filtros de la URL
+    tipo = request.args.get('tipo', 'todos')  # todos, corrective, preventive
+    status = request.args.get('status', '')
+
+    # Base de la consulta
     if current_user.role in ['admin', 'supervisor']:
-        orders = WorkOrder.query.order_by(WorkOrder.created_at.desc()).all()
+        query = WorkOrder.query
     else:
-        orders = WorkOrder.query.filter_by(assigned_to_id=current_user.id).order_by(WorkOrder.created_at.desc()).all()
-    return render_template('work_orders/list.html', orders=orders)
+        query = WorkOrder.query.filter_by(assigned_to_id=current_user.id)
+
+    # Aplicar filtro por tipo
+    if tipo == 'corrective':
+        query = query.filter(WorkOrder.work_type == 'corrective')
+    elif tipo == 'preventive':
+        query = query.filter(WorkOrder.work_type == 'preventive')
+
+    # Aplicar filtro por estado (opcional)
+    if status:
+        query = query.filter(WorkOrder.status == status)
+
+    # Ordenar por fecha descendente
+    orders = query.order_by(WorkOrder.created_at.desc()).all()
+
+    return render_template('work_orders/list.html', orders=orders, tipo_actual=tipo, status_actual=status)
 
 
 @work_orders_bp.route('/create', methods=['GET', 'POST'])
 @login_required
 def create_order():
     if request.method == 'POST':
-        number = WorkOrder.generate_number()
-        equipment_option = request.form.get('equipment_option')
+        # Determinar el tipo de OT
+        work_type = request.form.get('work_type', 'corrective')
 
+        # Generar número de OT
+        number = WorkOrder.generate_number()
+
+        # Datos comunes
+        equipment_option = request.form.get('equipment_option')
         equipment_id = request.form.get('equipment_id')
         if equipment_id == '' or equipment_id == 'None':
             equipment_id = None
         else:
             equipment_id = int(equipment_id) if equipment_id else None
 
+        # Crear la OT según el tipo
         if equipment_option == 'existing' and equipment_id:
             work_order = WorkOrder(
                 number=number,
@@ -57,7 +83,8 @@ def create_order():
                 problem_description=request.form.get('problem_description'),
                 created_by_id=current_user.id,
                 status='open',
-                needs_equipment_registration=False
+                needs_equipment_registration=False,
+                work_type=work_type
             )
         else:
             work_order = WorkOrder(
@@ -68,20 +95,25 @@ def create_order():
                 temporary_description=request.form.get('temporary_description'),
                 created_by_id=current_user.id,
                 status='open',
-                needs_equipment_registration=True
+                needs_equipment_registration=True,
+                work_type=work_type
             )
+
+        # Si es correctivo, guardar campos adicionales
+        if work_type == 'corrective':
+            work_order.failure_type = request.form.get('failure_type') or None
+            work_order.root_cause = request.form.get('root_cause') or None
+            work_order.work_performed = request.form.get('work_performed') or None
+            work_order.parts_used = request.form.get('parts_used') or None
+            work_order.downtime_hours = float(request.form.get('downtime_hours') or 0)
 
         db.session.add(work_order)
         db.session.commit()
 
-        if work_order.needs_equipment_registration:
-            flash(f'OT {number} reportada. Se ha notificado al departamento de mantenimiento para registrar el equipo.',
-                  'info')
-        else:
-            flash(f'OT {number} reportada exitosamente. Un técnico la atenderá pronto.', 'success')
-
+        flash(f'OT {number} creada exitosamente', 'success')
         return redirect(url_for('work_orders.list_orders'))
 
+    # GET: mostrar formulario
     equipments = Equipment.query.order_by(Equipment.code).all()
     return render_template('work_orders/create.html', equipments=equipments)
 
@@ -108,6 +140,7 @@ def edit_order(id):
         return redirect(url_for('work_orders.list_orders'))
 
     if request.method == 'POST':
+        # Datos comunes
         order.problem_description = request.form.get('problem_description')
 
         if request.form.get('assign_equipment') == 'yes':
@@ -118,27 +151,24 @@ def edit_order(id):
                 order.temporary_location = None
                 order.temporary_description = None
 
-        # Asignación de técnico (sin cambio automático de estado)
+        # Asignación de técnico
         assigned_to = request.form.get('assigned_to_id')
         new_assigned_id = int(assigned_to) if assigned_to and assigned_to != '' else None
 
-        # 🔔 NOTIFICACIÓN: Si cambia el técnico asignado y no es None
         old_assigned_id = order.assigned_to_id
         order.assigned_to_id = new_assigned_id
 
-        # Si se asignó un nuevo técnico (diferente al anterior) y no es None
-        # Dentro de edit_order, cuando se asigna un técnico:
         if new_assigned_id and new_assigned_id != old_assigned_id:
             create_notification(
                 user_id=new_assigned_id,
                 title=f"Nueva OT asignada: {order.number}",
-                message=f"Se te ha asignado la orden {order.number} para el equipo {order.equipment.name if order.equipment else 'sin equipo'}.",
+                message=f"Se te ha asignado la orden {order.number}.",
                 event_type='work_order_assigned',
                 related_id=order.id,
                 link=url_for('work_orders.view_order', id=order.id, _external=True)
             )
 
-        # El estado se guarda tal cual lo seleccionó el usuario
+        # Estado
         new_status = request.form.get('status')
         if new_status and new_status != order.status:
             order.status = new_status
@@ -149,20 +179,22 @@ def edit_order(id):
             elif new_status == 'assigned' and not order.assigned_at:
                 order.assigned_at = datetime.utcnow()
 
-        order.failure_type = request.form.get('failure_type') or None
-        order.root_cause = request.form.get('root_cause') or None
-        order.work_performed = request.form.get('work_performed') or None
-        order.parts_used = request.form.get('parts_used') or None
+        # Si es correctivo, guardar campos adicionales
+        if order.work_type == 'corrective':
+            order.failure_type = request.form.get('failure_type') or None
+            order.root_cause = request.form.get('root_cause') or None
+            order.work_performed = request.form.get('work_performed') or None
+            order.parts_used = request.form.get('parts_used') or None
+            order.downtime_hours = float(request.form.get('downtime_hours') or 0)
+
         order.resolution_summary = request.form.get('resolution_summary') or None
-
-        downtime = request.form.get('downtime_hours')
-        order.downtime_hours = float(downtime) if downtime and downtime != '' else 0
-
         order.updated_at = datetime.utcnow()
         db.session.commit()
+
         flash(f'OT {order.number} actualizada', 'success')
         return redirect(url_for('work_orders.view_order', id=id))
 
+    # GET: mostrar formulario
     equipments = Equipment.query.order_by(Equipment.code).all()
     technicians = User.query.filter(User.role.in_(['tecnico', 'supervisor', 'admin'])).all()
     status_choices = [
@@ -173,7 +205,11 @@ def edit_order(id):
         ('closed', 'Cerrada'),
         ('cancelled', 'Cancelada')
     ]
-    return render_template('work_orders/edit.html', order=order, equipments=equipments, technicians=technicians,
+
+    return render_template('work_orders/edit.html',
+                           order=order,
+                           equipments=equipments,
+                           technicians=technicians,
                            status_choices=status_choices)
 
 
@@ -237,17 +273,11 @@ def close_order(id):
     order = WorkOrder.query.get_or_404(id)
     if not order.can_close(current_user):
         flash('No tienes permiso para cerrar esta OT', 'danger')
-        return redirect(url_for('work_orders.view_order', id=id))
+        return redirect(url_for('work_orders.list_orders'))
 
-    # Evitar doble cierre
-    if order.status == 'closed':
-        flash('Esta OT ya está cerrada', 'warning')
-        return redirect(url_for('work_orders.view_order', id=id))
-
-    # Capturar notas de cierre (si vienen del formulario)
+    # Capturar notas de cierre
     closure_notes = request.form.get('closure_notes', '')
     if closure_notes:
-        # Puedes guardarlo en un campo existente, por ejemplo resolution_summary
         order.resolution_summary = closure_notes
 
     # Actualizar estado y fechas
@@ -255,6 +285,20 @@ def close_order(id):
     order.closed_by_id = current_user.id
     order.closed_at = datetime.utcnow()
     db.session.commit()
+
+    # ============================================
+    # NUEVO: Si es OT preventiva, actualizar el schedule
+    # ============================================
+    if order.work_type == 'preventive' and order.preventive_schedule_id:
+        from app.models.preventive_schedule import PreventiveSchedule
+        schedule = PreventiveSchedule.query.get(order.preventive_schedule_id)
+        if schedule:
+            schedule.last_completion_date = datetime.utcnow()
+            schedule.next_due_date = schedule.compute_next_due(schedule.last_completion_date)
+            schedule.status = 'done'
+            db.session.add(schedule)
+            db.session.commit()
+            flash('Calendario preventivo actualizado', 'info')
 
     # ============================================
     # GENERAR PDF Y REGISTRAR EN BD

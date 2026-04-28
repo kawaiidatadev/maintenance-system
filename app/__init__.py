@@ -41,6 +41,9 @@ def create_app():
     from app.blueprints.notifications import notifications_bp
     from app.scheduler import start_scheduler
     from app.blueprints.reports import reports_bp
+    from app.blueprints.preventive import preventive_bp
+    from app.blueprints.standard_activities import standard_activities_bp
+
 
     # Registrar blueprints
     app.register_blueprint(auth_bp, url_prefix='/auth')
@@ -53,6 +56,8 @@ def create_app():
     app.register_blueprint(settings_bp)
     app.register_blueprint(notifications_bp)
     app.register_blueprint(reports_bp)
+    app.register_blueprint(preventive_bp)
+    app.register_blueprint(standard_activities_bp)
 
     # Iniciar scheduler
     scheduler = start_scheduler(app)
