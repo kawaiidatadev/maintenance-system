@@ -7,33 +7,27 @@ class PreventiveActivity(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
     equipment_id = db.Column(db.Integer, db.ForeignKey('equipment.id'), nullable=False)
+    group_id = db.Column(db.Integer, db.ForeignKey('frequency_groups.id'), nullable=True)  # ← agregar
     code = db.Column(db.String(50), unique=True, nullable=False)
     name = db.Column(db.String(200), nullable=False)
     description = db.Column(db.Text)
-    instructions = db.Column(db.Text)          # Pasos detallados
-
-    # Frecuencia
-    freq_type = db.Column(db.String(20))       # days, weeks, months, years, hours
-    freq_value = db.Column(db.Integer, default=1)  # cada X (unidades)
-    tolerance_days = db.Column(db.Integer, default=2)  # días de gracia
-
-    # Responsabilidad
-    responsible_role = db.Column(db.String(20))  # autonomous, specialized, external
+    instructions = db.Column(db.Text)
+    # Los campos de frecuencia y responsable ahora se heredan del grupo, se mantienen por si acaso
+    freq_type = db.Column(db.String(20))
+    freq_value = db.Column(db.Integer)
+    tolerance_days = db.Column(db.Integer, default=2)
+    responsible_role = db.Column(db.String(20))
     requires_shutdown = db.Column(db.Boolean, default=False)
-
-    # Recursos (opcional)
-    tools_required = db.Column(db.Text)        # JSON: ["llave 10", "multímetro"]
-    spare_parts_required = db.Column(db.Text)  # JSON: [{"part": "rodamiento 6204", "qty": 2}]
-
-    # Legal / seguridad
+    tools_required = db.Column(db.Text)
+    spare_parts_required = db.Column(db.Text)
     is_legal_requirement = db.Column(db.Boolean, default=False)
     legal_reference = db.Column(db.String(100))
-
     is_active = db.Column(db.Boolean, default=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
-    # Relaciones
+
     equipment = db.relationship('Equipment', backref='preventive_activities')
+    group = db.relationship('FrequencyGroup', backref='activities', foreign_keys=[group_id])
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

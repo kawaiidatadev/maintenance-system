@@ -8,6 +8,7 @@ from app.models.work_order import WorkOrder
 from datetime import datetime, timedelta
 from dateutil.relativedelta import relativedelta
 import json
+from app.models.frequency_group import FrequencyGroup
 
 preventive_bp = Blueprint('preventive', __name__, url_prefix='/preventive')
 
@@ -15,56 +16,50 @@ preventive_bp = Blueprint('preventive', __name__, url_prefix='/preventive')
 @preventive_bp.route('/')
 @login_required
 def dashboard():
-    """Tablero de mantenimiento preventivo - muestra actividades pendientes"""
+    from app.models.frequency_group import FrequencyGroup
+    from app.models.preventive_schedule import PreventiveSchedule
 
-    # Mostrar solo actividades no completadas
-    schedules = PreventiveSchedule.query.join(PreventiveActivity).filter(
-        PreventiveActivity.is_active == True,
-        PreventiveSchedule.status != 'done'
-    ).all()
+    # Obtener grupos activos con sus schedules
+    groups = FrequencyGroup.query.filter_by(is_active=True).all()
+    # Filtrar aquellos que tienen schedule asociado (puede haber grupos recién creados sin schedule? No, se crea al crear grupo)
+    # Pero para evitar errores, cargamos schedules aparte
+    schedules = {s.group_id: s for s in PreventiveSchedule.query.all()}
 
     today = datetime.utcnow().date()
 
-    for s in schedules:
-        if s.next_due_date:
-            days_left = (s.next_due_date.date() - today).days
-
+    for group in groups:
+        schedule = schedules.get(group.id)
+        if schedule and schedule.next_due_date:
+            days_left = (schedule.next_due_date.date() - today).days
             if days_left < 0:
-                s.status_class = 'danger'
-                s.status_icon = 'fa-exclamation-circle'
-                s.status_text = 'Vencida'
-                s.days_display = f'Hace {abs(days_left)} días'
-            elif days_left <= s.activity.tolerance_days:
-                s.status_class = 'warning'
-                s.status_icon = 'fa-clock'
-                s.status_text = 'Próximo a vencer'
-                s.days_display = f'En {days_left} días'
+                group.status_class = 'danger'
+                group.status_icon = 'fa-exclamation-circle'
+                group.status_text = 'Vencido'
+                group.days_display = f'Hace {abs(days_left)} días'
+            elif days_left <= group.tolerance_days:
+                group.status_class = 'warning'
+                group.status_icon = 'fa-clock'
+                group.status_text = 'Próximo a vencer'
+                group.days_display = f'En {days_left} días'
             else:
-                s.status_class = 'success'
-                s.status_icon = 'fa-check-circle'
-                s.status_text = 'En plazo'
-                s.days_display = f'En {days_left} días'
+                group.status_class = 'success'
+                group.status_icon = 'fa-check-circle'
+                group.status_text = 'En plazo'
+                group.days_display = f'En {days_left} días'
         else:
-            s.status_class = 'secondary'
-            s.status_icon = 'fa-question-circle'
-            s.status_text = 'Sin programar'
-            s.days_display = 'N/A'
+            group.status_class = 'secondary'
+            group.status_icon = 'fa-question-circle'
+            group.status_text = 'Sin programar'
+            group.days_display = 'N/A'
 
     stats = {
-        'total': len(schedules),
-        'overdue': sum(1 for s in schedules if s.next_due_date and (s.next_due_date.date() - today).days < 0),
-        'due_soon': sum(1 for s in schedules if
-                        s.next_due_date and 0 <= (s.next_due_date.date() - today).days <= s.activity.tolerance_days),
+        'total': len(groups),
+        'overdue': sum(1 for g in groups if hasattr(g, 'status_text') and g.status_text == 'Vencido'),
+        'due_soon': sum(1 for g in groups if hasattr(g, 'status_text') and g.status_text == 'Próximo a vencer'),
         'completed': PreventiveSchedule.query.filter_by(status='done').count()
     }
 
-    equipments = Equipment.query.order_by(Equipment.name).all()
-
-    return render_template('preventive/dashboard.html',
-                           schedules=schedules,
-                           stats=stats,
-                           equipments=equipments,
-                           now=today)
+    return render_template('preventive/dashboard.html', groups=groups, stats=stats, now=today)
 
 
 @preventive_bp.route('/execute/<int:schedule_id>')
@@ -175,3 +170,91 @@ def api_stats():
     return jsonify({
         'monthly': [{'month': m[0], 'count': m[1]} for m in monthly]
     })
+
+
+@preventive_bp.route('/execute-group/<int:group_id>')
+@login_required
+def execute_group(group_id):
+    """Ejecutar un grupo de mantenimiento preventivo (genera OT)"""
+    group = FrequencyGroup.query.get_or_404(group_id)
+    equipment = group.equipment
+
+    # Verificar permisos según responsable
+    if group.responsible_role == 'autonomous':
+        # Los autónomos deberían usar completado directo, no OT
+        flash('Las actividades autónomas deben completarse directamente desde el tablero.', 'warning')
+        return redirect(url_for('preventive.dashboard'))
+
+    # Generar número de OT
+    from app.models.work_order import WorkOrder
+    last_order = WorkOrder.query.order_by(WorkOrder.id.desc()).first()
+    next_id = (last_order.id + 1) if last_order else 1
+    order_number = f"PRE-G{next_id:04d}"
+
+    # Construir descripción con todas las actividades del grupo
+    activities_list = []
+    for act in group.activities:
+        activities_list.append(f"• {act.name}: {act.description or 'Sin descripción'}")
+    activities_text = '\n'.join(activities_list) if activities_list else 'Sin actividades detalladas.'
+
+    description = f"""
+    === MANTENIMIENTO PREVENTIVO POR GRUPO ===
+    Grupo: {group.name}
+    Equipo: {equipment.code} - {equipment.name}
+
+    Actividades a realizar:
+    {activities_text}
+
+    Requiere parada de equipo: {'SÍ' if group.requires_shutdown else 'NO'}
+    """
+
+    work_order = WorkOrder(
+        number=order_number,
+        equipment_id=equipment.id,
+        problem_description=description.strip(),
+        created_by_id=current_user.id,
+        status='open',
+        needs_equipment_registration=False,
+        work_type='preventive'
+    )
+    db.session.add(work_order)
+    db.session.commit()
+
+    # Guardar referencia al grupo en la OT (opcional: agregar campo group_id a WorkOrder)
+    # work_order.group_id = group.id
+
+    flash(f'Se ha generado la OT {order_number} para el grupo "{group.name}"', 'success')
+    return redirect(url_for('work_orders.view_order', id=work_order.id))
+
+
+@preventive_bp.route('/complete-group/<int:group_id>', methods=['POST'])
+@login_required
+def complete_group(group_id):
+    """Completar directamente un grupo autónomo (sin generar OT)"""
+    group = FrequencyGroup.query.get_or_404(group_id)
+
+    if group.responsible_role != 'autonomous':
+        flash('Este grupo no es autónomo. Debe generar una orden de trabajo.', 'warning')
+        return redirect(url_for('preventive.dashboard'))
+
+    # Obtener o crear schedule para el grupo
+    from app.models.preventive_schedule import PreventiveSchedule
+    schedule = PreventiveSchedule.query.filter_by(group_id=group.id).first()
+    if not schedule:
+        schedule = PreventiveSchedule(
+            group_id=group.id,
+            equipment_id=group.equipment_id,
+            next_due_date=datetime.utcnow(),
+            status='pending'
+        )
+        db.session.add(schedule)
+        db.session.commit()
+
+    # Registrar ejecución
+    schedule.last_completion_date = datetime.utcnow()
+    schedule.next_due_date = schedule.compute_next_due(schedule.last_completion_date)
+    schedule.status = 'done'
+    db.session.commit()
+
+    flash(f'Grupo "{group.name}" completado correctamente.', 'success')
+    return redirect(url_for('preventive.dashboard'))

@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header bg-primary text-white">
+        <h4><i class="fas fa-layer-group"></i> Grupos de Mantenimiento por Frecuencia</h4>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-striped">
+                <thead>
+                    <tr>
+                        <th>Nombre</th>
+                        <th>Equipo</th>
+                        <th>Frecuencia</th>
+                        <th>Responsable</th>
+                        <th>Actividades</th>
+                        <th>Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for group in groups %}
+                    <tr>
+                        <td>{{ group.name }}</td>
+                        <td>{{ group.equipment.name }} ({{ group.equipment.code }})</td>
+                        <td>Cada {{ group.freq_value }}
+                            {% if group.freq_type == 'days' %}días
+                            {% elif group.freq_type == 'weeks' %}semanas
+                            {% elif group.freq_type == 'months' %}meses
+                            {% else %}años{% endif %}
+                        </td>
+                        <td>{{ group.responsible_role }}</td>
+                        <td>{{ group.activities.count() }}</td>
+                        <td>
+                            <a href="{{ url_for('frequency_groups.view', group_id=group.id) }}" class="btn btn-sm btn-info">Ver</a>
+                            <a href="{{ url_for('frequency_groups.edit', group_id=group.id) }}" class="btn btn-sm btn-warning">Editar</a>
+                         </td>
+                    </tr>
+                    {% else %}
+                    <tr><td colspan="6" class="text-center">No hay grupos registrados</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
