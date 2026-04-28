@@ -1,30 +1,54 @@
 {% extends "base.html" %}
+
 {% block content %}
 <div class="card">
     <div class="card-header bg-primary text-white">
-        <h4>Ejecutar grupo: {{ group.name }}</h4>
+        <h4>Ejecutar: {{ group.name }}</h4>
         <h6>{{ equipment.name }} ({{ equipment.code }})</h6>
     </div>
     <div class="card-body">
         <form method="POST">
-            <p><strong>Instrucciones:</strong> Marque las actividades que ha completado.</p>
-            <ul class="list-group mb-3">
-                {% for act in activities %}
-                <li class="list-group-item">
+            <!-- Documentos del grupo -->
+            {% if group.documents.count() > 0 %}
+            <div class="alert alert-info">
+                <strong><i class="fas fa-paperclip"></i> Documentos de referencia:</strong>
+                <ul>
+                    {% for doc in group.documents %}
+                    <li><a href="{{ url_for('static', filename=doc.file_path) }}" target="_blank">{{ doc.original_filename }}</a></li>
+                    {% endfor %}
+                </ul>
+            </div>
+            {% endif %}
+
+            <!-- Lista de actividades con comentarios específicos -->
+            <h5>Actividades</h5>
+            {% for act in activities %}
+            <div class="card mb-2">
+                <div class="card-body py-2">
                     <div class="form-check">
                         <input class="form-check-input" type="checkbox" name="completed_activities" value="{{ act.id }}" id="act{{ act.id }}">
                         <label class="form-check-label" for="act{{ act.id }}">
-                            <strong>{{ act.name }}</strong><br>
-                            <small>{{ act.description }}</small>
-                            {% if act.instructions %}
-                                <br><span class="text-muted">Instrucciones: {{ act.instructions }}</span>
-                            {% endif %}
+                            <strong>{{ act.name }}</strong> — {{ act.description or 'Sin descripción' }}
                         </label>
                     </div>
-                </li>
-                {% endfor %}
-            </ul>
-            <button type="submit" class="btn btn-success">Completar grupo</button>
+                    {% if act.instructions %}
+                    <div class="mt-1 small text-muted">Instrucciones: {{ act.instructions }}</div>
+                    {% endif %}
+                    <div class="mt-2">
+                        <label for="comment_{{ act.id }}" class="form-label small">Comentarios sobre esta actividad</label>
+                        <textarea class="form-control form-control-sm" name="comment_{{ act.id }}" rows="2" placeholder="Ej: Se detectó ruido anormal, se lubricó..."></textarea>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+
+            <!-- Comentarios generales -->
+            <div class="mb-3">
+                <label class="form-label"><strong>Comentarios generales</strong></label>
+                <textarea name="general_notes" class="form-control" rows="3" placeholder="Observaciones adicionales, recomendaciones, etc."></textarea>
+            </div>
+
+            <button type="submit" class="btn btn-success">Confirmar y generar OT</button>
             <a href="{{ url_for('preventive.dashboard') }}" class="btn btn-secondary">Cancelar</a>
         </form>
     </div>

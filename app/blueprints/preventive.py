@@ -197,7 +197,14 @@ def execute_group(group_id):
 
     # POST: procesar checklist
     completed_ids = request.form.getlist('completed_activities')
-    notes = request.form.get('notes', '')
+    general_notes = request.form.get('general_notes', '')
+
+    # Comentarios por actividad
+    activity_comments = {}
+    for act in group.activities:
+        comment_key = f'comment_{act.id}'
+        if comment_key in request.form:
+            activity_comments[act.id] = request.form.get(comment_key, '')
 
     schedule = PreventiveSchedule.query.filter_by(group_id=group.id).first()
     if not schedule:
@@ -216,26 +223,28 @@ def execute_group(group_id):
 
     activities_status = []
     for act in group.activities:
-        if str(act.id) in completed_ids:
-            activities_status.append(f"✓ {act.name}: COMPLETADA")
-        else:
-            activities_status.append(f"✗ {act.name}: PENDIENTE")
-    checklist_text = '\n'.join(activities_status)
+        status = "✓" if str(act.id) in completed_ids else "✗"
+        comment = activity_comments.get(act.id, '')
+        comment_text = f" - Comentario: {comment}" if comment else ""
+        activities_status.append(f"{status} {act.name}{comment_text}")
+
+    checklist_text = '\n'.join(activities_status)  # <--- ¡DEFINIR ESTA VARIABLE!
 
     description = f"""
-=== MANTENIMIENTO PREVENTIVO POR GRUPO ===
-Grupo: {group.name}
-Equipo: {equipment.code} - {equipment.name}
-Ejecutado por: {current_user.username}
+    === MANTENIMIENTO PREVENTIVO POR GRUPO ===
+    Grupo: {group.name}
+    Equipo: {equipment.code} - {equipment.name}
+    Ejecutado por: {current_user.username}
+    Fecha/Hora: {datetime.now().strftime('%d/%m/%Y %H:%M')}
 
-Observaciones del técnico:
-{notes}
+    Observaciones generales:
+    {general_notes}
 
-Resultado del checklist:
-{checklist_text}
+    Resultado del checklist:
+    {checklist_text}
 
-Requiere parada de equipo: {'SÍ' if group.requires_shutdown else 'NO'}
-"""
+    Requiere parada de equipo: {'SÍ' if group.requires_shutdown else 'NO'}
+    """
 
     work_order = WorkOrder(
         number=order_number,
@@ -403,9 +412,14 @@ def group_edit(group_id):
 @preventive_bp.route('/groups/activities/<int:group_id>')
 @login_required
 def group_activities(group_id):
+    from app.models.standard_activity import StandardActivity
     group = FrequencyGroup.query.get_or_404(group_id)
     activities = [act for act in group.activities if act.is_active]
-    return render_template('preventive/group_activities.html', group=group, activities=activities)
+    standard_activities = StandardActivity.query.filter_by(is_active=True).all()
+    return render_template('preventive/group_activities.html',
+                           group=group,
+                           activities=activities,
+                           standard_activities=standard_activities)
 
 
 @preventive_bp.route('/groups/activity/add/<int:group_id>', methods=['POST'])
@@ -578,3 +592,73 @@ def catalog_delete(id):
     db.session.commit()
     flash('Actividad desactivada', 'success')
     return redirect(url_for('preventive.catalog'))
+
+
+@preventive_bp.route('/tasks')
+@login_required
+def tasks():
+    """Bandeja de tareas pendientes para el usuario actual"""
+    from app.models.frequency_group import FrequencyGroup
+    from app.models.preventive_schedule import PreventiveSchedule
+
+    # Obtener grupos donde el usuario es asignado o autónomos (visibles para todos)
+    query = FrequencyGroup.query.filter_by(is_active=True)
+    if current_user.role not in ['admin', 'supervisor']:
+        query = query.filter(
+            (FrequencyGroup.assigned_to_id == current_user.id) |
+            (FrequencyGroup.responsible_role == 'autonomous')
+        )
+    groups = query.all()
+
+    # Calcular días restantes y filtrar solo pendientes (no vencidos ni completados)
+    today = datetime.utcnow().date()
+    pending_tasks = []
+    for group in groups:
+        schedule = PreventiveSchedule.query.filter_by(group_id=group.id).first()
+        if schedule and schedule.next_due_date:
+            days_left = (schedule.next_due_date.date() - today).days
+            if days_left <= group.tolerance_days:  # solo próximos a vencer o vencidos
+                group.days_left = days_left
+                group.next_date = schedule.next_due_date
+                pending_tasks.append(group)
+
+    # Ordenar por fecha más próxima
+    pending_tasks.sort(key=lambda x: x.next_date)
+
+    return render_template('preventive/tasks.html', tasks=pending_tasks)
+
+
+@preventive_bp.route('/groups/activity/add_from_catalog/<int:group_id>/<int:std_id>')
+@login_required
+@admin_required
+def group_activity_add_from_catalog(group_id, std_id):
+    from app.models.frequency_group import FrequencyGroup
+    from app.models.standard_activity import StandardActivity
+    from app.models.preventive_activity import PreventiveActivity
+
+    group = FrequencyGroup.query.get_or_404(group_id)
+    std = StandardActivity.query.get_or_404(std_id)
+
+    # Verificar si ya existe
+    existing = PreventiveActivity.query.filter_by(group_id=group.id, name=std.name).first()
+    if existing:
+        flash(f'La actividad "{std.name}" ya existe en este grupo.', 'warning')
+        return redirect(url_for('preventive.group_activities', group_id=group.id))
+
+    activity = PreventiveActivity(
+        equipment_id=group.equipment_id,
+        group_id=group.id,
+        name=std.name,
+        description=std.description,
+        instructions=std.instructions,
+        freq_type=group.freq_type,
+        freq_value=group.freq_value,
+        responsible_role=group.responsible_role,
+        requires_shutdown=std.requires_shutdown,
+        is_legal_requirement=False,
+        legal_reference=''
+    )
+    db.session.add(activity)
+    db.session.commit()
+    flash(f'Actividad "{std.name}" agregada desde el catálogo', 'success')
+    return redirect(url_for('preventive.group_activities', group_id=group.id))

@@ -63,16 +63,27 @@
                         </a>
                     </li>
 
-                    <!-- Enlace para  Preventivos-->
-                    <!-- MENÚ PREVENTIVOS (único punto de entrada) -->
+                 <!-- MENÚ PREVENTIVOS (único punto de entrada) -->
                     <li class="nav-item dropdown">
                         <a class="nav-link dropdown-toggle" href="#" id="preventiveDropdown" role="button" data-bs-toggle="dropdown">
                             <i class="fas fa-calendar-check"></i> Preventivos
                         </a>
                         <ul class="dropdown-menu">
-                            <li><a class="dropdown-item" href="{{ url_for('preventive.dashboard') }}">Tablero de grupos</a></li>
-                            <li><a class="dropdown-item" href="{{ url_for('preventive.groups_list') }}">Administrar grupos</a></li>
-                            <li><a class="dropdown-item" href="{{ url_for('preventive.catalog') }}">Catálogo de actividades</a></li>
+                            <!-- Primera sección: Tareas y ejecución -->
+                            <li><a class="dropdown-item" href="{{ url_for('preventive.tasks') }}">
+                                <i class="fas fa-clipboard-list"></i> Mis tareas
+                            </a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('preventive.dashboard') }}">
+                                <i class="fas fa-chart-line"></i> Actividades por equipo
+                            </a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <!-- Segunda sección: Administración -->
+                            <li><a class="dropdown-item" href="{{ url_for('preventive.groups_list') }}">
+                                <i class="fas fa-cog"></i> Administrar actividades
+                            </a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('preventive.catalog') }}">
+                                <i class="fas fa-book"></i> Actividades estándar
+                            </a></li>
                         </ul>
                     </li>
 

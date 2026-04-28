@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+
 {% block content %}
 <div class="card">
     <div class="card-header bg-info text-white">
@@ -7,27 +8,49 @@
     <div class="card-body">
         <div class="row">
             <div class="col-md-6">
+                <!-- Agregar desde catálogo de actividades estándar -->
                 <div class="card mb-3">
-                    <div class="card-header bg-secondary text-white">Agregar actividad</div>
+                    <div class="card-header bg-secondary text-white">Agregar desde actividades estándar</div>
                     <div class="card-body">
-                        <form method="POST" action="{{ url_for('preventive.group_activity_add', group_id=group.id) }}">
+                        <div class="row">
+                            <div class="col-md-8">
+                                <select id="catalogSelect" class="form-select">
+                                    <option value="">-- Seleccionar actividad estándar --</option>
+                                    {% for std in standard_activities %}
+                                    <option value="{{ std.id }}">{{ std.name }} ({{ std.category }})</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-4">
+                                <button type="button" id="addFromCatalogBtn" class="btn btn-primary w-100">Agregar</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Formulario manual (se llena automáticamente desde el catálogo) -->
+                <div class="card mb-3">
+                    <div class="card-header bg-secondary text-white">Agregar actividad manual</div>
+                    <div class="card-body">
+                        <form id="manualActivityForm" method="POST" action="{{ url_for('preventive.group_activity_add', group_id=group.id) }}">
                             <div class="mb-2">
                                 <label class="form-label">Nombre</label>
-                                <input type="text" name="name" class="form-control" required>
+                                <input type="text" id="manualName" name="name" class="form-control" required>
                             </div>
                             <div class="mb-2">
                                 <label class="form-label">Descripción</label>
-                                <textarea name="description" rows="2" class="form-control"></textarea>
+                                <textarea id="manualDescription" name="description" rows="2" class="form-control"></textarea>
                             </div>
                             <div class="mb-2">
                                 <label class="form-label">Instrucciones</label>
-                                <textarea name="instructions" rows="2" class="form-control"></textarea>
+                                <textarea id="manualInstructions" name="instructions" rows="2" class="form-control"></textarea>
                             </div>
-                            <button type="submit" class="btn btn-success">Agregar actividad</button>
+                            <button type="submit" id="manualSubmitBtn" class="btn btn-success">Agregar actividad</button>
                         </form>
                     </div>
                 </div>
             </div>
+
             <div class="col-md-6">
                 <div class="card mb-3">
                     <div class="card-header bg-secondary text-white">Adjuntar documento (instructivo)</div>
@@ -45,6 +68,7 @@
                 </div>
             </div>
         </div>
+
         <h5>Actividades existentes</h5>
         <ul class="list-group">
             {% for act in activities %}
@@ -61,7 +85,9 @@
         <hr>
         <h5>Documentos adjuntos</h5>
         <table class="table">
-            <thead><tr><th>Archivo</th><th>Descripción</th><th>Acciones</th></tr></thead>
+            <thead>
+                <tr><th>Archivo</th><th>Descripción</th><th>Acciones</th></tr>
+            </thead>
             <tbody>
             {% for doc in group.documents %}
             <tr>
@@ -77,4 +103,75 @@
         <a href="{{ url_for('preventive.groups_list') }}" class="btn btn-secondary">Volver a grupos</a>
     </div>
 </div>
+
+<script>
+    // Función para cargar datos de una actividad estándar desde la API
+    async function loadStandardActivity(stdId) {
+        const response = await fetch(`/standard-activities/api/${stdId}`);
+        if (!response.ok) throw new Error('Error al cargar actividad');
+        return await response.json();
+    }
+
+    // Función para habilitar/deshabilitar el formulario manual
+    function setManualFormEnabled(enabled) {
+        const inputs = ['manualName', 'manualDescription', 'manualInstructions'];
+        inputs.forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.disabled = !enabled;
+        });
+        const submitBtn = document.getElementById('manualSubmitBtn');
+        if (submitBtn) submitBtn.disabled = !enabled;
+    }
+
+    // Función para limpiar el formulario manual
+    function clearManualForm() {
+        document.getElementById('manualName').value = '';
+        document.getElementById('manualDescription').value = '';
+        document.getElementById('manualInstructions').value = '';
+    }
+
+    // Función para llenar el formulario manual con datos de actividad estándar
+    function fillManualForm(data) {
+        document.getElementById('manualName').value = data.name || '';
+        document.getElementById('manualDescription').value = data.description || '';
+        document.getElementById('manualInstructions').value = data.instructions || '';
+    }
+
+    // Event listener para cuando se selecciona una actividad del catálogo
+    document.getElementById('catalogSelect').addEventListener('change', async function() {
+        const stdId = this.value;
+        if (stdId) {
+            try {
+                const data = await loadStandardActivity(stdId);
+                fillManualForm(data);
+                setManualFormEnabled(false);  // Deshabilitar formulario manual
+                // Guardar el ID de la actividad seleccionada para usarlo al agregar
+                window.selectedStdId = stdId;
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Error al cargar la actividad estándar');
+            }
+        } else {
+            // Si se deselecciona, habilitar formulario manual y limpiarlo
+            clearManualForm();
+            setManualFormEnabled(true);
+            window.selectedStdId = null;
+        }
+    });
+
+    // Event listener para el botón "Agregar" del catálogo
+    document.getElementById('addFromCatalogBtn').addEventListener('click', function() {
+        const stdId = window.selectedStdId;
+        if (stdId) {
+            const url = "{{ url_for('preventive.group_activity_add_from_catalog', group_id=group.id, std_id=0) }}";
+            window.location.href = url.replace('0', stdId);
+        } else {
+            alert('Seleccione una actividad del catálogo primero');
+        }
+    });
+
+    // Inicializar: el formulario manual debe estar habilitado por defecto
+    setManualFormEnabled(true);
+    clearManualForm();
+</script>
 {% endblock %}
