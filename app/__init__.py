@@ -42,8 +42,8 @@ def create_app():
     from app.scheduler import start_scheduler
     from app.blueprints.reports import reports_bp
     from app.blueprints.preventive import preventive_bp
-    from app.blueprints.standard_activities import standard_activities_bp
-    from app.blueprints.frequency_groups import groups_bp
+    # from app.blueprints.standard_activities import standard_activities_bp
+    # from app.blueprints.frequency_groups import groups_bp
 
 
     # Registrar blueprints
@@ -58,8 +58,8 @@ def create_app():
     app.register_blueprint(notifications_bp)
     app.register_blueprint(reports_bp)
     app.register_blueprint(preventive_bp)
-    app.register_blueprint(standard_activities_bp)
-    app.register_blueprint(groups_bp)
+    # app.register_blueprint(standard_activities_bp)
+    # app.register_blueprint(groups_bp)
 
     # Iniciar scheduler
     scheduler = start_scheduler(app)

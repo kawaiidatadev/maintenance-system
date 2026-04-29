@@ -2,74 +2,18 @@
 
 {% block content %}
 <div class="container-fluid">
-    <!-- Tarjetas de estadísticas -->
-    <div class="row mb-4">
-        <div class="col-md-3">
-            <div class="card text-white bg-primary">
-                <div class="card-body">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <div>
-                            <h6 class="mb-0">Total Grupos</h6>
-                            <h2 class="mb-0">{{ stats.total }}</h2>
-                        </div>
-                        <i class="fas fa-layer-group fa-2x opacity-50"></i>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="card text-white bg-danger">
-                <div class="card-body">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <div>
-                            <h6 class="mb-0">Vencidos</h6>
-                            <h2 class="mb-0">{{ stats.overdue }}</h2>
-                        </div>
-                        <i class="fas fa-exclamation-triangle fa-2x opacity-50"></i>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="card text-white bg-warning">
-                <div class="card-body">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <div>
-                            <h6 class="mb-0">Próximos a vencer</h6>
-                            <h2 class="mb-0">{{ stats.due_soon }}</h2>
-                        </div>
-                        <i class="fas fa-clock fa-2x opacity-50"></i>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3">
-            <div class="card text-white bg-success">
-                <div class="card-body">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <div>
-                            <h6 class="mb-0">Completados (historial)</h6>
-                            <h2 class="mb-0">{{ stats.completed }}</h2>
-                        </div>
-                        <i class="fas fa-check-circle fa-2x opacity-50"></i>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Tabla de grupos -->
     <div class="card">
         <div class="card-header bg-primary text-white">
-            <h5 class="mb-0"><i class="fas fa-calendar-alt me-2"></i> Actividades por equipo</h5>
+            <h5 class="mb-0"><i class="fas fa-tasks me-2"></i> Actividades por equipo</h5>
         </div>
         <div class="card-body">
+            {% if tasks %}
             <div class="table-responsive">
-                <table class="table table-hover">
-                    <thead>
+                <table class="table table-hover table-bordered">
+                    <thead class="table-dark">
                         <tr>
                             <th>Grupo</th>
-                            <th>Equipo(s)</th>
+                            <th>Equipo</th>
                             <th>Frecuencia</th>
                             <th>Próxima fecha</th>
                             <th>Días</th>
@@ -79,72 +23,49 @@
                         </tr>
                     </thead>
                     <tbody>
-                        {% for group in groups %}
-                        <tr class="table-{{ group.status_class }}">
+                        {% for task in tasks %}
+                        <tr>
                             <td>
-                                <strong>{{ group.name }}</strong><br>
-                                <small class="text-muted">{{ group.description|truncate(40) }}</small>
+                                <strong>{{ task.group.name }}</strong><br>
+                                <small class="text-muted">{{ task.group.description|truncate(40) }}</small>
                             </td>
+                            <td>{{ task.equipment.name }} ({{ task.equipment.code }})</td>
                             <td>
-                                {% if group.equipments %}
-                                    {% for eq in group.equipments %}
-                                        {{ eq.name }} ({{ eq.code }})<br>
-                                    {% endfor %}
-                                {% else %}
-                                    <span class="text-muted">Sin equipos asignados</span>
-                                {% endif %}
-                            </td>
-                            <td>
-                                Cada {{ group.freq_value }}
-                                {% if group.freq_type == 'days' %}días
-                                {% elif group.freq_type == 'weeks' %}semanas
-                                {% elif group.freq_type == 'months' %}meses
+                                Cada {{ task.group.freq_value }}
+                                {% if task.group.freq_type == 'days' %}días
+                                {% elif task.group.freq_type == 'weeks' %}semanas
+                                {% elif task.group.freq_type == 'months' %}meses
                                 {% else %}años{% endif %}
                             </td>
-                            <td>{{ group.next_due_date.strftime('%d/%m/%Y') if group.next_due_date else '-' }}</td>
-                            <td>{{ group.days_display }}</td>
+                            <td>{{ task.next_date.strftime('%d/%m/%Y') }}</td>
+                            <td>{{ task.days_left }} días</td>
                             <td>
-                                {% if group.responsible_role == 'autonomous' %}
-                                    <span class="badge bg-secondary">Autónomo</span>
-                                {% elif group.responsible_role == 'specialized' %}
+                                {% if task.group.responsible_role == 'specialized' %}
                                     <span class="badge bg-primary">Especializado</span>
                                 {% else %}
                                     <span class="badge bg-dark">Externo</span>
                                 {% endif %}
                             </td>
-                            <td><span class="badge bg-{{ group.status_class }}">{{ group.status_text }}</span></td>
                             <td>
-                                <div class="btn-group btn-group-sm">
-                                    {% if group.responsible_role == 'autonomous' %}
-                                        <button type="button" class="btn btn-sm btn-success">Completar</button>
-                                    {% else %}
-                                        <a href="{{ url_for('preventive.tasks') }}" class="btn btn-sm btn-success">
-                                            <i class="fas fa-play"></i> Ejecutar
-                                        </a>
-                                    {% endif %}
-                                    <a href="{{ url_for('preventive.group_activities', group_id=group.id) }}" class="btn btn-sm btn-info">
-                                        <i class="fas fa-eye"></i> Ver
-                                    </a>
-                                </div>
+                                <span class="badge bg-{{ task.status_class }}">{{ task.status_text }}</span>
                             </td>
-                        </tr>
-                        {% else %}
-                        <tr>
-                            <td colspan="8" class="text-center py-4">
-                                <i class="fas fa-inbox fa-3x text-muted mb-2 d-block"></i>
-                                No hay grupos de mantenimiento programados.
-                            </td>
-                        </tr>
+                            <td>
+                                <a href="{{ url_for('preventive.execute_group_for_equipment', group_id=task.group.id, equipment_id=task.equipment.id) }}" class="btn btn-sm btn-success">
+                                    <i class="fas fa-play"></i> Ejecutar
+                                </a>
+                                <a href="{{ url_for('preventive.group_details', group_id=task.group.id) }}" class="btn btn-sm btn-info">
+                                    <i class="fas fa-eye"></i> Detalles
+                                </a>
+                             </td>
+                         </tr>
                         {% endfor %}
                     </tbody>
                 </table>
             </div>
+            {% else %}
+            <div class="alert alert-success">No hay tareas pendientes.</div>
+            {% endif %}
         </div>
     </div>
 </div>
-
-<style>
-    .opacity-50 { opacity: 0.5; }
-    .table-danger, .table-warning, .table-success { transition: all 0.2s; }
-</style>
 {% endblock %}

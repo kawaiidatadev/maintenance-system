@@ -5,9 +5,6 @@ from flask_login import login_required
 from app import db
 from app.models.standard_activity import StandardActivity
 
-# Aquí van: catalog, catalog_create, catalog_edit, catalog_delete
-
-
 # ============================================================
 # CATÁLOGO DE ACTIVIDADES ESTÁNDAR
 # ============================================================
@@ -46,7 +43,8 @@ def catalog_create():
         return redirect(url_for('preventive.catalog'))
 
     freq_types = [('days', 'Días'), ('weeks', 'Semanas'), ('months', 'Meses'), ('years', 'Años')]
-    roles = [('autonomous', 'Autónomo'), ('specialized', 'Especializado'), ('external', 'Externo')]
+    # SOLO especializado y externo (sin autónomo)
+    roles = [('specialized', 'Especializado'), ('external', 'Externo')]
     return render_template('preventive/catalog_form.html', freq_types=freq_types, roles=roles, activity=None)
 
 
@@ -72,7 +70,8 @@ def catalog_edit(id):
         return redirect(url_for('preventive.catalog'))
 
     freq_types = [('days', 'Días'), ('weeks', 'Semanas'), ('months', 'Meses'), ('years', 'Años')]
-    roles = [('autonomous', 'Autónomo'), ('specialized', 'Especializado'), ('external', 'Externo')]
+    # SOLO especializado y externo (sin autónomo)
+    roles = [('specialized', 'Especializado'), ('external', 'Externo')]
     return render_template('preventive/catalog_form.html', activity=activity, freq_types=freq_types, roles=roles)
 
 

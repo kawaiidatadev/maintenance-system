@@ -55,9 +55,8 @@
                     <div class="mb-3">
                         <label class="form-label">Responsable *</label>
                         <select name="responsible_role" id="responsible_role" class="form-control">
-                            {% for val, label in responsible_roles %}
-                            <option value="{{ val }}" {% if group and group.responsible_role == val %}selected{% endif %}>{{ label }}</option>
-                            {% endfor %}
+                            <option value="specialized" {% if group and group.responsible_role == 'specialized' %}selected{% endif %}>Especializado (Técnico)</option>
+                            <option value="external" {% if group and group.responsible_role == 'external' %}selected{% endif %}>Externo</option>
                         </select>
                     </div>
 

@@ -15,6 +15,7 @@ from datetime import datetime, timedelta
 from dateutil.relativedelta import relativedelta
 import os
 from app.utils.file_utils import ensure_dir
+from flask import current_app
 
 # ============================================================
 # ADMINISTRACIÓN DE GRUPOS
@@ -23,11 +24,51 @@ from app.utils.file_utils import ensure_dir
 @preventive_bp.route('/groups')
 @login_required
 def groups_list():
-    groups = FrequencyGroup.query.filter_by(is_active=True).all()
+    # Obtener parámetros de filtro
+    equipo_id = request.args.get('equipo_id', type=int)
+    frecuencia = request.args.get('frecuencia')
+    responsable = request.args.get('responsable')
+    search = request.args.get('search', '').strip()
+
+    query = FrequencyGroup.query.filter_by(is_active=True)
+
+    # Filtros básicos
+    if equipo_id:
+        query = query.filter(FrequencyGroup.equipments.any(id=equipo_id))
+    if frecuencia:
+        query = query.filter_by(freq_type=frecuencia)
+    if responsable:
+        query = query.filter_by(responsible_role=responsable)
+
+    # Búsqueda en múltiples campos
+    if search:
+        query = query.filter(
+            db.or_(
+                FrequencyGroup.name.ilike(f'%{search}%'),
+                FrequencyGroup.description.ilike(f'%{search}%'),
+                FrequencyGroup.equipments.any(Equipment.name.ilike(f'%{search}%')),
+                FrequencyGroup.equipments.any(Equipment.code.ilike(f'%{search}%'))
+            )
+        )
+
+    groups = query.all()
     for g in groups:
         g.activities_count = len([act for act in g.activities if act.is_active])
         g.documents_count = g.documents.count()
-    return render_template('preventive/groups_list.html', groups=groups)
+
+    # Listas para los filtros
+    equipments = Equipment.query.order_by(Equipment.name).all()
+    freq_types = [('days', 'Días'), ('weeks', 'Semanas'), ('months', 'Meses'), ('years', 'Años')]
+    # SOLO especializado y externo (sin autónomo)
+    responsible_roles = [('specialized', 'Especializado'), ('external', 'Externo')]
+
+    return render_template('preventive/groups_list.html',
+                           groups=groups,
+                           equipments=equipments,
+                           freq_types=freq_types,
+                           responsible_roles=responsible_roles,
+                           filtros={'equipo_id': equipo_id, 'frecuencia': frecuencia,
+                                    'responsable': responsable, 'search': search})
 
 
 @preventive_bp.route('/groups/create', methods=['GET', 'POST'])
@@ -91,7 +132,8 @@ def group_create():
         return redirect(url_for('preventive.groups_list'))
 
     freq_types = [('days', 'Días'), ('weeks', 'Semanas'), ('months', 'Meses'), ('years', 'Años')]
-    responsible_roles = [('autonomous', 'Autónomo'), ('specialized', 'Especializado'), ('external', 'Externo')]
+    # SOLO especializado y externo
+    responsible_roles = [('specialized', 'Especializado'), ('external', 'Externo')]
     return render_template('preventive/group_form.html',
                            equipments=equipments,
                            freq_types=freq_types,
@@ -137,7 +179,8 @@ def group_edit(group_id):
         return redirect(url_for('preventive.groups_list'))
 
     freq_types = [('days', 'Días'), ('weeks', 'Semanas'), ('months', 'Meses'), ('years', 'Años')]
-    responsible_roles = [('autonomous', 'Autónomo'), ('specialized', 'Especializado'), ('external', 'Externo')]
+    # SOLO especializado y externo
+    responsible_roles = [('specialized', 'Especializado'), ('external', 'Externo')]
     return render_template('preventive/group_form.html',
                            group=group,
                            equipments=equipments,
@@ -164,7 +207,7 @@ def group_activities(group_id):
 def group_activity_add(group_id):
     group = FrequencyGroup.query.get_or_404(group_id)
     activity = PreventiveActivity(
-        equipment_id=None,  # CORREGIDO: antes era group.equipment_id
+        equipment_id=None,
         group_id=group.id,
         name=request.form.get('name'),
         description=request.form.get('description', ''),
@@ -263,7 +306,7 @@ def group_activity_add_from_catalog(group_id, std_id):
         return redirect(url_for('preventive.group_activities', group_id=group.id))
 
     activity = PreventiveActivity(
-        equipment_id=None,  # CORREGIDO: antes era group.equipment_id
+        equipment_id=None,
         group_id=group.id,
         name=std.name,
         description=std.description,
@@ -279,3 +322,28 @@ def group_activity_add_from_catalog(group_id, std_id):
     db.session.commit()
     flash(f'Actividad "{std.name}" agregada desde el catálogo', 'success')
     return redirect(url_for('preventive.group_activities', group_id=group.id))
+
+
+@preventive_bp.route('/groups/delete/<int:group_id>', methods=['POST'])
+@login_required
+@admin_required
+def group_delete(group_id):
+    group = FrequencyGroup.query.get_or_404(group_id)
+    group.is_active = False
+    db.session.commit()
+    flash(f'Grupo "{group.name}" eliminado correctamente.', 'success')
+    return redirect(url_for('preventive.groups_list'))
+
+
+@preventive_bp.route('/groups/details/<int:group_id>')
+@login_required
+def group_details(group_id):
+    group = FrequencyGroup.query.get_or_404(group_id)
+    activities = [act for act in group.activities if act.is_active]
+    documents = group.documents.all()
+    equipments = group.equipments
+    return render_template('preventive/group_details.html',
+                           group=group,
+                           activities=activities,
+                           documents=documents,
+                           equipments=equipments)

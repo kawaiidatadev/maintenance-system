@@ -7,11 +7,7 @@ from werkzeug.utils import secure_filename
 import os
 from flask import current_app
 from app.models.equipment_reading import EquipmentReading
-from app.models.preventive_activity import PreventiveActivity
-from app.models.preventive_schedule import PreventiveSchedule
-from datetime import datetime, timedelta
-from dateutil.relativedelta import relativedelta
-import json
+from datetime import datetime
 
 equipment_bp = Blueprint('equipment', __name__, url_prefix='/equipment')
 
@@ -25,57 +21,20 @@ def admin_or_supervisor_required(func):
             flash('Acceso denegado. Se requieren permisos de administrador o supervisor.', 'danger')
             return redirect(url_for('dashboard.index'))
         return func(*args, **kwargs)
-
     return decorated_view
-
-
-
-
-
-@equipment_bp.route('/upload_photo/<int:id>', methods=['POST'])
-@login_required
-@admin_or_supervisor_required
-def upload_photo(id):
-    equipment = Equipment.query.get_or_404(id)
-
-    if 'photo' not in request.files:
-        flash('No se seleccionó ningún archivo', 'danger')
-        return redirect(url_for('equipment.view_equipment', id=id))
-
-    file = request.files['photo']
-    if file.filename == '':
-        flash('No se seleccionó ningún archivo', 'danger')
-        return redirect(url_for('equipment.view_equipment', id=id))
-
-    if file and allowed_file(file.filename):
-        filename = secure_filename(f"{equipment.code}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.jpg")
-
-        # Crear carpeta si no existe
-        upload_folder = os.path.join(current_app.root_path, 'static', 'uploads', 'equipment')
-        os.makedirs(upload_folder, exist_ok=True)
-
-        file_path = os.path.join(upload_folder, filename)
-        file.save(file_path)
-
-        # Guardar nombre en BD
-        equipment.photo_filename = filename
-        db.session.commit()
-        flash('Foto actualizada exitosamente', 'success')
-    else:
-        flash('Formato no permitido. Use JPG, PNG o GIF', 'danger')
-
-    return redirect(url_for('equipment.view_equipment', id=id))
 
 
 def allowed_file(filename):
     ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
+
 @equipment_bp.route('/')
 @login_required
 def list_equipment():
     equipments = Equipment.query.order_by(Equipment.code).all()
     return render_template('equipment/list.html', equipments=equipments)
+
 
 @equipment_bp.route('/<int:id>')
 @login_required
@@ -160,17 +119,15 @@ def edit_equipment(id):
         equipment.estimated_life_hours = float(estimated_life) if estimated_life and estimated_life != '' else None
 
         commissioning_date = request.form.get('commissioning_date')
-        equipment.commissioning_date = datetime.strptime(commissioning_date,
-                                                         '%Y-%m-%d').date() if commissioning_date else None
+        equipment.commissioning_date = datetime.strptime(commissioning_date, '%Y-%m-%d').date() if commissioning_date else None
 
         equipment.recommended_specialty = request.form.get('recommended_specialty') or None
 
         last_maintenance = request.form.get('last_maintenance_date')
-        equipment.last_maintenance_date = datetime.strptime(last_maintenance,
-                                                            '%Y-%m-%d').date() if last_maintenance else None
+        equipment.last_maintenance_date = datetime.strptime(last_maintenance, '%Y-%m-%d').date() if last_maintenance else None
 
         # ============================================
-        # MEDICIÓN DE TIEMPO DE OPERACIÓN (NUEVO)
+        # MEDICIÓN DE TIEMPO DE OPERACIÓN
         # ============================================
         operating_method = request.form.get('operating_time_method')
         equipment.operating_time_method = operating_method if operating_method else None
@@ -198,10 +155,7 @@ def edit_equipment(id):
         # ============================================
         # CÁLCULOS AUTOMÁTICOS
         # ============================================
-        # Calcular vida restante (por horas estimadas)
         equipment.calculate_life_remaining()
-
-        # Recalcular horas totales de operación según método seleccionado
         equipment.update_operating_hours()
 
         equipment.updated_at = datetime.utcnow()
@@ -215,6 +169,7 @@ def edit_equipment(id):
     # ============================================
     systems = System.query.order_by(System.code).all()
     return render_template('equipment/edit.html', equipment=equipment, systems=systems)
+
 
 @equipment_bp.route('/delete/<int:id>')
 @login_required
@@ -231,9 +186,7 @@ def delete_equipment(id):
 @equipment_bp.route('/suggest_code', methods=['POST'])
 @login_required
 def suggest_code():
-    from app.models.equipment import Equipment
     data = request.get_json()
-
     code = Equipment.generate_code(
         category=data.get('category'),
         location=data.get('location'),
@@ -241,11 +194,46 @@ def suggest_code():
     )
     return jsonify({'code': code})
 
+
+@equipment_bp.route('/upload_photo/<int:id>', methods=['POST'])
+@login_required
+@admin_or_supervisor_required
+def upload_photo(id):
+    equipment = Equipment.query.get_or_404(id)
+
+    if 'photo' not in request.files:
+        flash('No se seleccionó ningún archivo', 'danger')
+        return redirect(url_for('equipment.view_equipment', id=id))
+
+    file = request.files['photo']
+    if file.filename == '':
+        flash('No se seleccionó ningún archivo', 'danger')
+        return redirect(url_for('equipment.view_equipment', id=id))
+
+    if file and allowed_file(file.filename):
+        filename = secure_filename(f"{equipment.code}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.jpg")
+
+        upload_folder = os.path.join(current_app.root_path, 'static', 'uploads', 'equipment')
+        os.makedirs(upload_folder, exist_ok=True)
+
+        file_path = os.path.join(upload_folder, filename)
+        file.save(file_path)
+
+        equipment.photo_filename = filename
+        db.session.commit()
+        flash('Foto actualizada exitosamente', 'success')
+    else:
+        flash('Formato no permitido. Use JPG, PNG o GIF', 'danger')
+
+    return redirect(url_for('equipment.view_equipment', id=id))
+
+
 @equipment_bp.route('/tree')
 @login_required
 def tree_view():
     roots = Equipment.query.filter_by(parent_id=None).order_by(Equipment.code).all()
     return render_template('equipment/tree.html', roots=roots)
+
 
 @equipment_bp.route('/reading_history/<int:id>')
 @login_required
@@ -253,7 +241,6 @@ def reading_history(id):
     equipment = Equipment.query.get_or_404(id)
     readings = EquipmentReading.query.filter_by(equipment_id=id).order_by(EquipmentReading.reading_date.desc()).all()
     return render_template('equipment/reading_history.html', equipment=equipment, readings=readings)
-
 
 
 @equipment_bp.route('/add_reading/<int:id>', methods=['GET', 'POST'])
@@ -275,7 +262,6 @@ def add_reading(id):
             )
             db.session.add(reading)
 
-            # Actualizar la última lectura del equipo
             equipment.last_counter_value = float(reading_value)
             equipment.last_counter_reading_date = datetime.now().date()
             equipment.update_operating_hours()
@@ -294,7 +280,6 @@ def add_reading(id):
 @login_required
 @admin_or_supervisor_required
 def create_system():
-    """Crea un nuevo sistema vía AJAX"""
     from app.models.system import System
 
     code = request.form.get('code')
@@ -304,7 +289,6 @@ def create_system():
     if not code or not name:
         return jsonify({'success': False, 'error': 'Código y nombre son requeridos'})
 
-    # Verificar si ya existe
     existing = System.query.filter_by(code=code).first()
     if existing:
         return jsonify({'success': False, 'error': f'El código {code} ya existe'})
@@ -322,141 +306,3 @@ def create_system():
             'description': system.description
         }
     })
-
-
-# ============================================
-# ACTIVIDADES PREVENTIVAS
-# ============================================
-
-@equipment_bp.route('/<int:id>/preventive-activities')
-@login_required
-def list_preventive_activities(id):
-    """Lista las actividades preventivas de un equipo"""
-    equipment = Equipment.query.get_or_404(id)
-    activities = PreventiveActivity.query.filter_by(equipment_id=id, is_active=True).all()
-    return render_template('equipment/preventive_activities.html', equipment=equipment, activities=activities)
-
-
-@equipment_bp.route('/<int:id>/preventive-activities/create', methods=['GET', 'POST'])
-@login_required
-def create_preventive_activity(id):
-    """Crear una nueva actividad preventiva para un equipo"""
-    equipment = Equipment.query.get_or_404(id)
-
-    # Obtener actividades estándar para el selector
-    from app.models.standard_activity import StandardActivity
-    standard_activities = StandardActivity.query.filter_by(is_active=True).order_by(StandardActivity.name).all()
-
-    if request.method == 'POST':
-        activity = PreventiveActivity(
-            equipment_id=equipment.id,
-            name=request.form.get('name'),
-            description=request.form.get('description', ''),
-            instructions=request.form.get('instructions', ''),
-            freq_type=request.form.get('freq_type'),
-            freq_value=int(request.form.get('freq_value', 1)),
-            tolerance_days=int(request.form.get('tolerance_days', 2)),
-            responsible_role=request.form.get('responsible_role'),
-            requires_shutdown='requires_shutdown' in request.form,
-            is_legal_requirement='is_legal_requirement' in request.form,
-            legal_reference=request.form.get('legal_reference', '')
-        )
-        db.session.add(activity)
-        db.session.commit()
-
-        # Crear el primer schedule (próxima fecha = hoy + frecuencia)
-        from datetime import datetime
-        today = datetime.utcnow()
-
-        # Calcular próxima fecha según frecuencia
-        freq_type = activity.freq_type
-        freq_value = activity.freq_value
-
-        if freq_type == 'days':
-            next_date = today + timedelta(days=freq_value)
-        elif freq_type == 'weeks':
-            next_date = today + timedelta(weeks=freq_value)
-        elif freq_type == 'months':
-            next_date = today + relativedelta(months=freq_value)
-        elif freq_type == 'years':
-            next_date = today + relativedelta(years=freq_value)
-        else:
-            next_date = today
-
-        schedule = PreventiveSchedule(
-            activity_id=activity.id,
-            equipment_id=equipment.id,
-            next_due_date=next_date,
-            status='pending'
-        )
-        db.session.add(schedule)
-        db.session.commit()
-
-        flash(f'Actividad preventiva "{activity.name}" creada correctamente', 'success')
-        return redirect(url_for('equipment.view_equipment', id=equipment.id))
-
-    # GET: mostrar formulario
-    freq_types = [
-        ('days', 'Días'),
-        ('weeks', 'Semanas'),
-        ('months', 'Meses'),
-        ('years', 'Años')
-    ]
-    responsible_roles = [
-        ('autonomous', 'Autónomo (Operador)'),
-        ('specialized', 'Especializado (Técnico)'),
-        ('external', 'Externo')
-    ]
-
-    return render_template('equipment/create_preventive_activity.html',
-                           equipment=equipment,
-                           freq_types=freq_types,
-                           responsible_roles=responsible_roles,
-                           standard_activities=standard_activities)  # ← Agregado
-
-
-@equipment_bp.route('/preventive-activity/<int:activity_id>/edit', methods=['GET', 'POST'])
-@login_required
-def edit_preventive_activity(activity_id):
-    """Editar una actividad preventiva existente"""
-    activity = PreventiveActivity.query.get_or_404(activity_id)
-    equipment = activity.equipment
-
-    if request.method == 'POST':
-        activity.name = request.form.get('name')
-        activity.description = request.form.get('description', '')
-        activity.instructions = request.form.get('instructions', '')
-        activity.freq_type = request.form.get('freq_type')
-        activity.freq_value = int(request.form.get('freq_value', 1))
-        activity.tolerance_days = int(request.form.get('tolerance_days', 2))
-        activity.responsible_role = request.form.get('responsible_role')
-        activity.requires_shutdown = 'requires_shutdown' in request.form
-        activity.is_legal_requirement = 'is_legal_requirement' in request.form
-        activity.legal_reference = request.form.get('legal_reference', '')
-
-        db.session.commit()
-        flash('Actividad preventiva actualizada', 'success')
-        return redirect(url_for('equipment.view_equipment', id=equipment.id))
-
-    freq_types = [('days', 'Días'), ('weeks', 'Semanas'), ('months', 'Meses'), ('years', 'Años')]
-    responsible_roles = [('autonomous', 'Autónomo (Operador)'), ('specialized', 'Especializado (Técnico)'),
-                         ('external', 'Externo')]
-
-    return render_template('equipment/edit_preventive_activity.html',
-                           activity=activity,
-                           equipment=equipment,
-                           freq_types=freq_types,
-                           responsible_roles=responsible_roles)
-
-
-@equipment_bp.route('/preventive-activity/<int:activity_id>/delete', methods=['POST'])
-@login_required
-def delete_preventive_activity(activity_id):
-    """Eliminar (desactivar) una actividad preventiva"""
-    activity = PreventiveActivity.query.get_or_404(activity_id)
-    equipment_id = activity.equipment_id
-    activity.is_active = False
-    db.session.commit()
-    flash('Actividad preventiva desactivada', 'success')
-    return redirect(url_for('equipment.view_equipment', id=equipment_id))
-

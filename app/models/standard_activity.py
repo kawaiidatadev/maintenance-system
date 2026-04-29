@@ -18,7 +18,7 @@ class StandardActivity(db.Model):
     # Frecuencia por defecto (sugerida)
     default_freq_type = db.Column(db.String(20))  # days, weeks, months, years
     default_freq_value = db.Column(db.Integer)
-    default_responsible_role = db.Column(db.String(20))  # autonomous, specialized, external
+    default_responsible_role = db.Column(db.String(20))  # specialized, external
 
     # Documentación asociada (JSON con rutas de archivos)
     attached_docs = db.Column(db.Text)  # JSON array de rutas
