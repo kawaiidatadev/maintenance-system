@@ -6,15 +6,30 @@
         <div class="card">
             <div class="card-header">
                 <h4><i class="fas fa-clipboard-list"></i> OT: {{ order.number }}</h4>
+                {% if order.work_type == 'preventive' %}
+                <span class="badge bg-success float-end">Mantenimiento Preventivo</span>
+                {% else %}
+                <span class="badge bg-primary float-end">Mantenimiento Correctivo</span>
+                {% endif %}
             </div>
             <div class="card-body">
-                <!-- Información básica -->
+                <!-- ============================================ -->
+                <!-- PREVENTIVO: descripción personalizada -->
+                <!-- ============================================ -->
+                {% if order.work_type == 'preventive' %}
+                <div class="alert alert-light border">
+                    <strong><i class="fas fa-calendar-check"></i> Descripción del mantenimiento:</strong>
+                    <p class="mb-0">{{ order.problem_description }}</p>
+                </div>
+                {% else %}
+                <!-- CORRECTIVO: problema reportado -->
                 <div class="row mb-3">
                     <div class="col-md-12">
                         <strong>Problema reportado:</strong>
                         <p>{{ order.problem_description }}</p>
                     </div>
                 </div>
+                {% endif %}
 
                 <div class="row mb-3">
                     <div class="col-md-6">
@@ -76,7 +91,12 @@
                         <strong>Fecha fin:</strong> {{ format_datetime(order.completion_date) }}
                     </div>
                     <div class="col-md-4">
-                        <strong>Tiempo parada:</strong> {{ order.downtime_hours }} horas
+                        <strong>Duración real:</strong>
+                        {% if order.start_date and order.completion_date %}
+                            {{ ((order.completion_date - order.start_date).total_seconds() / 60)|round|int }} minutos
+                        {% else %}
+                            -
+                        {% endif %}
                     </div>
                 </div>
                 {% endif %}
@@ -91,8 +111,10 @@
                 </div>
                 {% endif %}
 
-                <!-- Información técnica -->
-                {% if order.failure_type or order.root_cause or order.work_performed %}
+                <!-- ============================================ -->
+                <!-- SECCIÓN DE INFORMACIÓN TÉCNICA (SOLO CORRECTIVO) -->
+                <!-- ============================================ -->
+                {% if order.work_type != 'preventive' and (order.failure_type or order.root_cause or order.work_performed) %}
                 <div class="alert alert-info mt-3">
                     <strong><i class="fas fa-wrench"></i> Información técnica</strong><br>
                     {% if order.failure_type %}<strong>Tipo de falla:</strong> {{ order.failure_type }}<br>{% endif %}
@@ -102,7 +124,36 @@
                 </div>
                 {% endif %}
 
-                <!-- Notas de resolución -->
+                <!-- ============================================ -->
+                <!-- SECCIÓN DE MEDICIONES (SOLO PREVENTIVO) -->
+                <!-- ============================================ -->
+                {% if order.work_type == 'preventive' and order.measurements %}
+                    <div class="alert alert-success mt-3">
+                        <strong><i class="fas fa-chart-line"></i> Mediciones registradas</strong>
+                        <div class="table-responsive mt-2">
+                            <table class="table table-sm table-bordered">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Actividad</th>
+                                        <th>Valor medido</th>
+                                        <th>Unidad</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for act_id, data in order.measurements.items() %}
+                                    <tr>
+                                        <td>{{ data.name }}</td>
+                                        <td><strong>{{ data.value }}</strong></td>
+                                        <td>{{ data.unit }}</td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                <!-- Notas de resolución (comunes) -->
                 {% if order.resolution_summary %}
                 <div class="alert alert-secondary mt-3">
                     <strong><i class="fas fa-sticky-note"></i> Notas de cierre:</strong><br>
@@ -141,7 +192,7 @@
                         <div class="table-responsive">
                             <table class="table table-sm">
                                 <thead>
-                                    </table>
+                                    <tr>
                                         <th>Archivo</th>
                                         <th>Descripción</th>
                                         <th>Subido por</th>
@@ -153,7 +204,7 @@
                                 <tbody>
                                     {% for att in order.attachments|sort(attribute='uploaded_at', reverse=true) %}
                                     <tr>
-                                        <table>
+                                        <td>
                                             {% if att.file_type and att.file_type.startswith('image/') %}
                                                 <a href="#" data-bs-toggle="modal" data-bs-target="#imageModal{{ att.id }}">
                                                     <i class="fas fa-image"></i> {{ att.original_filename }}
@@ -161,7 +212,7 @@
                                             {% else %}
                                                 <i class="fas fa-file"></i> {{ att.original_filename }}
                                             {% endif %}
-                                         </td>
+                                        </td>
                                         <td>{{ att.description or '-' }}</td>
                                         <td>{{ att.uploaded_by.username if att.uploaded_by else '-' }}</td>
                                         <td>{{ format_date(att.uploaded_at) }}</td>
@@ -205,28 +256,30 @@
                 </div>
 
                 <!-- ============================================ -->
-                <!-- BOTONES DE ACCIÓN (CON MODAL PARA CERRAR) -->
+                <!-- BOTONES DE ACCIÓN -->
                 <!-- ============================================ -->
                 <div class="mt-4">
-                    {% if order.can_start(current_user) %}
-                    <form method="POST" action="{{ url_for('work_orders.start_order', id=order.id) }}" style="display: inline;">
-                        <button type="submit" class="btn btn-warning" onclick="return confirm('¿Confirmas iniciar esta orden?')">
-                            <i class="fas fa-play"></i> Iniciar OT
+                    <!-- Solo mostrar botones de inicio/completado/cierre para correctivos (o si la OT no está cerrada) -->
+                    {% if order.work_type != 'preventive' %}
+                        {% if order.can_start(current_user) %}
+                        <form method="POST" action="{{ url_for('work_orders.start_order', id=order.id) }}" style="display: inline;">
+                            <button type="submit" class="btn btn-warning" onclick="return confirm('¿Confirmas iniciar esta orden?')">
+                                <i class="fas fa-play"></i> Iniciar OT
+                            </button>
+                        </form>
+                        {% endif %}
+
+                        {% if order.can_complete(current_user) %}
+                        <a href="{{ url_for('work_orders.complete_order', id=order.id) }}" class="btn btn-success">
+                            <i class="fas fa-check-circle"></i> Completar OT
+                        </a>
+                        {% endif %}
+
+                        {% if order.can_close(current_user) %}
+                        <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#closeOrderModal">
+                            <i class="fas fa-lock"></i> Cerrar OT
                         </button>
-                    </form>
-                    {% endif %}
-
-                    {% if order.can_complete(current_user) %}
-                    <a href="{{ url_for('work_orders.complete_order', id=order.id) }}" class="btn btn-success">
-                        <i class="fas fa-check-circle"></i> Completar OT
-                    </a>
-                    {% endif %}
-
-                    {% if order.can_close(current_user) %}
-                    <!-- Botón que abre modal para cerrar con notas -->
-                    <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#closeOrderModal">
-                        <i class="fas fa-lock"></i> Cerrar OT
-                    </button>
+                        {% endif %}
                     {% endif %}
 
                     <a href="{{ url_for('work_orders.list_orders') }}" class="btn btn-secondary">
@@ -239,9 +292,9 @@
 </div>
 
 <!-- ============================================ -->
-<!-- MODAL PARA CERRAR ORDEN CON NOTAS -->
+<!-- MODAL PARA CERRAR ORDEN CON NOTAS (SOLO CORRECTIVO) -->
 <!-- ============================================ -->
-{% if order.can_close(current_user) %}
+{% if order.work_type != 'preventive' and order.can_close(current_user) %}
 <div class="modal fade" id="closeOrderModal" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">

@@ -12,6 +12,7 @@ from app.services.pdf_generator import generate_work_order_pdf
 from app.models.setting import Setting
 from app.email_dispatcher import send_work_order_closed_email
 from app.models.preventive_schedule import PreventiveSchedule
+from app.models.preventive_execution_log import PreventiveExecutionLog
 
 work_orders_bp = Blueprint('work_orders', __name__, url_prefix='/work-orders')
 
@@ -24,36 +25,29 @@ def admin_or_supervisor_required(func):
             flash('Acceso denegado. Se requieren permisos de administrador o supervisor.', 'danger')
             return redirect(url_for('dashboard.index'))
         return func(*args, **kwargs)
-
     return decorated_view
 
 
 @work_orders_bp.route('/')
 @login_required
 def list_orders():
-    # Obtener filtros de la URL
-    tipo = request.args.get('tipo', 'todos')  # todos, corrective, preventive
+    tipo = request.args.get('tipo', 'todos')
     status = request.args.get('status', '')
 
-    # Base de la consulta
     if current_user.role in ['admin', 'supervisor']:
         query = WorkOrder.query
     else:
         query = WorkOrder.query.filter_by(assigned_to_id=current_user.id)
 
-    # Aplicar filtro por tipo
     if tipo == 'corrective':
         query = query.filter(WorkOrder.work_type == 'corrective')
     elif tipo == 'preventive':
         query = query.filter(WorkOrder.work_type == 'preventive')
 
-    # Aplicar filtro por estado (opcional)
     if status:
         query = query.filter(WorkOrder.status == status)
 
-    # Ordenar por fecha descendente
     orders = query.order_by(WorkOrder.created_at.desc()).all()
-
     return render_template('work_orders/list.html', orders=orders, tipo_actual=tipo, status_actual=status)
 
 
@@ -61,13 +55,9 @@ def list_orders():
 @login_required
 def create_order():
     if request.method == 'POST':
-        # Determinar el tipo de OT
         work_type = request.form.get('work_type', 'corrective')
-
-        # Generar número de OT
         number = WorkOrder.generate_number()
 
-        # Datos comunes
         equipment_option = request.form.get('equipment_option')
         equipment_id = request.form.get('equipment_id')
         if equipment_id == '' or equipment_id == 'None':
@@ -75,7 +65,6 @@ def create_order():
         else:
             equipment_id = int(equipment_id) if equipment_id else None
 
-        # Crear la OT según el tipo
         if equipment_option == 'existing' and equipment_id:
             work_order = WorkOrder(
                 number=number,
@@ -99,7 +88,6 @@ def create_order():
                 work_type=work_type
             )
 
-        # Si es correctivo, guardar campos adicionales
         if work_type == 'corrective':
             work_order.failure_type = request.form.get('failure_type') or None
             work_order.root_cause = request.form.get('root_cause') or None
@@ -113,7 +101,6 @@ def create_order():
         flash(f'OT {number} creada exitosamente', 'success')
         return redirect(url_for('work_orders.list_orders'))
 
-    # GET: mostrar formulario
     equipments = Equipment.query.order_by(Equipment.code).all()
     return render_template('work_orders/create.html', equipments=equipments)
 
@@ -133,14 +120,12 @@ def view_order(id):
 def edit_order(id):
     order = WorkOrder.query.get_or_404(id)
 
-    # Verificar permisos
     if not (current_user.role in ['admin', 'supervisor'] or
             (order.assigned_to_id == current_user.id and order.status not in ['completed', 'closed', 'cancelled'])):
         flash('No tienes permiso para editar esta orden', 'danger')
         return redirect(url_for('work_orders.list_orders'))
 
     if request.method == 'POST':
-        # Datos comunes
         order.problem_description = request.form.get('problem_description')
 
         if request.form.get('assign_equipment') == 'yes':
@@ -151,10 +136,8 @@ def edit_order(id):
                 order.temporary_location = None
                 order.temporary_description = None
 
-        # Asignación de técnico
         assigned_to = request.form.get('assigned_to_id')
         new_assigned_id = int(assigned_to) if assigned_to and assigned_to != '' else None
-
         old_assigned_id = order.assigned_to_id
         order.assigned_to_id = new_assigned_id
 
@@ -168,7 +151,6 @@ def edit_order(id):
                 link=url_for('work_orders.view_order', id=order.id, _external=True)
             )
 
-        # Estado
         new_status = request.form.get('status')
         if new_status and new_status != order.status:
             order.status = new_status
@@ -179,7 +161,6 @@ def edit_order(id):
             elif new_status == 'assigned' and not order.assigned_at:
                 order.assigned_at = datetime.utcnow()
 
-        # Si es correctivo, guardar campos adicionales
         if order.work_type == 'corrective':
             order.failure_type = request.form.get('failure_type') or None
             order.root_cause = request.form.get('root_cause') or None
@@ -194,7 +175,6 @@ def edit_order(id):
         flash(f'OT {order.number} actualizada', 'success')
         return redirect(url_for('work_orders.view_order', id=id))
 
-    # GET: mostrar formulario
     equipments = Equipment.query.order_by(Equipment.code).all()
     technicians = User.query.filter(User.role.in_(['tecnico', 'supervisor', 'admin'])).all()
     status_choices = [
@@ -249,8 +229,6 @@ def complete_order(id):
 
         db.session.commit()
 
-        # 🔔 NOTIFICACIÓN: Notificar al creador de la OT que fue completada
-        # Dentro de complete_order, después de guardar:
         if order.created_by_id and order.created_by_id != current_user.id:
             create_notification(
                 user_id=order.created_by_id,
@@ -275,10 +253,14 @@ def close_order(id):
         flash('No tienes permiso para cerrar esta OT', 'danger')
         return redirect(url_for('work_orders.list_orders'))
 
-    # Capturar notas de cierre
     closure_notes = request.form.get('closure_notes', '')
     if closure_notes:
         order.resolution_summary = closure_notes
+
+    # Calcular duración real (si hay fechas)
+    duration_minutes = None
+    if order.start_date and order.completion_date:
+        duration_minutes = int((order.completion_date - order.start_date).total_seconds() / 60)
 
     # Actualizar estado y fechas
     order.status = 'closed'
@@ -287,18 +269,31 @@ def close_order(id):
     db.session.commit()
 
     # ============================================
-    # NUEVO: Si es OT preventiva, actualizar el schedule
+    # ACTUALIZAR SCHEDULE PREVENTIVO Y REGISTRAR HISTORIAL
     # ============================================
     if order.work_type == 'preventive' and order.preventive_schedule_id:
-        from app.models.preventive_schedule import PreventiveSchedule
         schedule = PreventiveSchedule.query.get(order.preventive_schedule_id)
         if schedule:
+            # Registrar en historial de ejecuciones
+            log = PreventiveExecutionLog(
+                group_id=schedule.group_id,
+                equipment_id=order.equipment_id,
+                executed_at=datetime.utcnow(),
+                executed_by_id=current_user.id,
+                work_order_id=order.id,
+                notes=order.resolution_summary,
+                duration_minutes=duration_minutes,
+                total_activities=None  # Se puede calcular si se guardan en el checklist
+            )
+            db.session.add(log)
+
+            # Actualizar schedule
             schedule.last_completion_date = datetime.utcnow()
             schedule.next_due_date = schedule.compute_next_due(schedule.last_completion_date)
             schedule.status = 'done'
             db.session.add(schedule)
             db.session.commit()
-            flash('Calendario preventivo actualizado', 'info')
+            flash('Calendario preventivo actualizado y ejecución registrada', 'info')
 
     # ============================================
     # GENERAR PDF Y REGISTRAR EN BD
@@ -315,7 +310,6 @@ def close_order(id):
         db.session.commit()
         flash(f'OT {order.number} cerrada. Reporte PDF generado.', 'success')
     except Exception as e:
-        # Si falla la generación del PDF, igual se cierra la OT pero se informa el error
         flash(f'OT cerrada pero no se pudo generar el PDF: {str(e)}', 'warning')
         db.session.rollback()
         return redirect(url_for('work_orders.view_order', id=id))

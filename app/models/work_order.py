@@ -52,6 +52,9 @@ class WorkOrder(db.Model):
     preventive_schedule = db.relationship('PreventiveSchedule', foreign_keys=[preventive_schedule_id],
                                           backref='work_orders')
 
+    # Campo para almacenar mediciones del checklist preventivo (JSON)
+    measurements = db.Column(db.JSON, nullable=True)
+
     # Métodos de permisos
     def can_edit(self, user):
         if user.role in ['admin', 'supervisor']:
