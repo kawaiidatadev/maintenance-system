@@ -10,14 +10,15 @@
         <hr>
     </div>
 </div>
-<!-- Tarjetas de KPIs -->
+
+<!-- Tarjetas de KPIs separadas por tipo -->
 <div class="row mt-4">
     <div class="col-md-3 mb-3">
         <div class="card text-white bg-primary">
             <div class="card-body">
                 <div class="d-flex justify-content-between align-items-center">
                     <div>
-                        <h6 class="card-title">Órdenes de Trabajo</h6>
+                        <h6 class="card-title">Total Órdenes</h6>
                         <h2 class="display-6">{{ total_orders }}</h2>
                     </div>
                     <i class="fas fa-clipboard-list fa-3x opacity-50"></i>
@@ -69,6 +70,191 @@
     </div>
 </div>
 
+<!-- Tarjetas específicas por tipo de mantenimiento -->
+<div class="row mt-2">
+    <div class="col-md-6 mb-3">
+        <div class="card border-primary">
+            <div class="card-header bg-primary text-white">
+                <i class="fas fa-wrench"></i> Mantenimiento Correctivo
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-6 text-center">
+                        <h3>{{ total_corrective }}</h3>
+                        <small>Total órdenes</small>
+                    </div>
+                    <div class="col-6 text-center">
+                        <h3 class="text-success">{{ completed_corrective }}</h3>
+                        <small>Completadas</small>
+                    </div>
+                </div>
+                <div class="progress mt-2">
+                    <div class="progress-bar bg-success" style="width: {{ completion_rate_corrective }}%">
+                        {{ completion_rate_corrective }}%
+                    </div>
+                </div>
+                <div class="mt-2 text-center">
+                    <small>Abiertas: <strong>{{ open_corrective }}</strong></small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-6 mb-3">
+        <div class="card border-info">
+            <div class="card-header bg-info text-white">
+                <i class="fas fa-calendar-check"></i> Mantenimiento Preventivo
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-6 text-center">
+                        <h3>{{ total_preventive }}</h3>
+                        <small>Total órdenes</small>
+                    </div>
+                    <div class="col-6 text-center">
+                        <h3 class="text-success">{{ completed_preventive }}</h3>
+                        <small>Completadas</small>
+                    </div>
+                </div>
+                <div class="progress mt-2">
+                    <div class="progress-bar bg-success" style="width: {{ completion_rate_preventive }}%">
+                        {{ completion_rate_preventive }}%
+                    </div>
+                </div>
+                <div class="mt-2 text-center">
+                    <small>Abiertas: <strong>{{ open_preventive }}</strong></small>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Grupos preventivos próximos -->
+<!-- Grupos preventivos próximos -->
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card shadow-sm border-0">
+            <div class="card-header bg-gradient" style="background: linear-gradient(135deg, #ffc107, #ff9800); color: #2c3e50;">
+                <h5 class="mb-0"><i class="fas fa-calendar-alt me-2"></i> Grupos preventivos próximos (próximos 7 días)</h5>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th style="width: 35%">Grupo</th>
+                                <th style="width: 15%">Equipos</th>
+                                <th style="width: 20%">Próxima fecha</th>
+                                <th style="width: 20%">Estado</th>
+                                <th style="width: 10%">Acción</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for g in upcoming_groups %}
+                            <tr>
+                                <td class="align-middle">
+                                    <strong>{{ g.name }}</strong>
+                                    {% if g.days_left < 0 %}
+                                        <span class="badge bg-danger ms-2">Vencido</span>
+                                    {% elif g.days_left == 0 %}
+                                        <span class="badge bg-warning text-dark ms-2">Hoy</span>
+                                    {% endif %}
+                                </td>
+                                <td class="align-middle text-center">{{ g.equipment_count }}</td>
+                                <td class="align-middle">{{ g.next_date.strftime('%d/%m/%Y') }}</td>
+                                <td class="align-middle">
+                                    {% if g.days_left < 0 %}
+                                        <span class="text-danger"><i class="fas fa-exclamation-triangle"></i> Atrasado ({{ -g.days_left }} días)</span>
+                                    {% elif g.days_left == 0 %}
+                                        <span class="text-warning"><i class="fas fa-clock"></i> Vence hoy</span>
+                                    {% else %}
+                                        <span class="text-info"><i class="fas fa-hourglass-half"></i> {{ g.days_left }} días</span>
+                                    {% endif %}
+                                </td>
+                                <td class="align-middle">
+                                    <a href="{{ url_for('preventive.dashboard') }}" class="btn btn-sm btn-outline-primary">
+                                        <i class="fas fa-tasks"></i> Ver
+                                    </a>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% if not upcoming_groups %}
+                <div class="text-center py-4">
+                    <i class="fas fa-check-circle text-success fa-2x mb-2"></i>
+                    <p class="text-muted mb-0">No hay grupos preventivos programados en los próximos 7 días.</p>
+                </div>
+                {% endif %}
+            </div>
+            <div class="card-footer bg-transparent text-end">
+                <a href="{{ url_for('preventive.dashboard') }}" class="btn btn-link">
+                    Ver todas las actividades <i class="fas fa-arrow-right"></i>
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- KPIs adicionales (solo admin/supervisor) -->
+{% if current_user.role in ['admin', 'supervisor'] %}
+<div class="row mt-4">
+    <div class="col-md-4 mb-3">
+        <div class="card">
+            <div class="card-header bg-secondary text-white">
+                <i class="fas fa-clock"></i> Tiempos promedio
+            </div>
+            <div class="card-body text-center">
+                <p><strong>Respuesta:</strong> {{ avg_response_time }} días</p>
+                <p><strong>Completado:</strong> {{ avg_completion_time }} días</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4 mb-3">
+        <div class="card">
+            <div class="card-header bg-secondary text-white">
+                <i class="fas fa-chart-line"></i> Top 3 equipos con más órdenes
+            </div>
+            <div class="card-body">
+                {% if top_equipment %}
+                <ul class="list-group list-group-flush">
+                    {% for eq in top_equipment %}
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        {{ eq.name }}
+                        <span class="badge bg-primary rounded-pill">{{ eq.order_count }}</span>
+                    </li>
+                    {% endfor %}
+                </ul>
+                {% else %}
+                <p class="text-muted">No hay datos suficientes</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4 mb-3">
+        <div class="card">
+            <div class="card-header bg-secondary text-white">
+                <i class="fas fa-chart-simple"></i> Fallas más frecuentes
+            </div>
+            <div class="card-body">
+                {% if orders_by_failure %}
+                <ul class="list-group list-group-flush">
+                    {% for failure in orders_by_failure %}
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        {{ failure.failure_type or 'No especificada' }}
+                        <span class="badge bg-warning rounded-pill">{{ failure.count }}</span>
+                    </li>
+                    {% endfor %}
+                </ul>
+                {% else %}
+                <p class="text-muted">No hay datos suficientes</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
 
 <!-- Gráficos -->
 <div class="row mt-4">
@@ -95,8 +281,6 @@
     </div>
 </div>
 
-
-
 <!-- Últimas actividades -->
 <div class="row mt-4">
     <div class="col-12">
@@ -107,32 +291,47 @@
             <div class="card-body">
                 {% if recent_orders %}
                 <div class="table-responsive">
-                    <table class="table table-striped">
-                        <thead>
+                    <table class="table table-striped table-hover">
+                        <thead class="table-dark">
                             <tr>
                                 <th>N° OT</th>
+                                <th>Tipo</th>
                                 <th>Equipo</th>
                                 <th>Problema</th>
                                 <th>Asignado a</th>
                                 <th>Estado</th>
-                                <th>Fecha y hora</th>
+                                <th>Fecha</th>
                                 <th>Acciones</th>
                             </tr>
                         </thead>
                         <tbody>
                             {% for order in recent_orders %}
                             <tr>
-                                <td>{{ order.number }}</td>
                                 <td>
+                                    {{ order.number }}
+                                    {% if order.work_type == 'preventive' %}
+                                        <i class="fas fa-calendar-check text-success" title="Preventivo"></i>
+                                    {% else %}
+                                        <i class="fas fa-wrench text-primary" title="Correctivo"></i>
+                                    {% endif %}
+                                 </td>
+                                 <td>
+                                    {% if order.work_type == 'preventive' %}
+                                        <span class="badge bg-success">Preventivo</span>
+                                    {% else %}
+                                        <span class="badge bg-primary">Correctivo</span>
+                                    {% endif %}
+                                 </td>
+                                 <td>
                                     {% if order.needs_equipment_registration %}
                                         <span class="badge bg-warning">Pendiente</span>
                                     {% else %}
                                         {{ order.equipment.code if order.equipment else '-' }}
                                     {% endif %}
-                                </td>
-                                <td>{{ order.problem_description[:40] }}{% if order.problem_description|length > 40 %}...{% endif %}</td>
-                                <td>{{ order.assigned_to.username if order.assigned_to else 'No asignado' }}</td>
-                                <td>
+                                 </td>
+                                 <td>{{ order.problem_description[:50] }}{% if order.problem_description|length > 50 %}...{% endif %}</td>
+                                 <td>{{ order.assigned_to.username if order.assigned_to else 'No asignado' }}</td>
+                                 <td>
                                     {% if order.status == 'open' %}
                                         <span class="badge bg-secondary">Abierta</span>
                                     {% elif order.status == 'assigned' %}
@@ -141,12 +340,14 @@
                                         <span class="badge bg-warning">En Progreso</span>
                                     {% elif order.status == 'completed' %}
                                         <span class="badge bg-success">Completada</span>
+                                    {% elif order.status == 'closed' %}
+                                        <span class="badge bg-dark">Cerrada</span>
                                     {% else %}
                                         <span class="badge bg-danger">{{ order.status }}</span>
                                     {% endif %}
-                                </td>
-                                <td>{{ format_datetime(order.created_at) }}</td>
-                                <td>
+                                 </td>
+                                 <td>{{ format_datetime(order.created_at) }}</td>
+                                 <td>
                                     <a href="{{ url_for('work_orders.view_order', id=order.id) }}" class="btn btn-sm btn-info">
                                         <i class="fas fa-eye"></i>
                                     </a>
@@ -157,7 +358,7 @@
                     </table>
                 </div>
                 {% else %}
-                <p class="text-muted">No hay actividades recientes</p>
+                <p class="text-muted text-center">No hay actividades recientes</p>
                 {% endif %}
             </div>
         </div>
