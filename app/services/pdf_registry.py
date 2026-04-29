@@ -1,3 +1,4 @@
+# app/services/pdf_registry.py
 from app.models.pdf_template import PDFTemplate
 
 
@@ -40,3 +41,19 @@ class PDFRegistry:
         # Fallback a generator genérico
         from app.services.pdf_generator import BaseReportPDF
         return BaseReportPDF(config, company_name, company_logo)
+
+
+# ============================================
+# FUNCIÓN PARA REGISTRAR TODOS LOS TIPOS DE PDF
+# ============================================
+def register_pdf_types():
+    """Registra todos los tipos de PDF disponibles en el sistema"""
+    from app.services.pdf_generator import WorkOrderPDF
+    from app.services.preventive_pdf_generator import PreventiveWorkOrderPDF
+
+    PDFRegistry.register('work_order', 'Orden de Trabajo (Correctivo)',
+                         'Reporte estándar para órdenes correctivas',
+                         generator_class=WorkOrderPDF)
+    PDFRegistry.register('preventive_work_order', 'Orden de Trabajo Preventivo',
+                         'Reporte para mantenimiento preventivo con checklist',
+                         generator_class=PreventiveWorkOrderPDF)

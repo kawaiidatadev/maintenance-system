@@ -11,6 +11,8 @@ from app.models.setting import Setting
 from app.utils.file_utils import ensure_dir, sanitize_filename
 from app.models.pdf_template import PDFTemplate
 from app.models.pdf_template_config import PDFTemplateConfig
+from app.services.pdf_registry import PDFRegistry  # agregar esta línea
+
 
 # Normalización de caracteres para fuentes estándar
 _REPS = {
@@ -538,19 +540,26 @@ class WorkOrderPDF(FPDF):
 # Funciones principales
 # ------------------------------------------------------------------
 def generate_work_order_pdf(work_order):
-    """Genera el PDF final de una orden de trabajo."""
-    from app.models.pdf_template import PDFTemplate
-    from app.models.pdf_template_config import PDFTemplateConfig
+    """Genera el PDF según el tipo de orden (correctivo o preventivo)"""
+    # Determinar clave de plantilla según el tipo
+    if work_order.work_type == 'preventive':  # ✅ CORRECTO
+        template_key = 'preventive_work_order'
+    else:
+        template_key = 'work_order'
 
     # Obtener plantilla y configuración
-    template = PDFTemplate.get_by_key('work_order')
+    template = PDFTemplate.get_by_key(template_key)
     if not template:
-        raise Exception("No se encontró la plantilla 'work_order'")
+        raise Exception(f"No se encontró la plantilla '{template_key}'")
 
     config = PDFTemplateConfig.get_or_create(template.id)
     company_name = Setting.get('company_name', 'Mi Empresa')
     company_logo = Setting.get('company_logo', '')
 
+    # Obtener el generador adecuado desde el registro
+    pdf = PDFRegistry.get_generator(template_key, config, company_name, company_logo)
+
+    # Resto igual (guardar en disco, etc.)
     equipment_name = work_order.equipment.name if work_order.equipment else "sin_equipo"
     safe_name = sanitize_filename(equipment_name)
     base_dir = os.path.join(current_app.root_path, 'static', 'uploads', 'reports', safe_name)
@@ -558,9 +567,8 @@ def generate_work_order_pdf(work_order):
 
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
     filename = f"OT_{work_order.id}_{timestamp}.pdf"
-    filepath = os.path.join(base_dir, filename)  # 👈 ahora se define antes de cualquier posible error
+    filepath = os.path.join(base_dir, filename)
 
-    pdf = WorkOrderPDF(config, company_name, company_logo)
     pdf.draw_report(work_order=work_order, preview_mode=False)
     pdf.output(filepath)
 
@@ -573,7 +581,6 @@ def generate_work_order_pdf(work_order):
         'file_size': file_size,
         'absolute_path': filepath
     }
-
 
 def generate_preview_pdf(template_key=None):
     """

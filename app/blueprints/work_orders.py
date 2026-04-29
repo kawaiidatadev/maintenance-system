@@ -25,6 +25,7 @@ def admin_or_supervisor_required(func):
             flash('Acceso denegado. Se requieren permisos de administrador o supervisor.', 'danger')
             return redirect(url_for('dashboard.index'))
         return func(*args, **kwargs)
+
     return decorated_view
 
 
@@ -55,7 +56,16 @@ def list_orders():
 @login_required
 def create_order():
     if request.method == 'POST':
+        # ============================================
+        # SEGURIDAD: Forzar a corrective siempre
+        # No se permiten órdenes preventivas manuales
+        # ============================================
         work_type = request.form.get('work_type', 'corrective')
+        if work_type != 'corrective':
+            flash('No se permiten órdenes preventivas manuales. Use el módulo de mantenimiento preventivo.', 'warning')
+            return redirect(url_for('work_orders.create_order'))
+        # ============================================
+
         number = WorkOrder.generate_number()
 
         equipment_option = request.form.get('equipment_option')
@@ -73,7 +83,7 @@ def create_order():
                 created_by_id=current_user.id,
                 status='open',
                 needs_equipment_registration=False,
-                work_type=work_type
+                work_type='corrective'  # Siempre correctivo
             )
         else:
             work_order = WorkOrder(
@@ -85,15 +95,15 @@ def create_order():
                 created_by_id=current_user.id,
                 status='open',
                 needs_equipment_registration=True,
-                work_type=work_type
+                work_type='corrective'  # Siempre correctivo
             )
 
-        if work_type == 'corrective':
-            work_order.failure_type = request.form.get('failure_type') or None
-            work_order.root_cause = request.form.get('root_cause') or None
-            work_order.work_performed = request.form.get('work_performed') or None
-            work_order.parts_used = request.form.get('parts_used') or None
-            work_order.downtime_hours = float(request.form.get('downtime_hours') or 0)
+        # Campos específicos de correctivo
+        work_order.failure_type = request.form.get('failure_type') or None
+        work_order.root_cause = request.form.get('root_cause') or None
+        work_order.work_performed = request.form.get('work_performed') or None
+        work_order.parts_used = request.form.get('parts_used') or None
+        work_order.downtime_hours = float(request.form.get('downtime_hours') or 0)
 
         db.session.add(work_order)
         db.session.commit()
@@ -141,15 +151,21 @@ def edit_order(id):
         old_assigned_id = order.assigned_to_id
         order.assigned_to_id = new_assigned_id
 
+        # ============================================
+        # Solo enviar notificación si es CORRECTIVA
+        # Las preventivas NO generan notificaciones
+        # ============================================
         if new_assigned_id and new_assigned_id != old_assigned_id:
-            create_notification(
-                user_id=new_assigned_id,
-                title=f"Nueva OT asignada: {order.number}",
-                message=f"Se te ha asignado la orden {order.number}.",
-                event_type='work_order_assigned',
-                related_id=order.id,
-                link=url_for('work_orders.view_order', id=order.id, _external=True)
-            )
+            if order.work_type == 'corrective':
+                create_notification(
+                    user_id=new_assigned_id,
+                    title=f"Nueva OT asignada: {order.number}",
+                    message=f"Se te ha asignado la orden {order.number}.",
+                    event_type='work_order_assigned',
+                    related_id=order.id,
+                    link=url_for('work_orders.view_order', id=order.id, _external=True)
+                )
+        # ============================================
 
         new_status = request.form.get('status')
         if new_status and new_status != order.status:
@@ -161,6 +177,7 @@ def edit_order(id):
             elif new_status == 'assigned' and not order.assigned_at:
                 order.assigned_at = datetime.utcnow()
 
+        # Solo guardar campos de correctivo si la orden es correctiva
         if order.work_type == 'corrective':
             order.failure_type = request.form.get('failure_type') or None
             order.root_cause = request.form.get('root_cause') or None
@@ -229,15 +246,21 @@ def complete_order(id):
 
         db.session.commit()
 
+        # ============================================
+        # Solo enviar notificación si es CORRECTIVA
+        # Las preventivas NO generan notificaciones
+        # ============================================
         if order.created_by_id and order.created_by_id != current_user.id:
-            create_notification(
-                user_id=order.created_by_id,
-                title=f"OT completada: {order.number}",
-                message=f"La orden {order.number} ha sido completada por {current_user.username}.",
-                event_type='work_order_completed',
-                related_id=order.id,
-                link=url_for('work_orders.view_order', id=order.id, _external=True)
-            )
+            if order.work_type == 'corrective':
+                create_notification(
+                    user_id=order.created_by_id,
+                    title=f"OT completada: {order.number}",
+                    message=f"La orden {order.number} ha sido completada por {current_user.username}.",
+                    event_type='work_order_completed',
+                    related_id=order.id,
+                    link=url_for('work_orders.view_order', id=order.id, _external=True)
+                )
+        # ============================================
 
         flash(f'OT {order.number} completada', 'success')
         return redirect(url_for('work_orders.view_order', id=id))
@@ -270,6 +293,8 @@ def close_order(id):
 
     # ============================================
     # ACTUALIZAR SCHEDULE PREVENTIVO Y REGISTRAR HISTORIAL
+    # ESTO SOLO APLICA PARA ÓRDENES PREVENTIVAS
+    # SE CONSERVA LA LÓGICA EXISTENTE
     # ============================================
     if order.work_type == 'preventive' and order.preventive_schedule_id:
         schedule = PreventiveSchedule.query.get(order.preventive_schedule_id)
@@ -294,9 +319,11 @@ def close_order(id):
             db.session.add(schedule)
             db.session.commit()
             flash('Calendario preventivo actualizado y ejecución registrada', 'info')
+    # ============================================
 
     # ============================================
     # GENERAR PDF Y REGISTRAR EN BD
+    # TANTO PARA CORRECTIVAS COMO PREVENTIVAS
     # ============================================
     try:
         pdf_info = generate_work_order_pdf(order)
@@ -313,15 +340,19 @@ def close_order(id):
         flash(f'OT cerrada pero no se pudo generar el PDF: {str(e)}', 'warning')
         db.session.rollback()
         return redirect(url_for('work_orders.view_order', id=id))
+    # ============================================
 
     # ============================================
-    # ENVIAR CORREO CON ADJUNTO (SI BREVO ACTIVADO)
+    # ENVIAR CORREO CON ADJUNTO (SOLO PARA CORRECTIVAS)
+    # LAS PREVENTIVAS NO ENVÍAN CORREOS AUTOMÁTICOS
     # ============================================
     if Setting.get('brevo_enabled') == 'true':
-        try:
-            send_work_order_closed_email(order, pdf_info['absolute_path'])
-            flash('Correo con reporte enviado al técnico/supervisor', 'info')
-        except Exception as e:
-            flash(f'OT cerrada pero no se pudo enviar el correo: {str(e)}', 'warning')
+        if order.work_type == 'corrective':
+            try:
+                send_work_order_closed_email(order, pdf_info['absolute_path'])
+                flash('Correo con reporte enviado al técnico/supervisor', 'info')
+            except Exception as e:
+                flash(f'OT cerrada pero no se pudo enviar el correo: {str(e)}', 'warning')
+    # ============================================
 
     return redirect(url_for('work_orders.view_order', id=id))
