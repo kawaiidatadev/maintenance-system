@@ -26,5 +26,44 @@ class StandardActivity(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, onupdate=datetime.utcnow)
 
+    # ==============================================
+    # PROPIEDADES PARA TRADUCCIÓN AL ESPAÑOL
+    # ==============================================
+    @property
+    def frequency_suggested(self):
+        """Devuelve la frecuencia formateada en español"""
+        if not self.default_freq_value or not self.default_freq_type:
+            return "No especificada"
+
+        # Traducción del tipo de frecuencia
+        freq_type_es = {
+            'days': 'días',
+            'weeks': 'semanas',
+            'months': 'meses',
+            'years': 'años'
+        }.get(self.default_freq_type, self.default_freq_type)
+
+        # Manejar singular (cuando el valor es 1)
+        if self.default_freq_value == 1:
+            if freq_type_es == 'días':
+                freq_type_es = 'día'
+            elif freq_type_es == 'semanas':
+                freq_type_es = 'semana'
+            elif freq_type_es == 'meses':
+                freq_type_es = 'mes'
+            elif freq_type_es == 'años':
+                freq_type_es = 'año'
+
+        return f"Cada {self.default_freq_value} {freq_type_es}"
+
+    @property
+    def responsible_role_suggested(self):
+        """Devuelve el rol responsable traducido al español"""
+        roles_es = {
+            'specialized': 'Especializado',
+            'external': 'Externo'
+        }
+        return roles_es.get(self.default_responsible_role, self.default_responsible_role)
+
     def __repr__(self):
         return f'<StandardActivity {self.name}>'

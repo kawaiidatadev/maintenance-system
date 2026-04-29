@@ -82,14 +82,8 @@
                             <span class="text-muted">Sin equipos asignados</span>
                         {% endif %}
                     </td>
-                    <td>
-                        Cada {{ g.freq_value }}
-                        {% if g.freq_type == 'days' %}días
-                        {% elif g.freq_type == 'weeks' %}semanas
-                        {% elif g.freq_type == 'months' %}meses
-                        {% else %}años{% endif %}
-                    </td>
-                    <td>{{ g.responsible_role|capitalize }}</td>
+                    <td>{{ g.frequency_suggested }}</td>
+                    <td>{{ g.responsible_role_es }}</td>
                     <td>{{ g.activities_count }}</td>
                     <td>{{ g.documents_count }}</td>
                     <td>

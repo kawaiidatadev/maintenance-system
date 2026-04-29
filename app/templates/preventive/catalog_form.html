@@ -37,19 +37,19 @@
                         <input type="number" name="estimated_duration_min" class="form-control" value="{{ activity.estimated_duration_min if activity else 0 }}">
                     </div>
                     <div class="row">
-                        <div class="col-md-4"><label>Frecuencia sugerida</label><select name="default_freq_type" class="form-control">
-                            <option value="">--</option>
-                            {% for val, lab in freq_types %}
-                            <option value="{{ val }}" {% if activity and activity.default_freq_type == val %}selected{% endif %}>{{ lab }}</option>
-                            {% endfor %}
-                        </select></div>
-                        <div class="col-md-4"><label>Cada</label><input type="number" name="default_freq_value" class="form-control" value="{{ activity.default_freq_value if activity else 1 }}"></div>
-                        <div class="col-md-4"><label>Responsable sugerido</label><select name="default_responsible_role" class="form-control">
-                            <option value="">--</option>
-                            {% for val, lab in roles %}
-                            <option value="{{ val }}" {% if activity and activity.default_responsible_role == val %}selected{% endif %}>{{ lab }}</option>
-                            {% endfor %}
-                        </select></div>
+                        <div class="col-md-6">
+                            <label>Frecuencia sugerida</label>
+                            <select name="default_freq_type" class="form-control">
+                                <option value="">--</option>
+                                {% for val, lab in freq_types %}
+                                <option value="{{ val }}" {% if activity and activity.default_freq_type == val %}selected{% endif %}>{{ lab }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label>Cada</label>
+                            <input type="number" name="default_freq_value" class="form-control" value="{{ activity.default_freq_value if activity else 1 }}" min="1">
+                        </div>
                     </div>
                     <div class="form-check mt-2">
                         <input type="checkbox" name="requires_shutdown" class="form-check-input" id="shutdown" {% if activity and activity.requires_shutdown %}checked{% endif %}>
