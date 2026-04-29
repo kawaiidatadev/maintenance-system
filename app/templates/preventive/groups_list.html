@@ -39,9 +39,9 @@
                         {% elif g.freq_type == 'months' %}meses
                         {% else %}años{% endif %}
                     </td>
-                    <td>{{ g.responsible_role }}}nbsp;
-                    <td>{{ g.activities_count }}?nbsp;
-                    <td>{{ g.documents_count }}?nbsp;
+                        <td>{{ g.responsible_role }}</td>
+                        <td>{{ g.activities_count }}</td>
+                        <td>{{ g.documents_count }}</td>
                     <td>
                         <a href="{{ url_for('preventive.group_activities', group_id=g.id) }}" class="btn btn-info btn-sm">Actividades</a>
                         <a href="{{ url_for('preventive.group_edit', group_id=g.id) }}" class="btn btn-warning btn-sm">Editar</a>

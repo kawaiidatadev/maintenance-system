@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+
 {% block content %}
 <div class="card">
     <div class="card-header bg-primary text-white">
@@ -11,13 +12,11 @@
             <div class="list-group-item list-group-item-{% if task.days_left < 0 %}danger{% elif task.days_left <= 2 %}warning{% else %}info{% endif %}">
                 <div class="d-flex justify-content-between align-items-center">
                     <div>
-                        <h5>{{ task.group.name }}</h5>
-                        <p>Equipo: {{ task.equipment.name }} ({{ task.equipment.code }})</p>
-                        <h5 class="mb-1">{{ task.name }}</h5>
+                        <h5 class="mb-1">{{ task.group.name }}</h5>
                         <p class="mb-1">Equipo: {{ task.equipment.name }} ({{ task.equipment.code }})</p>
                         <small>Vence: {{ task.next_date.strftime('%d/%m/%Y') }} ({{ task.days_left }} días)</small>
                     </div>
-                    <a href="{{ url_for('preventive.execute_group', group_id=task.id) }}" class="btn btn-sm btn-success">Ejecutar</a>
+                    <a href="{{ url_for('preventive.execute_group_for_equipment', group_id=task.group.id, equipment_id=task.equipment.id) }}" class="btn btn-sm btn-success">Ejecutar</a>
                 </div>
             </div>
             {% endfor %}

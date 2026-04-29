@@ -26,7 +26,7 @@ class PreventiveActivity(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 
-    equipment = db.relationship('Equipment', backref='preventive_activities')
+    equipment_id = db.Column(db.Integer, db.ForeignKey('equipment.id'), nullable=True)
     group = db.relationship('FrequencyGroup', backref='activities', foreign_keys=[group_id])
 
     def __init__(self, *args, **kwargs):

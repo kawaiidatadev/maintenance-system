@@ -15,7 +15,7 @@ class PreventiveSchedule(db.Model):
     activity_id = db.Column(db.Integer, db.ForeignKey('preventive_activities.id'), nullable=True)
     activity = db.relationship('PreventiveActivity')
 
-    equipment_id = db.Column(db.Integer, db.ForeignKey('equipment.id'), nullable=False)
+    equipment_id = db.Column(db.Integer, db.ForeignKey('equipment.id'), nullable=True)
     equipment = db.relationship('Equipment')
 
     # Fechas clave
