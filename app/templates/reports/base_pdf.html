@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Reporte OT {{ ot.id }}</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+        }
+        .header {
+            position: running(header);
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .footer {
+            position: running(footer);
+            text-align: center;
+            font-size: 10px;
+            color: gray;
+        }
+        .content {
+            margin-top: 2cm;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+        .logo {
+            max-height: 60px;
+        }
+        .page-number:after {
+            content: counter(page);
+        }
+    </style>
+</head>
+<body>
+    <!-- Encabezado personalizado -->
+    <div class="header">
+        {% if config.use_company_logo and company_logo %}
+            <img src="{{ url_for('static', filename=company_logo, _external=True) }}" class="logo">
+        {% elif config.custom_header_image %}
+            <img src="{{ url_for('static', filename=config.custom_header_image, _external=True) }}" class="logo">
+        {% endif %}
+        {% if config.use_company_name %}
+            <h2>{{ company_name }}</h2>
+        {% endif %}
+        {{ config.header_html|safe }}
+    </div>
+
+    <!-- Pie de página personalizado -->
+    <div class="footer">
+        {{ config.footer_html|safe }}
+        <span class="page-number"></span>
+    </div>
+
+    <div class="content">
+        <h3>Reporte de Orden de Trabajo #{{ ot.id }}</h3>
+        <p><strong>Fecha de cierre:</strong> {{ generated_at.strftime('%d/%m/%Y %H:%M') }}</p>
+        <p><strong>Equipo:</strong> {{ equipment.name if equipment else 'N/A' }}</p>
+        <p><strong>Técnico asignado:</strong> {{ ot.assigned_to.username if ot.assigned_to else 'No asignado' }}</p>
+        <p><strong>Descripción del trabajo:</strong></p>
+        <div>{{ ot.description|safe }}</div>
+
+        {% if ot.completion_notes %}
+        <p><strong>Notas de cierre:</strong></p>
+        <div>{{ ot.completion_notes|safe }}</div>
+        {% endif %}
+
+        <h4>Historial de estados</h4>
+        <table>
+            <thead>
+                <tr><th>Estado</th><th>Fecha</th><th>Comentarios</th></tr>
+            </thead>
+            <tbody>
+                {% for log in ot.status_logs|sort(attribute='created_at') %}
+                <tr>
+                    <td>{{ log.status }}</td>
+                    <td>{{ log.created_at.strftime('%d/%m/%Y %H:%M') }}</td>
+                    <td>{{ log.comment or '' }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</body>
+</html>

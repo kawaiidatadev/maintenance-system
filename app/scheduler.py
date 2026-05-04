@@ -7,6 +7,8 @@ from app.models.user import User
 from app.models.notification_rule import NotificationRule
 from app.notifications_helper import create_notification
 from flask import url_for, current_app
+from app import create_app
+
 
 
 def check_overdue_orders():

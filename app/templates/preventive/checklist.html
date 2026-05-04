@@ -1,0 +1,156 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header bg-primary text-white">
+        <h4>Ejecutar: {{ group.name }}</h4>
+        <h6>{{ equipment.name }} ({{ equipment.code }})</h6>
+    </div>
+    <div class="card-body">
+        <form method="POST" id="checklistForm">
+            <!-- Documentos del grupo -->
+            {% if group.documents.count() > 0 %}
+            <div class="alert alert-info">
+                <strong><i class="fas fa-paperclip"></i> Documentos de referencia:</strong>
+                <ul>
+                    {% for doc in group.documents %}
+                    <li><a href="{{ url_for('static', filename=doc.file_path) }}" target="_blank">{{ doc.original_filename }}</a></li>
+                    {% endfor %}
+                </ul>
+            </div>
+            {% endif %}
+
+            <!-- Lista de actividades con cronómetros -->
+            <h5><i class="fas fa-tasks"></i> Actividades</h5>
+            {% for act in activities %}
+            <div class="card mb-2 border" data-activity-id="{{ act.id }}">
+                <div class="card-body py-2">
+                    <div class="form-check">
+                        <input class="form-check-input activity-checkbox" type="checkbox" name="completed_activities" value="{{ act.id }}" id="act{{ act.id }}">
+                        <label class="form-check-label" for="act{{ act.id }}">
+                            <strong>{{ act.name }}</strong> — {{ act.description or 'Sin descripción' }}
+                        </label>
+                    </div>
+                    {% if act.instructions %}
+                    <div class="mt-1 small text-muted">Instrucciones: {{ act.instructions }}</div>
+                    {% endif %}
+
+                    <!-- Cronómetro de la actividad -->
+                    <div class="row mt-2">
+                        <div class="col-md-6">
+                            <div class="input-group">
+                                <span class="input-group-text"><i class="fas fa-stopwatch"></i></span>
+                                <input type="text" class="form-control form-control-sm timer-display" id="timer_{{ act.id }}" value="00:00:00" readonly>
+                                <span class="input-group-text">hh:mm:ss</span>
+                            </div>
+                            <input type="hidden" name="duration_{{ act.id }}" id="duration_{{ act.id }}" value="0">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label small">Valor medido (opcional)</label>
+                            <input type="text" class="form-control form-control-sm" name="measurement_{{ act.id }}" placeholder="Ej: 12.5 A">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label small">Unidad</label>
+                            <input type="text" class="form-control form-control-sm" name="unit_{{ act.id }}" placeholder="Ej: A, °C">
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+
+            <!-- Comentarios generales -->
+            <div class="mb-3">
+                <label class="form-label fw-bold">Comentarios generales</label>
+                <textarea name="general_notes" class="form-control" rows="3" placeholder="Observaciones adicionales, incidencias, etc."></textarea>
+            </div>
+
+            <input type="hidden" name="total_duration" id="total_duration" value="0">
+            <button type="submit" class="btn btn-success">Confirmar y finalizar mantenimiento</button>
+            <a href="{{ url_for('preventive.dashboard') }}" class="btn btn-secondary">Cancelar</a>
+        </form>
+    </div>
+</div>
+
+<script>
+    // Almacenar timers y estados
+    const timers = {};
+
+    function formatTime(seconds) {
+        const hrs = Math.floor(seconds / 3600);
+        const mins = Math.floor((seconds % 3600) / 60);
+        const secs = seconds % 60;
+        return `${hrs.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    }
+
+    // Inicializar cronómetros para cada actividad
+    document.querySelectorAll('[data-activity-id]').forEach(activityDiv => {
+        const actId = activityDiv.dataset.activityId;
+        const checkbox = activityDiv.querySelector('.activity-checkbox');
+        const display = activityDiv.querySelector('.timer-display');
+        const hiddenInput = activityDiv.querySelector(`#duration_${actId}`);
+
+        let startTime = null;
+        let elapsed = 0;      // segundos acumulados (solo una vez que se detiene)
+        let interval = null;
+
+        // Función para detener el timer y guardar el tiempo transcurrido
+        function stopTimer() {
+            if (interval) {
+                clearInterval(interval);
+                interval = null;
+            }
+            if (startTime) {
+                elapsed += (Date.now() - startTime) / 1000;
+                startTime = null;
+            }
+            hiddenInput.value = Math.floor(elapsed);
+            display.value = formatTime(Math.floor(elapsed));
+        }
+
+        // Función para iniciar el timer (si no está completado)
+        function startTimer() {
+            if (checkbox.checked) return; // ya completado
+            if (interval) return; // ya corriendo
+            startTime = Date.now();
+            interval = setInterval(() => {
+                if (checkbox.checked) {
+                    stopTimer();
+                    return;
+                }
+                const totalElapsed = elapsed + (Date.now() - startTime) / 1000;
+                display.value = formatTime(Math.floor(totalElapsed));
+            }, 1000);
+        }
+
+        // Cuando se marca el checkbox, detener el timer y guardar
+        checkbox.addEventListener('change', function() {
+            if (this.checked) {
+                stopTimer();
+            } else {
+                // Si por alguna razón se desmarca, reiniciar timer (pero no debería pasar)
+                elapsed = 0;
+                startTimer();
+            }
+        });
+
+        // Iniciar el timer automáticamente al cargar la página para todas las actividades
+        startTimer();
+
+        // Guardar referencia para detener al enviar
+        timers[actId] = { stopTimer, hiddenInput };
+    });
+
+    // Antes de enviar el formulario, detener todos los timers activos y calcular tiempo total
+    const form = document.getElementById('checklistForm');
+    form.addEventListener('submit', function(e) {
+        let totalSeconds = 0;
+        for (let id in timers) {
+            timers[id].stopTimer();
+            const seconds = parseInt(timers[id].hiddenInput.value) || 0;
+            totalSeconds += seconds;
+        }
+        document.getElementById('total_duration').value = totalSeconds;
+        // (opcional) mostrar mensaje de procesamiento
+    });
+</script>
+{% endblock %}

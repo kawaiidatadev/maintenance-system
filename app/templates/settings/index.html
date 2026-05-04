@@ -34,6 +34,7 @@
                     <!-- PESTAÑA GENERAL -->
                     <!-- ============================================ -->
                     <div class="tab-pane fade show active" id="general" role="tabpanel">
+                        <!-- Formulario de configuración general (sin el logo) -->
                         <form id="generalSettingsForm">
                             <div class="row">
                                 <div class="col-md-6 mb-3">
@@ -57,6 +58,13 @@
                                 </div>
                             </div>
 
+                            <!-- Nombre de la empresa -->
+                            <div class="mb-3">
+                                <label for="company_name" class="form-label">Nombre de la empresa</label>
+                                <input type="text" name="company_name" id="company_name" class="form-control" value="{{ company_name }}">
+                                <small class="text-muted">Aparecerá en reportes y documentos.</small>
+                            </div>
+
                             <div class="alert alert-info" id="previewBox">
                                 <strong><i class="fas fa-eye"></i> Vista previa:</strong><br>
                                 <strong>Fecha actual:</strong> <span id="preview_date">{{ format_date(preview_date) }}</span><br>
@@ -67,6 +75,28 @@
                                 <button type="button" class="btn btn-primary" id="saveGeneralBtn">Guardar Configuración</button>
                             </div>
                         </form>
+
+                        <!-- ============================================ -->
+                        <!-- FORMULARIO DE LOGO (SEPARADO - SIN ANIDAR) -->
+                        <!-- ============================================ -->
+                        <hr class="my-4">
+                        <h5><i class="fas fa-image"></i> Logo de la empresa</h5>
+                        <div class="row">
+                            <div class="col-md-4">
+                                {% if company_logo %}
+                                <img src="{{ url_for('static', filename=company_logo) }}" class="img-fluid rounded mb-2" style="max-height: 80px;">
+                                {% else %}
+                                <div class="alert alert-secondary text-center">Sin logo</div>
+                                {% endif %}
+                            </div>
+                            <div class="col-md-8">
+                                <form method="POST" action="{{ url_for('settings.upload_logo') }}" enctype="multipart/form-data" id="logoUploadForm">
+                                    <input type="file" class="form-control mb-2" name="logo" accept="image/*" required id="logoFile">
+                                    <button type="button" class="btn btn-sm btn-primary" id="submitLogoBtn">Subir logo</button>
+                                </form>
+                                <small class="text-muted">Formatos: PNG, JPG, GIF, SVG. Se recomienda una imagen cuadrada de 80x80px.</small>
+                            </div>
+                        </div>
                     </div>
 
                     <!-- ============================================ -->
@@ -126,7 +156,6 @@
                                         <li>📧 <strong>Correo de prueba</strong> – Solo se enviará a tu dirección registrada. Si usas un dominio corporativo, verifica que el remitente esté verificado.</li>
                                     </ul>
                                 </div>
-
 
                                 <button type="button" id="testBrevoBtn" class="btn btn-sm btn-info">Enviar correo de prueba</button>
                                 <span id="testResult" class="ms-2"></span>
@@ -379,16 +408,22 @@
     datetimeFormatInput.addEventListener('input', updatePreview);
     updatePreview();
 
-    // Guardar configuración general
+    // Guardar configuración general (incluye company_name)
     document.getElementById('saveGeneralBtn').addEventListener('click', async function() {
+        const timezone = timezoneSelect.value;
+        const dateFormat = dateFormatInput.value;
+        const datetimeFormat = datetimeFormatInput.value;
+        const companyName = document.getElementById('company_name').value;
+
         try {
             const response = await fetch('/settings/update_general', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    timezone: timezoneSelect.value,
-                    date_format: dateFormatInput.value,
-                    datetime_format: datetimeFormatInput.value
+                    timezone: timezone,
+                    date_format: dateFormat,
+                    datetime_format: datetimeFormat,
+                    company_name: companyName
                 })
             });
             const data = await response.json();
@@ -545,145 +580,196 @@
             updateRuleName(ruleId, eventType, newValue, unit);
         });
     });
+
     // ============================================
-// CONFIGURACIÓN DE DESTINATARIOS POR REGLA
-// ============================================
-let currentRuleId = null;
+    // CONFIGURACIÓN DE DESTINATARIOS POR REGLA
+    // ============================================
+    let currentRuleId = null;
 
-function toggleRecipientFields() {
-    const type = document.getElementById('recipient_type').value;
-    document.getElementById('recipient_roles_group').style.display = type === 'roles' ? 'block' : 'none';
-    document.getElementById('recipient_users_group').style.display = type === 'users' ? 'block' : 'none';
-    document.getElementById('recipient_external_group').style.display = type === 'external' ? 'block' : 'none';
-}
+    function toggleRecipientFields() {
+        const type = document.getElementById('recipient_type').value;
+        document.getElementById('recipient_roles_group').style.display = type === 'roles' ? 'block' : 'none';
+        document.getElementById('recipient_users_group').style.display = type === 'users' ? 'block' : 'none';
+        document.getElementById('recipient_external_group').style.display = type === 'external' ? 'block' : 'none';
+    }
 
-document.getElementById('recipient_type').addEventListener('change', toggleRecipientFields);
+    document.getElementById('recipient_type').addEventListener('change', toggleRecipientFields);
 
-// Abrir modal y cargar configuración actual
-document.querySelectorAll('.configure-recipients').forEach(btn => {
-    btn.addEventListener('click', async function() {
-        currentRuleId = this.dataset.ruleId;
-        document.getElementById('recipient_rule_name').textContent = this.dataset.ruleName;
-        document.getElementById('recipient_rule_id').value = currentRuleId;
+    // Abrir modal y cargar configuración actual
+    document.querySelectorAll('.configure-recipients').forEach(btn => {
+        btn.addEventListener('click', async function() {
+            currentRuleId = this.dataset.ruleId;
+            document.getElementById('recipient_rule_name').textContent = this.dataset.ruleName;
+            document.getElementById('recipient_rule_id').value = currentRuleId;
 
-        try {
-            const response = await fetch(`/settings/get_recipient_config/${currentRuleId}`);
-            const data = await response.json();
-            if (data.success && data.config) {
-                const config = data.config;
-                document.getElementById('recipient_type').value = config.type || 'none';
+            try {
+                const response = await fetch(`/settings/get_recipient_config/${currentRuleId}`);
+                const data = await response.json();
+                if (data.success && data.config) {
+                    const config = data.config;
+                    document.getElementById('recipient_type').value = config.type || 'none';
 
-                // Roles
-                document.querySelectorAll('.role-checkbox').forEach(cb => {
-                    cb.checked = config.type === 'roles' && config.targets && config.targets.includes(cb.value);
-                });
+                    // Roles
+                    document.querySelectorAll('.role-checkbox').forEach(cb => {
+                        cb.checked = config.type === 'roles' && config.targets && config.targets.includes(cb.value);
+                    });
 
-                // Usuarios
-                if (config.type === 'users' && config.targets) {
-                    const userSelect = document.getElementById('recipient_users');
-                    for (let i = 0; i < userSelect.options.length; i++) {
-                        userSelect.options[i].selected = config.targets.includes(parseInt(userSelect.options[i].value));
+                    // Usuarios
+                    if (config.type === 'users' && config.targets) {
+                        const userSelect = document.getElementById('recipient_users');
+                        for (let i = 0; i < userSelect.options.length; i++) {
+                            userSelect.options[i].selected = config.targets.includes(parseInt(userSelect.options[i].value));
+                        }
+                    }
+
+                    // Externos
+                    if (config.type === 'external' && config.targets) {
+                        document.getElementById('recipient_external').value = config.targets.join(', ');
                     }
                 }
-
-                // Externos
-                if (config.type === 'external' && config.targets) {
-                    document.getElementById('recipient_external').value = config.targets.join(', ');
-                }
+                toggleRecipientFields();
+            } catch (error) {
+                console.error('Error cargando configuración:', error);
             }
-            toggleRecipientFields();
-        } catch (error) {
-            console.error('Error cargando configuración:', error);
-        }
 
-        new bootstrap.Modal(document.getElementById('recipientModal')).show();
-    });
-});
-
-// Guardar configuración
-document.getElementById('saveRecipientsBtn').addEventListener('click', async () => {
-    const ruleId = document.getElementById('recipient_rule_id').value;
-    const type = document.getElementById('recipient_type').value;
-    let targets = [];
-
-    if (type === 'roles') {
-        targets = Array.from(document.querySelectorAll('.role-checkbox:checked')).map(cb => cb.value);
-    } else if (type === 'users') {
-        targets = Array.from(document.getElementById('recipient_users').selectedOptions).map(opt => parseInt(opt.value));
-    } else if (type === 'external') {
-        const emails = document.getElementById('recipient_external').value;
-        targets = emails.split(',').map(e => e.trim()).filter(e => e);
-    }
-
-    const config = { type, targets };
-
-    try {
-        const response = await fetch('/settings/save_recipient_config', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ rule_id: ruleId, config: config })
+            new bootstrap.Modal(document.getElementById('recipientModal')).show();
         });
-        const data = await response.json();
-        if (data.success) {
-            alert('Configuración guardada');
-            bootstrap.Modal.getInstance(document.getElementById('recipientModal')).hide();
-        } else {
-            alert('Error: ' + data.error);
+    });
+
+    // Guardar configuración
+    document.getElementById('saveRecipientsBtn').addEventListener('click', async () => {
+        const ruleId = document.getElementById('recipient_rule_id').value;
+        const type = document.getElementById('recipient_type').value;
+        let targets = [];
+
+        if (type === 'roles') {
+            targets = Array.from(document.querySelectorAll('.role-checkbox:checked')).map(cb => cb.value);
+        } else if (type === 'users') {
+            targets = Array.from(document.getElementById('recipient_users').selectedOptions).map(opt => parseInt(opt.value));
+        } else if (type === 'external') {
+            const emails = document.getElementById('recipient_external').value;
+            targets = emails.split(',').map(e => e.trim()).filter(e => e);
         }
-    } catch (error) {
-        alert('Error al guardar');
-    }
-});
 
-// ============================================
-// CARGAR ESTADÍSTICAS DE CORREOS
-// ============================================
-async function loadEmailStats() {
-    try {
-        const response = await fetch('/settings/get_email_stats');
-        const data = await response.json();
-        if (data.success) {
-            document.getElementById('email_today_count').textContent = data.today_count;
-            document.getElementById('email_daily_limit').textContent = data.daily_limit;
-            document.getElementById('email_remaining').textContent = `${data.remaining} restantes`;
+        const config = { type, targets };
 
-            // Cambiar color según el porcentaje
-            const progressBar = document.getElementById('email_progress_bar');
-            progressBar.style.width = `${data.percentage}%`;
-            if (data.percentage >= 90) {
-                progressBar.classList.remove('bg-info');
-                progressBar.classList.add('bg-danger');
-                document.getElementById('email_remaining').className = 'badge bg-danger';
-            } else if (data.percentage >= 70) {
-                progressBar.classList.remove('bg-info');
-                progressBar.classList.add('bg-warning');
-                document.getElementById('email_remaining').className = 'badge bg-warning';
+        try {
+            const response = await fetch('/settings/save_recipient_config', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ rule_id: ruleId, config: config })
+            });
+            const data = await response.json();
+            if (data.success) {
+                alert('Configuración guardada');
+                bootstrap.Modal.getInstance(document.getElementById('recipientModal')).hide();
             } else {
-                progressBar.classList.remove('bg-danger', 'bg-warning');
-                progressBar.classList.add('bg-info');
-                document.getElementById('email_remaining').className = 'badge bg-success';
+                alert('Error: ' + data.error);
             }
+        } catch (error) {
+            alert('Error al guardar');
+        }
+    });
 
-            // Si se alcanzó el límite, mostrar advertencia
-            if (data.remaining === 0) {
-                const alertDiv = document.createElement('div');
-                alertDiv.className = 'alert alert-warning mt-2 mb-0';
-                alertDiv.innerHTML = '<i class="fas fa-exclamation-triangle"></i> ⚠️ Has alcanzado el límite diario de 300 correos. Los nuevos correos no se enviarán hasta mañana.';
-                const container = document.getElementById('emailStatsContainer');
-                if (!container.querySelector('.alert-warning')) {
-                    container.appendChild(alertDiv);
+    // ============================================
+    // CARGAR ESTADÍSTICAS DE CORREOS
+    // ============================================
+    async function loadEmailStats() {
+        try {
+            const response = await fetch('/settings/get_email_stats');
+            const data = await response.json();
+            if (data.success) {
+                document.getElementById('email_today_count').textContent = data.today_count;
+                document.getElementById('email_daily_limit').textContent = data.daily_limit;
+                document.getElementById('email_remaining').textContent = `${data.remaining} restantes`;
+
+                // Cambiar color según el porcentaje
+                const progressBar = document.getElementById('email_progress_bar');
+                progressBar.style.width = `${data.percentage}%`;
+                if (data.percentage >= 90) {
+                    progressBar.classList.remove('bg-info');
+                    progressBar.classList.add('bg-danger');
+                    document.getElementById('email_remaining').className = 'badge bg-danger';
+                } else if (data.percentage >= 70) {
+                    progressBar.classList.remove('bg-info');
+                    progressBar.classList.add('bg-warning');
+                    document.getElementById('email_remaining').className = 'badge bg-warning';
+                } else {
+                    progressBar.classList.remove('bg-danger', 'bg-warning');
+                    progressBar.classList.add('bg-info');
+                    document.getElementById('email_remaining').className = 'badge bg-success';
+                }
+
+                // Si se alcanzó el límite, mostrar advertencia
+                if (data.remaining === 0) {
+                    let alertDiv = document.querySelector('#emailStatsContainer .alert-warning');
+                    if (!alertDiv) {
+                        alertDiv = document.createElement('div');
+                        alertDiv.className = 'alert alert-warning mt-2 mb-0';
+                        alertDiv.innerHTML = '<i class="fas fa-exclamation-triangle"></i> ⚠️ Has alcanzado el límite diario de 300 correos. Los nuevos correos no se enviarán hasta mañana.';
+                        document.getElementById('emailStatsContainer').appendChild(alertDiv);
+                    }
+                } else {
+                    const alertDiv = document.querySelector('#emailStatsContainer .alert-warning');
+                    if (alertDiv) alertDiv.remove();
                 }
             }
+        } catch (error) {
+            console.error('Error cargando estadísticas de correo:', error);
         }
-    } catch (error) {
-        console.error('Error cargando estadísticas de correo:', error);
     }
-}
 
-// Cargar estadísticas al iniciar la página y cada 30 segundos
-loadEmailStats();
-setInterval(loadEmailStats, 30000);
+    // ============================================
+    // SUBIR LOGO (MANEJO MEJORADO)
+    // ============================================
+    const submitLogoBtn = document.getElementById('submitLogoBtn');
+    if (submitLogoBtn) {
+        submitLogoBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            const form = document.getElementById('logoUploadForm');
+            const fileInput = document.getElementById('logoFile');
 
+            if (!fileInput.files.length) {
+                alert('Por favor, selecciona un archivo de imagen primero');
+                return;
+            }
+
+            const formData = new FormData(form);
+            const btn = submitLogoBtn;
+            const originalText = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Subiendo...';
+
+            fetch('/settings/upload_logo', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => {
+                if (response.redirected) {
+                    window.location.href = response.url;
+                } else {
+                    return response.json();
+                }
+            })
+            .then(data => {
+                if (data && !data.success) {
+                    alert('Error: ' + (data.error || 'Error desconocido'));
+                }
+            })
+            .catch(error => {
+                console.error('Error al subir logo:', error);
+                alert('Error de conexión al subir el logo. Revisa la consola para más detalles.');
+            })
+            .finally(() => {
+                btn.disabled = false;
+                btn.innerHTML = originalText;
+            });
+        });
+    }
+
+    // Cargar estadísticas al iniciar la página y cada 30 segundos
+    loadEmailStats();
+    setInterval(loadEmailStats, 30000);
 </script>
 
 {% endblock %}

@@ -1,0 +1,172 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header bg-info text-white">
+        <h4>Actividades del grupo: {{ group.name }}</h4>
+    </div>
+    <div class="card-body">
+        <div class="row">
+            <div class="col-md-6">
+                <!-- Agregar desde catálogo de actividades estándar -->
+                <div class="card mb-3">
+                    <div class="card-header bg-secondary text-white">Agregar desde actividades estándar</div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-8">
+                                <select id="catalogSelect" class="form-select">
+                                    <option value="">-- Seleccionar actividad estándar --</option>
+                                    {% for std in standard_activities %}
+                                    <option value="{{ std.id }}">{{ std.name }} ({{ std.category }})</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-4">
+                                <button type="button" id="addFromCatalogBtn" class="btn btn-primary w-100">Agregar</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Formulario manual (se llena automáticamente desde el catálogo) -->
+                <div class="card mb-3">
+                    <div class="card-header bg-secondary text-white">Agregar actividad manual</div>
+                    <div class="card-body">
+                        <form id="manualActivityForm" method="POST" action="{{ url_for('preventive.group_activity_add', group_id=group.id) }}">
+                            <div class="mb-2">
+                                <label class="form-label">Nombre</label>
+                                <input type="text" id="manualName" name="name" class="form-control" required>
+                            </div>
+                            <div class="mb-2">
+                                <label class="form-label">Descripción</label>
+                                <textarea id="manualDescription" name="description" rows="2" class="form-control"></textarea>
+                            </div>
+                            <div class="mb-2">
+                                <label class="form-label">Instrucciones</label>
+                                <textarea id="manualInstructions" name="instructions" rows="2" class="form-control"></textarea>
+                            </div>
+                            <button type="submit" id="manualSubmitBtn" class="btn btn-success">Agregar actividad</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-6">
+                <div class="card mb-3">
+                    <div class="card-header bg-secondary text-white">Adjuntar documento (instructivo)</div>
+                    <div class="card-body">
+                        <form method="POST" action="{{ url_for('preventive.group_upload_doc', group_id=group.id) }}" enctype="multipart/form-data">
+                            <div class="mb-2">
+                                <input type="file" name="document" class="form-control" required>
+                            </div>
+                            <div class="mb-2">
+                                <input type="text" name="description" class="form-control" placeholder="Descripción del documento">
+                            </div>
+                            <button type="submit" class="btn btn-info">Subir documento</button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <h5>Actividades existentes</h5>
+        <ul class="list-group">
+            {% for act in activities %}
+            <li class="list-group-item d-flex justify-content-between align-items-center">
+                <div><strong>{{ act.name }}</strong><br><small>{{ act.description }}</small></div>
+                <form method="POST" action="{{ url_for('preventive.group_activity_delete', activity_id=act.id) }}" style="display:inline;">
+                    <button class="btn btn-danger btn-sm" onclick="return confirm('¿Eliminar?')">Eliminar</button>
+                </form>
+            </li>
+            {% else %}
+            <li class="list-group-item text-muted">No hay actividades</li>
+            {% endfor %}
+        </ul>
+        <hr>
+        <h5>Documentos adjuntos</h5>
+        <table class="table">
+            <thead>
+                <tr><th>Archivo</th><th>Descripción</th><th>Acciones</th></tr>
+            </thead>
+            <tbody>
+            {% for doc in group.documents %}
+            <tr>
+                <td><a href="{{ url_for('static', filename=doc.file_path) }}" target="_blank">{{ doc.original_filename }}</a></td>
+                <td>{{ doc.description or '' }}</td>
+                <td><form method="POST" action="{{ url_for('preventive.group_delete_doc', doc_id=doc.id) }}"><button class="btn btn-sm btn-danger">Eliminar</button></form></td>
+            </tr>
+            {% else %}
+            <tr><td colspan="3">Sin documentos</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+        <a href="{{ url_for('preventive.groups_list') }}" class="btn btn-secondary">Volver a grupos</a>
+    </div>
+</div>
+
+<script>
+    // ============================================
+    // RUTA CORREGIDA: usa el blueprint preventive
+    // ============================================
+    async function loadStandardActivity(stdId) {
+        // CAMBIADO: de '/standard-activities/api/' a '/preventive/catalog/api/'
+        const response = await fetch(`/preventive/catalog/api/${stdId}`);
+        if (!response.ok) throw new Error('Error al cargar actividad');
+        return await response.json();
+    }
+
+    function setManualFormEnabled(enabled) {
+        const inputs = ['manualName', 'manualDescription', 'manualInstructions'];
+        inputs.forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.disabled = !enabled;
+        });
+        const submitBtn = document.getElementById('manualSubmitBtn');
+        if (submitBtn) submitBtn.disabled = !enabled;
+    }
+
+    function clearManualForm() {
+        document.getElementById('manualName').value = '';
+        document.getElementById('manualDescription').value = '';
+        document.getElementById('manualInstructions').value = '';
+    }
+
+    function fillManualForm(data) {
+        document.getElementById('manualName').value = data.name || '';
+        document.getElementById('manualDescription').value = data.description || '';
+        document.getElementById('manualInstructions').value = data.instructions || '';
+    }
+
+    document.getElementById('catalogSelect').addEventListener('change', async function() {
+        const stdId = this.value;
+        if (stdId) {
+            try {
+                const data = await loadStandardActivity(stdId);
+                fillManualForm(data);
+                setManualFormEnabled(false);
+                window.selectedStdId = stdId;
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Error al cargar la actividad estándar');
+            }
+        } else {
+            clearManualForm();
+            setManualFormEnabled(true);
+            window.selectedStdId = null;
+        }
+    });
+
+    document.getElementById('addFromCatalogBtn').addEventListener('click', function() {
+        const stdId = window.selectedStdId;
+        if (stdId) {
+            const url = "{{ url_for('preventive.group_activity_add_from_catalog', group_id=group.id, std_id=0) }}";
+            window.location.href = url.replace('0', stdId);
+        } else {
+            alert('Seleccione una actividad del catálogo primero');
+        }
+    });
+
+    setManualFormEnabled(true);
+    clearManualForm();
+</script>
+{% endblock %}

@@ -1,12 +1,15 @@
-from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify
+from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, current_app
 from flask_login import login_required, current_user
 from app import db
 from app.models.setting import Setting
 from app.models.notification_rule import NotificationRule
 from app.models.user_notification_preference import UserNotificationPreference
+from app.models.user import User
 import pytz
 import requests
-from app.models.user import User
+import os
+from datetime import datetime, date
+from werkzeug.utils import secure_filename
 
 settings_bp = Blueprint('settings', __name__, url_prefix='/settings')
 
@@ -19,7 +22,6 @@ def admin_required(func):
             flash('Acceso denegado. Se requieren permisos de administrador.', 'danger')
             return redirect(url_for('dashboard.index'))
         return func(*args, **kwargs)
-
     return decorated_view
 
 
@@ -31,6 +33,8 @@ def index():
     timezone = Setting.get('timezone', 'America/Mexico_City')
     date_format = Setting.get('date_format', '%d/%m/%Y')
     datetime_format = Setting.get('datetime_format', '%d/%m/%Y %H:%M')
+    company_name = Setting.get('company_name', 'Mi Empresa')
+    company_logo = Setting.get('company_logo', '')
 
     # Preferencias de notificaciones del usuario actual
     rules = NotificationRule.query.filter_by(is_active=True).all()
@@ -56,26 +60,11 @@ def index():
     ]
 
     # Ejemplo de fecha actual para mostrar preview
-    from datetime import datetime
     from app.utils import localize_datetime, format_datetime
     now_utc = datetime.utcnow()
     now_local = localize_datetime(now_utc)
 
-    timezone = Setting.get('timezone')
-    if not timezone:
-        timezone = 'America/Mexico_City'
-        Setting.set('timezone', timezone)
-
-    date_format = Setting.get('date_format')
-    if not date_format:
-        date_format = '%d/%m/%Y'
-        Setting.set('date_format', date_format)
-
-    datetime_format = Setting.get('datetime_format')
-    if not datetime_format:
-        datetime_format = '%d/%m/%Y %H:%M'
-        Setting.set('datetime_format', datetime_format)
-    users = User.query.all()  # Agregar esta línea después de obtener user_prefs
+    users = User.query.all()
 
     return render_template('settings/index.html',
                            timezone=timezone,
@@ -86,7 +75,9 @@ def index():
                            user_prefs=user_prefs,
                            preview_date=now_local,
                            preview_datetime=now_local,
-                           users=users)
+                           users=users,
+                           company_name=company_name,
+                           company_logo=company_logo)
 
 
 @settings_bp.route('/update', methods=['POST'])
@@ -126,15 +117,10 @@ def update():
     return redirect(url_for('settings.index'))
 
 
-from datetime import datetime
-from app.utils import localize_datetime
-
-
 @settings_bp.route('/preview', methods=['POST'])
 @login_required
 def preview():
     """Devuelve la fecha actual formateada según la configuración (para vista previa en tiempo real)"""
-    import pytz
     data = request.get_json()
     timezone = data.get('timezone', 'America/Mexico_City')
     date_format = data.get('date_format', '%d/%m/%Y')
@@ -159,18 +145,20 @@ def preview():
 @admin_required
 def update_general():
     """Actualiza la configuración general vía AJAX"""
-    from app.models.setting import Setting
     data = request.get_json()
 
     timezone = data.get('timezone')
     date_format = data.get('date_format')
     datetime_format = data.get('datetime_format')
+    company_name = data.get('company_name', '')
 
     Setting.set('timezone', timezone)
     Setting.set('date_format', date_format)
     Setting.set('datetime_format', datetime_format)
+    Setting.set('company_name', company_name)
 
     return jsonify({'success': True})
+
 
 # ========== CONFIGURACIÓN DE CORREO BREVO ==========
 @settings_bp.route('/get_brevo_config', methods=['GET'])
@@ -186,6 +174,7 @@ def get_brevo_config():
         'central_email': Setting.get('central_notification_email', '')
     })
 
+
 @settings_bp.route('/update_brevo_config', methods=['POST'])
 @login_required
 @admin_required
@@ -194,7 +183,7 @@ def update_brevo_config():
     Setting.set('brevo_enabled', 'true' if data.get('enabled') else 'false')
     Setting.set('brevo_api_key', data.get('api_key', ''))
     Setting.set('brevo_from_email', data.get('from_email', ''))
-    Setting.set('brevo_from_name', data.get('from_name', 'Sistema de Mantenimiento')),
+    Setting.set('brevo_from_name', data.get('from_name', 'Sistema de Mantenimiento'))
     Setting.set('central_notification_email', data.get('central_email', ''))
     return jsonify({'success': True})
 
@@ -213,43 +202,14 @@ def test_brevo():
     if not api_key or not from_email:
         return jsonify({'success': False, 'error': 'Faltan API key o correo remitente'})
 
-    # Validar dominio del destinatario
-    import re
-    from dns import resolver  # Necesitas instalar dnspython: pip install dnspython
+    # Validar dominio del destinatario (solo verificación básica)
+    recipient_domain = to_email.split('@')[-1].lower()
+    public_providers = ['gmail.com', 'outlook.com', 'hotmail.com', 'yahoo.com', 'protonmail.com', 'icloud.com']
+    is_public = recipient_domain in public_providers
 
-    def get_domain(email):
-        return email.split('@')[-1].lower()
-
-    def has_mx_record(domain):
-        try:
-            resolver.resolve(domain, 'MX')
-            return True
-        except:
-            return False
-
-    def is_public_provider(domain):
-        public_providers = ['gmail.com', 'outlook.com', 'hotmail.com', 'yahoo.com', 'protonmail.com', 'icloud.com']
-        return domain in public_providers
-
-    recipient_domain = get_domain(to_email)
-
-    # Verificar si el dominio del destinatario es válido (tiene registro MX)
-    if not has_mx_record(recipient_domain):
-        return jsonify({
-            'success': False,
-            'error': f'El dominio "{recipient_domain}" no tiene registros MX. Es probable que el correo no llegue.'
-        })
-
-    # Verificar si es un dominio público (Gmail, etc.) o corporativo
-    if not is_public_provider(recipient_domain):
-        # Advertencia, pero permitir el envío
+    warning_msg = None
+    if not is_public:
         warning_msg = f"⚠️ El dominio {recipient_domain} es corporativo. Para que los correos lleguen, debes configurar los registros SPF y DKIM de Brevo en tu dominio. De lo contrario, podrían ir a spam o ser rechazados."
-    else:
-        warning_msg = None
-
-    # Validar que el remitente esté verificado en Brevo (esto requiere una llamada a la API de Brevo)
-    # Brevo no tiene un endpoint directo para verificar remitentes, pero podemos intentar enviar y ver el error.
-    # Haremos una prueba real y capturaremos errores de autenticación.
 
     url = "https://api.brevo.com/v3/smtp/email"
     headers = {
@@ -271,7 +231,6 @@ def test_brevo():
                 msg += f'\n\n{warning_msg}'
             return jsonify({'success': True, 'message': msg})
         else:
-            # Analizar el error para dar mensajes más claros
             error_text = r.text
             if 'sender not allowed' in error_text.lower() or 'from' in error_text.lower():
                 error_msg = "❌ El correo remitente no está autorizado en Brevo. Debes verificarlo en 'Remitentes y dominios'."
@@ -282,11 +241,12 @@ def test_brevo():
             else:
                 error_msg = f'Error {r.status_code}: {error_text}'
 
-            if warning_msg and r.status_code == 402:  # posible bloqueo por SPF
+            if warning_msg:
                 error_msg += f"\n\n{warning_msg}"
             return jsonify({'success': False, 'error': error_msg})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)})
+
 
 # ========== CONFIGURACIÓN DE DESTINATARIOS POR REGLA ==========
 @settings_bp.route('/get_recipient_config/<int:rule_id>', methods=['GET'])
@@ -312,14 +272,14 @@ def save_recipient_config():
     db.session.commit()
     return jsonify({'success': True})
 
+
 @settings_bp.route('/get_email_stats', methods=['GET'])
 @login_required
 @admin_required
 def get_email_stats():
     """Devuelve estadísticas de correos enviados hoy"""
-    from datetime import date
     today_count = int(Setting.get('brevo_today_count', '0'))
-    daily_limit = 300  # Límite de Brevo
+    daily_limit = 300
     remaining = max(0, daily_limit - today_count)
     return jsonify({
         'success': True,
@@ -328,6 +288,7 @@ def get_email_stats():
         'remaining': remaining,
         'percentage': round((today_count / daily_limit) * 100, 1) if daily_limit > 0 else 0
     })
+
 
 @settings_bp.route('/check_counter', methods=['GET'])
 @login_required
@@ -339,3 +300,51 @@ def check_counter():
         'last_date': Setting.get('brevo_last_date', ''),
         'current_date': date.today().isoformat()
     })
+
+
+@settings_bp.route('/upload_logo', methods=['POST'])
+@login_required
+@admin_required
+def upload_logo():
+    print("=== DEBUG: upload_logo called ===")
+    print("Request files:", request.files)
+
+    if 'logo' not in request.files:
+        print("No file part")
+        flash('No se seleccionó ningún archivo', 'danger')
+        return redirect(url_for('settings.index'))
+
+    file = request.files['logo']
+    print("File name:", file.filename)
+
+    if file.filename == '':
+        print("Empty filename")
+        flash('No se seleccionó ningún archivo', 'danger')
+        return redirect(url_for('settings.index'))
+
+    allowed = {'png', 'jpg', 'jpeg', 'gif', 'svg'}
+    ext = file.filename.rsplit('.', 1)[1].lower() if '.' in file.filename else ''
+    if not ext or ext not in allowed:
+        print(f"Invalid extension: {ext}")
+        flash('Formato no permitido. Use PNG, JPG, GIF o SVG', 'danger')
+        return redirect(url_for('settings.index'))
+
+    from werkzeug.utils import secure_filename
+    from datetime import datetime
+    import os
+    from app.models.setting import Setting
+    from flask import current_app
+
+    filename = secure_filename(f"logo_{datetime.now().strftime('%Y%m%d_%H%M%S')}.{ext}")
+    upload_folder = os.path.join(current_app.root_path, 'static', 'uploads', 'logo')
+    os.makedirs(upload_folder, exist_ok=True)
+
+    filepath = os.path.join(upload_folder, filename)
+    file.save(filepath)
+    print(f"File saved to: {filepath}")
+
+    Setting.set('company_logo', f'uploads/logo/{filename}')
+    print(f"Setting saved: company_logo = {Setting.get('company_logo')}")
+
+    flash('Logo actualizado correctamente', 'success')
+    return redirect(url_for('settings.index'))

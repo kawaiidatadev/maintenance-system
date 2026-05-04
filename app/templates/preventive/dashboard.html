@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="card">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0"><i class="fas fa-tasks me-2"></i> Actividades por equipo</h5>
+        </div>
+        <div class="card-body">
+            {% if tasks %}
+            <div class="table-responsive">
+                <table class="table table-hover table-bordered">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>Grupo</th>
+                            <th>Equipo</th>
+                            <th>Frecuencia</th>
+                            <th>Próxima fecha</th>
+                            <th>Días</th>
+                            <th>Responsable</th>
+                            <th>Estado</th>
+                            <th>Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for task in tasks %}
+                        <tr>
+                            <td>
+                                <strong>{{ task.group.name }}</strong><br>
+                                <small class="text-muted">{{ task.group.description|truncate(40) }}</small>
+                            </td>
+                            <td>{{ task.equipment.name }} ({{ task.equipment.code }})</td>
+                            <td>
+                                Cada {{ task.group.freq_value }}
+                                {% if task.group.freq_type == 'days' %}días
+                                {% elif task.group.freq_type == 'weeks' %}semanas
+                                {% elif task.group.freq_type == 'months' %}meses
+                                {% else %}años{% endif %}
+                            </td>
+                            <td>{{ task.next_date.strftime('%d/%m/%Y') }}</td>
+                            <td>{{ task.days_left }} días</td>
+                            <td>
+                                {% if task.group.responsible_role == 'specialized' %}
+                                    <span class="badge bg-primary">Especializado</span>
+                                {% else %}
+                                    <span class="badge bg-dark">Externo</span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                <span class="badge bg-{{ task.status_class }}">{{ task.status_text }}</span>
+                            </td>
+                            <td>
+                                <a href="{{ url_for('preventive.execute_group_for_equipment', group_id=task.group.id, equipment_id=task.equipment.id) }}" class="btn btn-sm btn-success">
+                                    <i class="fas fa-play"></i> Ejecutar
+                                </a>
+                                <a href="{{ url_for('preventive.group_details', group_id=task.group.id) }}" class="btn btn-sm btn-info">
+                                    <i class="fas fa-eye"></i> Detalles
+                                </a>
+                             </td>
+                         </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="alert alert-success">No hay tareas pendientes.</div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

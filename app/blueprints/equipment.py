@@ -2,12 +2,12 @@ from flask import Blueprint, render_template, request, redirect, url_for, flash,
 from flask_login import login_required, current_user
 from app import db
 from app.models.equipment import Equipment
-from datetime import datetime
 from app.models.system import System
 from werkzeug.utils import secure_filename
 import os
 from flask import current_app
 from app.models.equipment_reading import EquipmentReading
+from datetime import datetime
 
 equipment_bp = Blueprint('equipment', __name__, url_prefix='/equipment')
 
@@ -21,57 +21,20 @@ def admin_or_supervisor_required(func):
             flash('Acceso denegado. Se requieren permisos de administrador o supervisor.', 'danger')
             return redirect(url_for('dashboard.index'))
         return func(*args, **kwargs)
-
     return decorated_view
-
-
-
-
-
-@equipment_bp.route('/upload_photo/<int:id>', methods=['POST'])
-@login_required
-@admin_or_supervisor_required
-def upload_photo(id):
-    equipment = Equipment.query.get_or_404(id)
-
-    if 'photo' not in request.files:
-        flash('No se seleccionó ningún archivo', 'danger')
-        return redirect(url_for('equipment.view_equipment', id=id))
-
-    file = request.files['photo']
-    if file.filename == '':
-        flash('No se seleccionó ningún archivo', 'danger')
-        return redirect(url_for('equipment.view_equipment', id=id))
-
-    if file and allowed_file(file.filename):
-        filename = secure_filename(f"{equipment.code}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.jpg")
-
-        # Crear carpeta si no existe
-        upload_folder = os.path.join(current_app.root_path, 'static', 'uploads', 'equipment')
-        os.makedirs(upload_folder, exist_ok=True)
-
-        file_path = os.path.join(upload_folder, filename)
-        file.save(file_path)
-
-        # Guardar nombre en BD
-        equipment.photo_filename = filename
-        db.session.commit()
-        flash('Foto actualizada exitosamente', 'success')
-    else:
-        flash('Formato no permitido. Use JPG, PNG o GIF', 'danger')
-
-    return redirect(url_for('equipment.view_equipment', id=id))
 
 
 def allowed_file(filename):
     ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
+
 @equipment_bp.route('/')
 @login_required
 def list_equipment():
     equipments = Equipment.query.order_by(Equipment.code).all()
     return render_template('equipment/list.html', equipments=equipments)
+
 
 @equipment_bp.route('/<int:id>')
 @login_required
@@ -156,17 +119,15 @@ def edit_equipment(id):
         equipment.estimated_life_hours = float(estimated_life) if estimated_life and estimated_life != '' else None
 
         commissioning_date = request.form.get('commissioning_date')
-        equipment.commissioning_date = datetime.strptime(commissioning_date,
-                                                         '%Y-%m-%d').date() if commissioning_date else None
+        equipment.commissioning_date = datetime.strptime(commissioning_date, '%Y-%m-%d').date() if commissioning_date else None
 
         equipment.recommended_specialty = request.form.get('recommended_specialty') or None
 
         last_maintenance = request.form.get('last_maintenance_date')
-        equipment.last_maintenance_date = datetime.strptime(last_maintenance,
-                                                            '%Y-%m-%d').date() if last_maintenance else None
+        equipment.last_maintenance_date = datetime.strptime(last_maintenance, '%Y-%m-%d').date() if last_maintenance else None
 
         # ============================================
-        # MEDICIÓN DE TIEMPO DE OPERACIÓN (NUEVO)
+        # MEDICIÓN DE TIEMPO DE OPERACIÓN
         # ============================================
         operating_method = request.form.get('operating_time_method')
         equipment.operating_time_method = operating_method if operating_method else None
@@ -194,10 +155,7 @@ def edit_equipment(id):
         # ============================================
         # CÁLCULOS AUTOMÁTICOS
         # ============================================
-        # Calcular vida restante (por horas estimadas)
         equipment.calculate_life_remaining()
-
-        # Recalcular horas totales de operación según método seleccionado
         equipment.update_operating_hours()
 
         equipment.updated_at = datetime.utcnow()
@@ -211,6 +169,7 @@ def edit_equipment(id):
     # ============================================
     systems = System.query.order_by(System.code).all()
     return render_template('equipment/edit.html', equipment=equipment, systems=systems)
+
 
 @equipment_bp.route('/delete/<int:id>')
 @login_required
@@ -227,9 +186,7 @@ def delete_equipment(id):
 @equipment_bp.route('/suggest_code', methods=['POST'])
 @login_required
 def suggest_code():
-    from app.models.equipment import Equipment
     data = request.get_json()
-
     code = Equipment.generate_code(
         category=data.get('category'),
         location=data.get('location'),
@@ -237,11 +194,46 @@ def suggest_code():
     )
     return jsonify({'code': code})
 
+
+@equipment_bp.route('/upload_photo/<int:id>', methods=['POST'])
+@login_required
+@admin_or_supervisor_required
+def upload_photo(id):
+    equipment = Equipment.query.get_or_404(id)
+
+    if 'photo' not in request.files:
+        flash('No se seleccionó ningún archivo', 'danger')
+        return redirect(url_for('equipment.view_equipment', id=id))
+
+    file = request.files['photo']
+    if file.filename == '':
+        flash('No se seleccionó ningún archivo', 'danger')
+        return redirect(url_for('equipment.view_equipment', id=id))
+
+    if file and allowed_file(file.filename):
+        filename = secure_filename(f"{equipment.code}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.jpg")
+
+        upload_folder = os.path.join(current_app.root_path, 'static', 'uploads', 'equipment')
+        os.makedirs(upload_folder, exist_ok=True)
+
+        file_path = os.path.join(upload_folder, filename)
+        file.save(file_path)
+
+        equipment.photo_filename = filename
+        db.session.commit()
+        flash('Foto actualizada exitosamente', 'success')
+    else:
+        flash('Formato no permitido. Use JPG, PNG o GIF', 'danger')
+
+    return redirect(url_for('equipment.view_equipment', id=id))
+
+
 @equipment_bp.route('/tree')
 @login_required
 def tree_view():
     roots = Equipment.query.filter_by(parent_id=None).order_by(Equipment.code).all()
     return render_template('equipment/tree.html', roots=roots)
+
 
 @equipment_bp.route('/reading_history/<int:id>')
 @login_required
@@ -249,7 +241,6 @@ def reading_history(id):
     equipment = Equipment.query.get_or_404(id)
     readings = EquipmentReading.query.filter_by(equipment_id=id).order_by(EquipmentReading.reading_date.desc()).all()
     return render_template('equipment/reading_history.html', equipment=equipment, readings=readings)
-
 
 
 @equipment_bp.route('/add_reading/<int:id>', methods=['GET', 'POST'])
@@ -271,7 +262,6 @@ def add_reading(id):
             )
             db.session.add(reading)
 
-            # Actualizar la última lectura del equipo
             equipment.last_counter_value = float(reading_value)
             equipment.last_counter_reading_date = datetime.now().date()
             equipment.update_operating_hours()
@@ -290,7 +280,6 @@ def add_reading(id):
 @login_required
 @admin_or_supervisor_required
 def create_system():
-    """Crea un nuevo sistema vía AJAX"""
     from app.models.system import System
 
     code = request.form.get('code')
@@ -300,7 +289,6 @@ def create_system():
     if not code or not name:
         return jsonify({'success': False, 'error': 'Código y nombre son requeridos'})
 
-    # Verificar si ya existe
     existing = System.query.filter_by(code=code).first()
     if existing:
         return jsonify({'success': False, 'error': f'El código {code} ya existe'})

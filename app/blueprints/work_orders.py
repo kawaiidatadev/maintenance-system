@@ -5,8 +5,15 @@ from app.models.work_order import WorkOrder
 from app.models.equipment import Equipment
 from app.models.user import User
 from datetime import datetime
-from app.notifications_helper import create_notification  # 🔔 Importar helper de notificaciones
-from flask import url_for  # ya lo tienes
+from app.notifications_helper import create_notification
+from flask import url_for
+from app.models.work_order_report import WorkOrderReport
+from app.services.pdf_generator import generate_work_order_pdf
+from app.models.setting import Setting
+from app.email_dispatcher import send_work_order_closed_email
+from app.models.preventive_schedule import PreventiveSchedule
+from app.models.preventive_execution_log import PreventiveExecutionLog
+from sqlalchemy import asc, desc  # ← necesario para ordenamiento
 
 work_orders_bp = Blueprint('work_orders', __name__, url_prefix='/work-orders')
 
@@ -19,27 +26,92 @@ def admin_or_supervisor_required(func):
             flash('Acceso denegado. Se requieren permisos de administrador o supervisor.', 'danger')
             return redirect(url_for('dashboard.index'))
         return func(*args, **kwargs)
-
     return decorated_view
 
 
 @work_orders_bp.route('/')
 @login_required
 def list_orders():
+    # Parámetros de filtros
+    tipo = request.args.get('tipo', 'todos')
+    status = request.args.get('status', '')
+    # Paginación
+    page = request.args.get('page', 1, type=int)
+    per_page = 15  # registros por página
+
+    # Ordenamiento
+    sort_by = request.args.get('sort', 'created_at')
+    sort_order = request.args.get('order', 'desc')   # 'asc' o 'desc'
+
+    # Construcción de la query base según rol
     if current_user.role in ['admin', 'supervisor']:
-        orders = WorkOrder.query.order_by(WorkOrder.created_at.desc()).all()
+        query = WorkOrder.query
     else:
-        orders = WorkOrder.query.filter_by(assigned_to_id=current_user.id).order_by(WorkOrder.created_at.desc()).all()
-    return render_template('work_orders/list.html', orders=orders)
+        query = WorkOrder.query.filter_by(assigned_to_id=current_user.id)
+
+    # Filtros por tipo y estado
+    if tipo == 'corrective':
+        query = query.filter(WorkOrder.work_type == 'corrective')
+    elif tipo == 'preventive':
+        query = query.filter(WorkOrder.work_type == 'preventive')
+
+    if status:
+        query = query.filter(WorkOrder.status == status)
+
+    # --- ORDENAMIENTO DINÁMICO ---
+    # Mapeo de columnas válidas
+    sort_columns = {
+        'number': WorkOrder.number,
+        'equipment': WorkOrder.equipment_id,  # se hará join más abajo
+        'type': WorkOrder.work_type,
+        'problem': WorkOrder.problem_description,
+        'assigned_to': WorkOrder.assigned_to_id,
+        'status': WorkOrder.status,
+        'created_at': WorkOrder.created_at
+    }
+
+    if sort_by == 'equipment':
+        # Ordenar por nombre del equipo (requiere join)
+        query = query.outerjoin(Equipment).order_by(
+            asc(Equipment.name) if sort_order == 'asc' else desc(Equipment.name)
+        )
+    else:
+        column = sort_columns.get(sort_by, WorkOrder.created_at)
+        if sort_order == 'asc':
+            query = query.order_by(asc(column))
+        else:
+            query = query.order_by(desc(column))
+
+    # Paginación
+    pagination = query.paginate(page=page, per_page=per_page, error_out=False)
+    orders = pagination.items
+
+    return render_template('work_orders/list.html',
+                           orders=orders,
+                           pagination=pagination,
+                           tipo_actual=tipo,
+                           status_actual=status,
+                           sort_by=sort_by,
+                           sort_order=sort_order)
 
 
 @work_orders_bp.route('/create', methods=['GET', 'POST'])
 @login_required
 def create_order():
     if request.method == 'POST':
-        number = WorkOrder.generate_number()
-        equipment_option = request.form.get('equipment_option')
+        # ============================================
+        # SEGURIDAD: Forzar a corrective siempre
+        # No se permiten órdenes preventivas manuales
+        # ============================================
+        work_type = request.form.get('work_type', 'corrective')
+        if work_type != 'corrective':
+            flash('No se permiten órdenes preventivas manuales. Use el módulo de mantenimiento preventivo.', 'warning')
+            return redirect(url_for('work_orders.create_order'))
+        # ============================================
 
+        number = WorkOrder.generate_number()
+
+        equipment_option = request.form.get('equipment_option')
         equipment_id = request.form.get('equipment_id')
         if equipment_id == '' or equipment_id == 'None':
             equipment_id = None
@@ -53,7 +125,8 @@ def create_order():
                 problem_description=request.form.get('problem_description'),
                 created_by_id=current_user.id,
                 status='open',
-                needs_equipment_registration=False
+                needs_equipment_registration=False,
+                work_type='corrective'  # Siempre correctivo
             )
         else:
             work_order = WorkOrder(
@@ -64,18 +137,21 @@ def create_order():
                 temporary_description=request.form.get('temporary_description'),
                 created_by_id=current_user.id,
                 status='open',
-                needs_equipment_registration=True
+                needs_equipment_registration=True,
+                work_type='corrective'  # Siempre correctivo
             )
+
+        # Campos específicos de correctivo
+        work_order.failure_type = request.form.get('failure_type') or None
+        work_order.root_cause = request.form.get('root_cause') or None
+        work_order.work_performed = request.form.get('work_performed') or None
+        work_order.parts_used = request.form.get('parts_used') or None
+        work_order.downtime_hours = float(request.form.get('downtime_hours') or 0)
 
         db.session.add(work_order)
         db.session.commit()
 
-        if work_order.needs_equipment_registration:
-            flash(f'OT {number} reportada. Se ha notificado al departamento de mantenimiento para registrar el equipo.',
-                  'info')
-        else:
-            flash(f'OT {number} reportada exitosamente. Un técnico la atenderá pronto.', 'success')
-
+        flash(f'OT {number} creada exitosamente', 'success')
         return redirect(url_for('work_orders.list_orders'))
 
     equipments = Equipment.query.order_by(Equipment.code).all()
@@ -97,7 +173,6 @@ def view_order(id):
 def edit_order(id):
     order = WorkOrder.query.get_or_404(id)
 
-    # Verificar permisos
     if not (current_user.role in ['admin', 'supervisor'] or
             (order.assigned_to_id == current_user.id and order.status not in ['completed', 'closed', 'cancelled'])):
         flash('No tienes permiso para editar esta orden', 'danger')
@@ -114,27 +189,23 @@ def edit_order(id):
                 order.temporary_location = None
                 order.temporary_description = None
 
-        # Asignación de técnico (sin cambio automático de estado)
         assigned_to = request.form.get('assigned_to_id')
         new_assigned_id = int(assigned_to) if assigned_to and assigned_to != '' else None
-
-        # 🔔 NOTIFICACIÓN: Si cambia el técnico asignado y no es None
         old_assigned_id = order.assigned_to_id
         order.assigned_to_id = new_assigned_id
 
-        # Si se asignó un nuevo técnico (diferente al anterior) y no es None
-        # Dentro de edit_order, cuando se asigna un técnico:
+        # Solo enviar notificación si es CORRECTIVA
         if new_assigned_id and new_assigned_id != old_assigned_id:
-            create_notification(
-                user_id=new_assigned_id,
-                title=f"Nueva OT asignada: {order.number}",
-                message=f"Se te ha asignado la orden {order.number} para el equipo {order.equipment.name if order.equipment else 'sin equipo'}.",
-                event_type='work_order_assigned',
-                related_id=order.id,
-                link=url_for('work_orders.view_order', id=order.id, _external=True)
-            )
+            if order.work_type == 'corrective':
+                create_notification(
+                    user_id=new_assigned_id,
+                    title=f"Nueva OT asignada: {order.number}",
+                    message=f"Se te ha asignado la orden {order.number}.",
+                    event_type='work_order_assigned',
+                    related_id=order.id,
+                    link=url_for('work_orders.view_order', id=order.id, _external=True)
+                )
 
-        # El estado se guarda tal cual lo seleccionó el usuario
         new_status = request.form.get('status')
         if new_status and new_status != order.status:
             order.status = new_status
@@ -145,17 +216,18 @@ def edit_order(id):
             elif new_status == 'assigned' and not order.assigned_at:
                 order.assigned_at = datetime.utcnow()
 
-        order.failure_type = request.form.get('failure_type') or None
-        order.root_cause = request.form.get('root_cause') or None
-        order.work_performed = request.form.get('work_performed') or None
-        order.parts_used = request.form.get('parts_used') or None
+        # Solo guardar campos de correctivo si la orden es correctiva
+        if order.work_type == 'corrective':
+            order.failure_type = request.form.get('failure_type') or None
+            order.root_cause = request.form.get('root_cause') or None
+            order.work_performed = request.form.get('work_performed') or None
+            order.parts_used = request.form.get('parts_used') or None
+            order.downtime_hours = float(request.form.get('downtime_hours') or 0)
+
         order.resolution_summary = request.form.get('resolution_summary') or None
-
-        downtime = request.form.get('downtime_hours')
-        order.downtime_hours = float(downtime) if downtime and downtime != '' else 0
-
         order.updated_at = datetime.utcnow()
         db.session.commit()
+
         flash(f'OT {order.number} actualizada', 'success')
         return redirect(url_for('work_orders.view_order', id=id))
 
@@ -169,7 +241,11 @@ def edit_order(id):
         ('closed', 'Cerrada'),
         ('cancelled', 'Cancelada')
     ]
-    return render_template('work_orders/edit.html', order=order, equipments=equipments, technicians=technicians,
+
+    return render_template('work_orders/edit.html',
+                           order=order,
+                           equipments=equipments,
+                           technicians=technicians,
                            status_choices=status_choices)
 
 
@@ -209,17 +285,17 @@ def complete_order(id):
 
         db.session.commit()
 
-        # 🔔 NOTIFICACIÓN: Notificar al creador de la OT que fue completada
-        # Dentro de complete_order, después de guardar:
+        # Solo enviar notificación si es CORRECTIVA
         if order.created_by_id and order.created_by_id != current_user.id:
-            create_notification(
-                user_id=order.created_by_id,
-                title=f"OT completada: {order.number}",
-                message=f"La orden {order.number} ha sido completada por {current_user.username}.",
-                event_type='work_order_completed',
-                related_id=order.id,
-                link=url_for('work_orders.view_order', id=order.id, _external=True)
-            )
+            if order.work_type == 'corrective':
+                create_notification(
+                    user_id=order.created_by_id,
+                    title=f"OT completada: {order.number}",
+                    message=f"La orden {order.number} ha sido completada por {current_user.username}.",
+                    event_type='work_order_completed',
+                    related_id=order.id,
+                    link=url_for('work_orders.view_order', id=order.id, _external=True)
+                )
 
         flash(f'OT {order.number} completada', 'success')
         return redirect(url_for('work_orders.view_order', id=id))
@@ -233,11 +309,71 @@ def close_order(id):
     order = WorkOrder.query.get_or_404(id)
     if not order.can_close(current_user):
         flash('No tienes permiso para cerrar esta OT', 'danger')
-        return redirect(url_for('work_orders.view_order', id=id))
+        return redirect(url_for('work_orders.list_orders'))
 
+    closure_notes = request.form.get('closure_notes', '')
+    if closure_notes:
+        order.resolution_summary = closure_notes
+
+    # Calcular duración real (si hay fechas)
+    duration_minutes = None
+    if order.start_date and order.completion_date:
+        duration_minutes = int((order.completion_date - order.start_date).total_seconds() / 60)
+
+    # Actualizar estado y fechas
     order.status = 'closed'
     order.closed_by_id = current_user.id
     order.closed_at = datetime.utcnow()
     db.session.commit()
-    flash(f'OT {order.number} cerrada', 'success')
-    return redirect(url_for('work_orders.view_order', id=id))
+
+    # ACTUALIZAR SCHEDULE PREVENTIVO Y REGISTRAR HISTORIAL
+    # Solo para órdenes preventivas
+    if order.work_type == 'preventive' and order.preventive_schedule_id:
+        schedule = PreventiveSchedule.query.get(order.preventive_schedule_id)
+        if schedule:
+            log = PreventiveExecutionLog(
+                group_id=schedule.group_id,
+                equipment_id=order.equipment_id,
+                executed_at=datetime.utcnow(),
+                executed_by_id=current_user.id,
+                work_order_id=order.id,
+                notes=order.resolution_summary,
+                duration_minutes=duration_minutes,
+                total_activities=None
+            )
+            db.session.add(log)
+
+            schedule.last_completion_date = datetime.utcnow()
+            schedule.next_due_date = schedule.compute_next_due(schedule.last_completion_date)
+            schedule.status = 'done'
+            db.session.add(schedule)
+            db.session.commit()
+            flash('Calendario preventivo actualizado y ejecución registrada', 'info')
+
+    # GENERAR PDF Y REGISTRAR EN BD (tanto correctivas como preventivas)
+    try:
+        pdf_info = generate_work_order_pdf(order)
+        report = WorkOrderReport(
+            work_order_id=order.id,
+            file_path=pdf_info['file_path'],
+            filename=pdf_info['filename'],
+            file_size=pdf_info['file_size']
+        )
+        db.session.add(report)
+        db.session.commit()
+        flash(f'OT {order.number} cerrada. Reporte PDF generado.', 'success')
+    except Exception as e:
+        flash(f'OT cerrada pero no se pudo generar el PDF: {str(e)}', 'warning')
+        db.session.rollback()
+        return redirect(url_for('work_orders.view_order', id=order.id))
+
+    # ENVIAR CORREO CON ADJUNTO (SOLO PARA CORRECTIVAS)
+    if Setting.get('brevo_enabled') == 'true':
+        if order.work_type == 'corrective':
+            try:
+                send_work_order_closed_email(order, pdf_info['absolute_path'])
+                flash('Correo con reporte enviado al técnico/supervisor', 'info')
+            except Exception as e:
+                flash(f'OT cerrada pero no se pudo enviar el correo: {str(e)}', 'warning')
+
+    return redirect(url_for('work_orders.view_order', id=order.id))

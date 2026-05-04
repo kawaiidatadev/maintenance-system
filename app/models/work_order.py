@@ -1,6 +1,7 @@
 from app import db
 from datetime import datetime
 
+
 class WorkOrder(db.Model):
     __tablename__ = 'work_orders'
 
@@ -43,6 +44,34 @@ class WorkOrder(db.Model):
     # Estado
     status = db.Column(db.String(20), default='open')
 
+    # ============================================
+    # NUEVOS CAMPOS PARA MANTENIMIENTO PREVENTIVO
+    # ============================================
+    work_type = db.Column(db.String(20), default='corrective')
+    preventive_schedule_id = db.Column(db.Integer, db.ForeignKey('preventive_schedules.id'), nullable=True)
+    preventive_schedule = db.relationship(
+        'PreventiveSchedule',
+        foreign_keys=[preventive_schedule_id],
+        backref='work_orders'
+    )
+
+    measurements = db.Column(db.JSON, nullable=True)
+
+    # ============================================
+    # RELACIÓN CON LOG PREVENTIVO (USANDO back_populates)
+    # ============================================
+    preventive_execution_log = db.relationship(
+        'PreventiveExecutionLog',
+        uselist=False,
+        back_populates='work_order',
+        foreign_keys='PreventiveExecutionLog.work_order_id'
+    )
+
+    # ============================================
+    # NOTA: La relación 'report' ya está definida en WorkOrderReport
+    # mediante backref, por lo que NO se declara aquí.
+    # ============================================
+
     # Métodos de permisos
     def can_edit(self, user):
         if user.role in ['admin', 'supervisor']:
@@ -58,6 +87,9 @@ class WorkOrder(db.Model):
         return self.status == 'in_progress' and self.assigned_to_id == user.id
 
     def can_close(self, user):
+        # Las órdenes preventivas no requieren cierre manual
+        if self.work_type == 'preventive':
+            return False
         return self.status == 'completed' and user.role in ['admin', 'supervisor']
 
     @staticmethod

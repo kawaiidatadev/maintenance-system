@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header bg-info text-white">
+        <h4><i class="fas fa-info-circle"></i> Detalles del grupo: {{ group.name }}</h4>
+    </div>
+    <div class="card-body">
+        <div class="row mb-3">
+            <div class="col-md-6">
+                <p><strong>Nombre:</strong> {{ group.name }}</p>
+                <p><strong>Descripción:</strong> {{ group.description or 'Sin descripción' }}</p>
+                <p><strong>Frecuencia:</strong> Cada {{ group.freq_value }}
+                    {% if group.freq_type == 'days' %}días
+                    {% elif group.freq_type == 'weeks' %}semanas
+                    {% elif group.freq_type == 'months' %}meses
+                    {% else %}años{% endif %}
+                </p>
+                <p><strong>Responsable:</strong>
+                    {% if group.responsible_role == 'specialized' %}Especializado (Técnico)
+                    {% elif group.responsible_role == 'external' %}Externo
+                    {% else %}{{ group.responsible_role }}{% endif %}
+                </p>
+                <p><strong>Requiere parada:</strong> {{ 'Sí' if group.requires_shutdown else 'No' }}</p>
+            </div>
+            <div class="col-md-6">
+                <p><strong>Equipos asignados:</strong></p>
+                <ul>
+                    {% for eq in equipments %}
+                    <li>{{ eq.name }} ({{ eq.code }})</li>
+                    {% endfor %}
+                </ul>
+                <p><strong>Requerimiento legal:</strong> {{ 'Sí' if group.is_legal_requirement else 'No' }}</p>
+                {% if group.legal_reference %}
+                <p><strong>Referencia legal:</strong> {{ group.legal_reference }}</p>
+                {% endif %}
+            </div>
+        </div>
+
+        <h5><i class="fas fa-tasks"></i> Actividades</h5>
+        <ul class="list-group mb-3">
+            {% for act in activities %}
+            <li class="list-group-item">
+                <strong>{{ act.name }}</strong><br>
+                <small>{{ act.description }}</small>
+                {% if act.instructions %}
+                <br><span class="text-muted">Instrucciones: {{ act.instructions }}</span>
+                {% endif %}
+            </li>
+            {% else %}
+            <li class="list-group-item text-muted">No hay actividades definidas.</li>
+            {% endfor %}
+        </ul>
+
+        <h5><i class="fas fa-paperclip"></i> Documentos adjuntos</h5>
+        <table class="table table-sm">
+            <thead>
+                <tr><th>Archivo</th><th>Descripción</th></tr>
+            </thead>
+            <tbody>
+            {% for doc in documents %}
+            <tr>
+                <td><a href="{{ url_for('static', filename=doc.file_path) }}" target="_blank">{{ doc.original_filename }}</a></td>
+                <td>{{ doc.description or '' }}</td>
+            </tr>
+            {% else %}
+            <tr><td colspan="2">Sin documentos</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+
+        <a href="{{ url_for('preventive.dashboard') }}" class="btn btn-secondary">
+            <i class="fas fa-arrow-left"></i> Volver al dashboard
+        </a>
+    </div>
+</div>
+{% endblock %}
