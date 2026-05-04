@@ -27,6 +27,6 @@ class PreventiveExecutionLog(db.Model):
         foreign_keys=[work_order_id],
         back_populates='preventive_execution_log'
     )
-
+        # Hola mundo
     def __repr__(self):
         return f'<PreventiveExecutionLog {self.id} - Group {self.group_id}>'
