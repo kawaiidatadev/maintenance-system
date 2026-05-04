@@ -2,7 +2,6 @@ import os
 import io
 import tempfile
 from datetime import datetime
-
 from flask import current_app
 from fpdf import FPDF
 
@@ -11,7 +10,8 @@ from app.models.setting import Setting
 from app.utils.file_utils import ensure_dir, sanitize_filename
 from app.models.pdf_template import PDFTemplate
 from app.models.pdf_template_config import PDFTemplateConfig
-from app.services.pdf_registry import PDFRegistry  # agregar esta línea
+from app.services.pdf_registry import PDFRegistry
+from app.utils import format_datetime
 
 
 # Normalización de caracteres para fuentes estándar
@@ -36,11 +36,6 @@ def normalize(txt):
 class WorkOrderPDF(FPDF):
     """
     PDF profesional para órdenes de trabajo.
-    - Usa salto de página automático.
-    - Logo y nombre de empresa como marca de agua de fondo (muy tenue).
-    - Encabezado limpio con tres columnas configurables.
-    - Líneas divisoras a todo lo ancho.
-    - Colores formales: azules y negros.
     """
 
     def __init__(self, config, company_name, company_logo):
@@ -91,7 +86,7 @@ class WorkOrderPDF(FPDF):
         # Aplicar transparencia (8%)
         self.set_alpha(0.08)
 
-        # Logo centrado (con procesamiento PIL para hacerlo más tenue)
+        # Logo centrado
         if self.config.use_company_logo and self.company_logo:
             logo_path = os.path.join(current_app.root_path, 'static', self.company_logo)
             if os.path.exists(logo_path):
@@ -100,25 +95,20 @@ class WorkOrderPDF(FPDF):
 
                     img = Image.open(logo_path).convert("RGBA")
 
-                    # Reducir contraste (más plano)
                     enhancer = ImageEnhance.Contrast(img)
                     img = enhancer.enhance(0.6)
 
-                    # Aumentar brillo (más claro)
                     enhancer = ImageEnhance.Brightness(img)
                     img = enhancer.enhance(1.4)
 
-                    # Reducir opacidad manual del canal alpha
                     alpha_channel = img.split()[3]
                     alpha_channel = alpha_channel.point(lambda p: int(p * 0.25))
                     img.putalpha(alpha_channel)
 
-                    # Guardar en archivo temporal
                     with tempfile.NamedTemporaryFile(delete=False, suffix='.png') as tmp:
                         img.save(tmp.name)
                         tmp_path = tmp.name
 
-                    # Calcular dimensiones (manteniendo proporción, máx 55 mm)
                     w, h = img.size
                     max_w = 55
                     if w > max_w:
@@ -128,11 +118,8 @@ class WorkOrderPDF(FPDF):
                     x = (self.w - w) / 2
                     y = (self.h - h) / 2 - 25
                     self.image(tmp_path, x=x, y=y, w=w)
-
-                    # Eliminar temporal (opcional, se borrará al cerrar)
                     os.unlink(tmp_path)
                 except Exception as e:
-                    # Fallback: dibujar sin procesar
                     print(f"Error procesando logo: {e}")
                     img = Image.open(logo_path)
                     w, h = img.size
@@ -145,14 +132,12 @@ class WorkOrderPDF(FPDF):
                     y = (self.h - h) / 2 - 25
                     self.image(logo_path, x=x, y=y, w=w)
 
-        # Nombre de empresa centrado debajo del logo (gris muy claro)
         if self.config.use_company_name and self.company_name:
             self.set_font('Helvetica', 'B', 22)
             self.set_text_color(200, 200, 200)
             self.set_xy(0, (self.h / 2) + 25)
             self.cell(self.w, 12, normalize(self.company_name), 0, 0, 'C')
 
-        # Restaurar opacidad y color
         self.set_alpha(1.0)
         self.set_text_color(0, 0, 0)
 
@@ -160,7 +145,6 @@ class WorkOrderPDF(FPDF):
     # Utilidades de texto y espacio
     # ------------------------------------------------------------------
     def _wrap_text(self, text, width, font_style='', font_size=None):
-        """Divide el texto en líneas completas respetando palabras."""
         if font_size is None:
             font_size = self.body_size
 
@@ -178,7 +162,6 @@ class WorkOrderPDF(FPDF):
 
         for paragraph in paragraphs:
             paragraph = paragraph.strip()
-
             if paragraph == '':
                 lines.append('')
                 continue
@@ -199,16 +182,13 @@ class WorkOrderPDF(FPDF):
                 lines.append(current)
 
         self.set_font(self.body_font, old_style, old_size)
-
         return lines
 
     def _ensure_space(self, height_needed):
-        """Si no cabe el bloque, salta a una nueva página antes de dibujar."""
         if self.get_y() + height_needed > self.page_break_trigger:
             self.add_page()
 
     def _draw_wrapped_paragraph(self, text, width=None, font_style='', font_size=None, line_h=None, x=None):
-        """Dibuja un párrafo línea por línea, sin cortar palabras."""
         if width is None:
             width = self.epw
         if font_size is None:
@@ -219,7 +199,6 @@ class WorkOrderPDF(FPDF):
             x = self.l_margin
 
         lines = self._wrap_text(text, width, font_style=font_style, font_size=font_size)
-
         self.set_font(self.body_font, font_style, font_size)
 
         for line in lines:
@@ -229,7 +208,6 @@ class WorkOrderPDF(FPDF):
 
     def _draw_key_value(self, label, value, label_w=40, value_font_size=10, label_font_size=10,
                         line_h=None, gap=2):
-        """Dibuja una línea tipo etiqueta/valor con contexto completo."""
         if line_h is None:
             line_h = self.line_h
 
@@ -247,7 +225,6 @@ class WorkOrderPDF(FPDF):
         row_h = max(len(label_lines), len(value_lines)) * line_h
         self._ensure_space(row_h)
 
-        # Etiqueta (azul oscuro)
         self.set_xy(x0, self.get_y())
         self.set_font(self.body_font, 'B', label_font_size)
         self.set_text_color(0, 51, 102)
@@ -257,7 +234,6 @@ class WorkOrderPDF(FPDF):
                 self.set_x(x0)
             self.cell(label_w, line_h, line, 0, 0, 'L')
 
-        # Valor (negro)
         self.set_xy(x0 + label_w + gap, y0)
         self.set_font(self.body_font, '', value_font_size)
         self.set_text_color(0, 0, 0)
@@ -274,11 +250,8 @@ class WorkOrderPDF(FPDF):
     # ------------------------------------------------------------------
     def header(self):
         self._draw_watermark()
-
-        # Posición fija del encabezado (15 mm desde el borde superior)
         self.set_y(15)
 
-        # --- Columna Izquierda ---
         x_left = 20
         if self.config.header_left_img:
             img_path = os.path.join(current_app.root_path, 'static', self.config.header_left_img)
@@ -290,7 +263,6 @@ class WorkOrderPDF(FPDF):
             self.set_xy(x_left, self.get_y())
             self.multi_cell(55, 4, normalize(self.config.header_left), 0, 'L')
 
-        # --- Columna Centro ---
         x_center = self.w / 2
         if self.config.header_center_img:
             img_path = os.path.join(current_app.root_path, 'static', self.config.header_center_img)
@@ -302,7 +274,6 @@ class WorkOrderPDF(FPDF):
             self.set_xy(x_center - 40, 15)
             self.multi_cell(80, 4, normalize(self.config.header_center), 0, 'C')
 
-        # --- Columna Derecha ---
         x_right = self.w - 20
         if self.config.header_right_img:
             img_path = os.path.join(current_app.root_path, 'static', self.config.header_right_img)
@@ -314,14 +285,12 @@ class WorkOrderPDF(FPDF):
             self.set_xy(x_right - 65, 15)
             self.multi_cell(60, 4, normalize(self.config.header_right), 0, 'R')
 
-        # Calcular la altura máxima alcanzada
         max_y = self.get_y()
         if self.config.header_center and not self.config.header_center_img:
             max_y = max(max_y, 30)
         if self.config.header_right and not self.config.header_right_img:
             max_y = max(max_y, 30)
 
-        # Línea separadora
         self.set_y(max_y + 8)
         self.set_draw_color(180, 180, 180)
         self.set_line_width(0.5)
@@ -333,21 +302,17 @@ class WorkOrderPDF(FPDF):
     # Pie de página
     # ------------------------------------------------------------------
     def footer(self):
-        # Posición fija del pie (20 mm desde el borde inferior)
         footer_y = self.h - 20
         self.set_y(footer_y)
 
-        # Línea separadora ancha
         self.set_draw_color(200, 200, 200)
         self.line(10, self.get_y(), self.w - 10, self.get_y())
         self.set_y(self.get_y() + 4)
 
-        # Coordenadas X fijas para las tres columnas
         x_left = 20
         x_center = self.w / 2
         x_right = self.w - 20
 
-        # --- Izquierda (texto o imagen) ---
         if self.config.footer_left_img:
             img_path = os.path.join(current_app.root_path, 'static', self.config.footer_left_img)
             if os.path.exists(img_path):
@@ -359,7 +324,6 @@ class WorkOrderPDF(FPDF):
             self.set_xy(x_left, self.get_y())
             self.multi_cell(55, 4, normalize(self.config.footer_left), 0, 'L')
 
-        # --- Centro (texto o imagen) ---
         if self.config.footer_center_img:
             img_path = os.path.join(current_app.root_path, 'static', self.config.footer_center_img)
             if os.path.exists(img_path):
@@ -371,7 +335,6 @@ class WorkOrderPDF(FPDF):
             self.set_xy(x_center - 40, self.get_y())
             self.multi_cell(80, 4, normalize(self.config.footer_center), 0, 'C')
 
-        # --- Derecha (texto o imagen) ---
         if self.config.footer_right_img:
             img_path = os.path.join(current_app.root_path, 'static', self.config.footer_right_img)
             if os.path.exists(img_path):
@@ -383,7 +346,6 @@ class WorkOrderPDF(FPDF):
             self.set_xy(x_right - 60, self.get_y())
             self.multi_cell(55, 4, normalize(self.config.footer_right), 0, 'R')
 
-        # Número de página (esquina inferior derecha)
         self.set_font('Helvetica', 'I', 8)
         self.set_text_color(80, 80, 80)
         self.set_y(self.h - 10)
@@ -472,14 +434,15 @@ class WorkOrderPDF(FPDF):
         self.ln(6)
 
         if preview_mode:
+            now_utc = datetime.utcnow()
             table_rows = [
                 ('Equipo', 'Motor Electrico Principal'),
                 ('Codigo', 'MOT-ELEC-001'),
                 ('Tecnico asignado', 'Juan Perez'),
                 ('Creado por', 'Admin'),
-                ('Fecha reporte', datetime.now().strftime('%d/%m/%Y %H:%M')),
-                ('Fecha inicio', datetime.now().strftime('%d/%m/%Y') + ' 09:30'),
-                ('Fecha fin', datetime.now().strftime('%d/%m/%Y') + ' 17:45'),
+                ('Fecha reporte', format_datetime(now_utc)),
+                ('Fecha inicio', format_datetime(now_utc)),
+                ('Fecha fin', format_datetime(now_utc)),
                 ('Tiempo parada', '8.5 horas'),
             ]
             problem_text = 'El motor presenta vibracion anormal y sobrecalentamiento despues de 2 horas de operacion.'
@@ -497,9 +460,9 @@ class WorkOrderPDF(FPDF):
                 ('Codigo', wo.equipment.code if wo.equipment else 'N/A'),
                 ('Tecnico asignado', wo.assigned_to.username if wo.assigned_to else 'No asignado'),
                 ('Creado por', wo.created_by.username if wo.created_by else 'Sistema'),
-                ('Fecha reporte', wo.created_at.strftime('%d/%m/%Y %H:%M') if wo.created_at else 'N/A'),
-                ('Fecha inicio', wo.start_date.strftime('%d/%m/%Y %H:%M') if wo.start_date else 'N/A'),
-                ('Fecha fin', wo.completion_date.strftime('%d/%m/%Y %H:%M') if wo.completion_date else 'N/A'),
+                ('Fecha reporte', format_datetime(wo.created_at) if wo.created_at else 'N/A'),
+                ('Fecha inicio', format_datetime(wo.start_date) if wo.start_date else 'N/A'),
+                ('Fecha fin', format_datetime(wo.completion_date) if wo.completion_date else 'N/A'),
                 ('Tiempo parada', f'{wo.downtime_hours} horas' if wo.downtime_hours else 'N/A'),
             ]
             problem_text = wo.problem_description or 'N/A'
@@ -516,8 +479,7 @@ class WorkOrderPDF(FPDF):
         self.section_title('Problema reportado')
         self.set_font('Helvetica', '', 10)
         self.set_text_color(0, 0, 0)
-        self._draw_wrapped_paragraph(problem_text, width=self.epw, font_style='', font_size=10, line_h=5.2,
-                                     x=self.l_margin)
+        self._draw_wrapped_paragraph(problem_text, width=self.epw, font_style='', font_size=10, line_h=5.2, x=self.l_margin)
         self.ln(4)
 
         self.draw_technical_info(tech_items)
@@ -526,8 +488,7 @@ class WorkOrderPDF(FPDF):
             self.section_title('Notas de cierre')
             self.set_font('Helvetica', '', 10)
             self.set_text_color(0, 0, 0)
-            self._draw_wrapped_paragraph(closing_text, width=self.epw, font_style='', font_size=10, line_h=5.2,
-                                         x=self.l_margin)
+            self._draw_wrapped_paragraph(closing_text, width=self.epw, font_style='', font_size=10, line_h=5.2, x=self.l_margin)
 
     def output_to_bytes(self):
         buffer = io.BytesIO()
@@ -536,18 +497,17 @@ class WorkOrderPDF(FPDF):
         return buffer
 
 
-# ------------------------------------------------------------------
-# Funciones principales
-# ------------------------------------------------------------------
+# ============================================
+# FUNCIONES PRINCIPALES (FUERA DE LA CLASE)
+# ============================================
+
 def generate_work_order_pdf(work_order):
     """Genera el PDF según el tipo de orden (correctivo o preventivo)"""
-    # Determinar clave de plantilla según el tipo
-    if work_order.work_type == 'preventive':  # ✅ CORRECTO
+    if work_order.work_type == 'preventive':
         template_key = 'preventive_work_order'
     else:
         template_key = 'work_order'
 
-    # Obtener plantilla y configuración
     template = PDFTemplate.get_by_key(template_key)
     if not template:
         raise Exception(f"No se encontró la plantilla '{template_key}'")
@@ -556,10 +516,8 @@ def generate_work_order_pdf(work_order):
     company_name = Setting.get('company_name', 'Mi Empresa')
     company_logo = Setting.get('company_logo', '')
 
-    # Obtener el generador adecuado desde el registro
     pdf = PDFRegistry.get_generator(template_key, config, company_name, company_logo)
 
-    # Resto igual (guardar en disco, etc.)
     equipment_name = work_order.equipment.name if work_order.equipment else "sin_equipo"
     safe_name = sanitize_filename(equipment_name)
     base_dir = os.path.join(current_app.root_path, 'static', 'uploads', 'reports', safe_name)
@@ -582,17 +540,15 @@ def generate_work_order_pdf(work_order):
         'absolute_path': filepath
     }
 
+
 def generate_preview_pdf(template_key=None):
     """
     Genera vista previa para una plantilla específica.
     Si no se pasa template_key, usa la plantilla por defecto 'work_order'.
     """
-    from app.services.pdf_registry import PDFRegistry
-
     if template_key is None:
         template_key = 'work_order'
 
-    # Obtener la plantilla y su configuración
     template = PDFTemplate.get_by_key(template_key)
     if not template:
         raise ValueError(f"Plantilla '{template_key}' no encontrada")
@@ -601,7 +557,6 @@ def generate_preview_pdf(template_key=None):
     company_name = Setting.get('company_name', 'Mi Empresa')
     company_logo = Setting.get('company_logo', '')
 
-    # Instanciar el generador adecuado usando el registro
     pdf = PDFRegistry.get_generator(template_key, config, company_name, company_logo)
     pdf.draw_report(work_order=None, preview_mode=True)
     return pdf.output_to_bytes()

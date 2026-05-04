@@ -20,7 +20,13 @@ class PreventiveExecutionLog(db.Model):
     group = db.relationship('FrequencyGroup', backref='execution_logs')
     equipment = db.relationship('Equipment')
     executed_by = db.relationship('User', foreign_keys=[executed_by_id])
-    work_order = db.relationship('WorkOrder')
+
+    # Relación con WorkOrder usando back_populates (coincide con WorkOrder)
+    work_order = db.relationship(
+        'WorkOrder',
+        foreign_keys=[work_order_id],
+        back_populates='preventive_execution_log'
+    )
 
     def __repr__(self):
         return f'<PreventiveExecutionLog {self.id} - Group {self.group_id}>'

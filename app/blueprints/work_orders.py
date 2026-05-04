@@ -13,6 +13,7 @@ from app.models.setting import Setting
 from app.email_dispatcher import send_work_order_closed_email
 from app.models.preventive_schedule import PreventiveSchedule
 from app.models.preventive_execution_log import PreventiveExecutionLog
+from sqlalchemy import asc, desc  # ← necesario para ordenamiento
 
 work_orders_bp = Blueprint('work_orders', __name__, url_prefix='/work-orders')
 
@@ -25,21 +26,30 @@ def admin_or_supervisor_required(func):
             flash('Acceso denegado. Se requieren permisos de administrador o supervisor.', 'danger')
             return redirect(url_for('dashboard.index'))
         return func(*args, **kwargs)
-
     return decorated_view
 
 
 @work_orders_bp.route('/')
 @login_required
 def list_orders():
+    # Parámetros de filtros
     tipo = request.args.get('tipo', 'todos')
     status = request.args.get('status', '')
+    # Paginación
+    page = request.args.get('page', 1, type=int)
+    per_page = 15  # registros por página
 
+    # Ordenamiento
+    sort_by = request.args.get('sort', 'created_at')
+    sort_order = request.args.get('order', 'desc')   # 'asc' o 'desc'
+
+    # Construcción de la query base según rol
     if current_user.role in ['admin', 'supervisor']:
         query = WorkOrder.query
     else:
         query = WorkOrder.query.filter_by(assigned_to_id=current_user.id)
 
+    # Filtros por tipo y estado
     if tipo == 'corrective':
         query = query.filter(WorkOrder.work_type == 'corrective')
     elif tipo == 'preventive':
@@ -48,8 +58,41 @@ def list_orders():
     if status:
         query = query.filter(WorkOrder.status == status)
 
-    orders = query.order_by(WorkOrder.created_at.desc()).all()
-    return render_template('work_orders/list.html', orders=orders, tipo_actual=tipo, status_actual=status)
+    # --- ORDENAMIENTO DINÁMICO ---
+    # Mapeo de columnas válidas
+    sort_columns = {
+        'number': WorkOrder.number,
+        'equipment': WorkOrder.equipment_id,  # se hará join más abajo
+        'type': WorkOrder.work_type,
+        'problem': WorkOrder.problem_description,
+        'assigned_to': WorkOrder.assigned_to_id,
+        'status': WorkOrder.status,
+        'created_at': WorkOrder.created_at
+    }
+
+    if sort_by == 'equipment':
+        # Ordenar por nombre del equipo (requiere join)
+        query = query.outerjoin(Equipment).order_by(
+            asc(Equipment.name) if sort_order == 'asc' else desc(Equipment.name)
+        )
+    else:
+        column = sort_columns.get(sort_by, WorkOrder.created_at)
+        if sort_order == 'asc':
+            query = query.order_by(asc(column))
+        else:
+            query = query.order_by(desc(column))
+
+    # Paginación
+    pagination = query.paginate(page=page, per_page=per_page, error_out=False)
+    orders = pagination.items
+
+    return render_template('work_orders/list.html',
+                           orders=orders,
+                           pagination=pagination,
+                           tipo_actual=tipo,
+                           status_actual=status,
+                           sort_by=sort_by,
+                           sort_order=sort_order)
 
 
 @work_orders_bp.route('/create', methods=['GET', 'POST'])
@@ -151,10 +194,7 @@ def edit_order(id):
         old_assigned_id = order.assigned_to_id
         order.assigned_to_id = new_assigned_id
 
-        # ============================================
         # Solo enviar notificación si es CORRECTIVA
-        # Las preventivas NO generan notificaciones
-        # ============================================
         if new_assigned_id and new_assigned_id != old_assigned_id:
             if order.work_type == 'corrective':
                 create_notification(
@@ -165,7 +205,6 @@ def edit_order(id):
                     related_id=order.id,
                     link=url_for('work_orders.view_order', id=order.id, _external=True)
                 )
-        # ============================================
 
         new_status = request.form.get('status')
         if new_status and new_status != order.status:
@@ -246,10 +285,7 @@ def complete_order(id):
 
         db.session.commit()
 
-        # ============================================
         # Solo enviar notificación si es CORRECTIVA
-        # Las preventivas NO generan notificaciones
-        # ============================================
         if order.created_by_id and order.created_by_id != current_user.id:
             if order.work_type == 'corrective':
                 create_notification(
@@ -260,7 +296,6 @@ def complete_order(id):
                     related_id=order.id,
                     link=url_for('work_orders.view_order', id=order.id, _external=True)
                 )
-        # ============================================
 
         flash(f'OT {order.number} completada', 'success')
         return redirect(url_for('work_orders.view_order', id=id))
@@ -291,15 +326,11 @@ def close_order(id):
     order.closed_at = datetime.utcnow()
     db.session.commit()
 
-    # ============================================
     # ACTUALIZAR SCHEDULE PREVENTIVO Y REGISTRAR HISTORIAL
-    # ESTO SOLO APLICA PARA ÓRDENES PREVENTIVAS
-    # SE CONSERVA LA LÓGICA EXISTENTE
-    # ============================================
+    # Solo para órdenes preventivas
     if order.work_type == 'preventive' and order.preventive_schedule_id:
         schedule = PreventiveSchedule.query.get(order.preventive_schedule_id)
         if schedule:
-            # Registrar en historial de ejecuciones
             log = PreventiveExecutionLog(
                 group_id=schedule.group_id,
                 equipment_id=order.equipment_id,
@@ -308,23 +339,18 @@ def close_order(id):
                 work_order_id=order.id,
                 notes=order.resolution_summary,
                 duration_minutes=duration_minutes,
-                total_activities=None  # Se puede calcular si se guardan en el checklist
+                total_activities=None
             )
             db.session.add(log)
 
-            # Actualizar schedule
             schedule.last_completion_date = datetime.utcnow()
             schedule.next_due_date = schedule.compute_next_due(schedule.last_completion_date)
             schedule.status = 'done'
             db.session.add(schedule)
             db.session.commit()
             flash('Calendario preventivo actualizado y ejecución registrada', 'info')
-    # ============================================
 
-    # ============================================
-    # GENERAR PDF Y REGISTRAR EN BD
-    # TANTO PARA CORRECTIVAS COMO PREVENTIVAS
-    # ============================================
+    # GENERAR PDF Y REGISTRAR EN BD (tanto correctivas como preventivas)
     try:
         pdf_info = generate_work_order_pdf(order)
         report = WorkOrderReport(
@@ -339,13 +365,9 @@ def close_order(id):
     except Exception as e:
         flash(f'OT cerrada pero no se pudo generar el PDF: {str(e)}', 'warning')
         db.session.rollback()
-        return redirect(url_for('work_orders.view_order', id=id))
-    # ============================================
+        return redirect(url_for('work_orders.view_order', id=order.id))
 
-    # ============================================
     # ENVIAR CORREO CON ADJUNTO (SOLO PARA CORRECTIVAS)
-    # LAS PREVENTIVAS NO ENVÍAN CORREOS AUTOMÁTICOS
-    # ============================================
     if Setting.get('brevo_enabled') == 'true':
         if order.work_type == 'corrective':
             try:
@@ -353,6 +375,5 @@ def close_order(id):
                 flash('Correo con reporte enviado al técnico/supervisor', 'info')
             except Exception as e:
                 flash(f'OT cerrada pero no se pudo enviar el correo: {str(e)}', 'warning')
-    # ============================================
 
-    return redirect(url_for('work_orders.view_order', id=id))
+    return redirect(url_for('work_orders.view_order', id=order.id))

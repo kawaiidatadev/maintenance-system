@@ -29,7 +29,10 @@
                         <div class="card-body">
                             <div class="mb-3">
                                 <label class="form-label">Equipo</label>
-                                <select name="equipment_id" class="form-control" id="equipmentSelect">
+                                <!-- Campo oculto para mantener el valor actual -->
+                                <input type="hidden" name="equipment_id" value="{{ order.equipment_id or '' }}">
+                                <!-- Select deshabilitado para que no se pueda cambiar -->
+                                <select name="equipment_id_display" class="form-control" id="equipmentSelect" disabled>
                                     <option value="">Seleccione un equipo...</option>
                                     {% for eq in equipments %}
                                     <option value="{{ eq.id }}" {% if order.equipment_id == eq.id %}selected{% endif %}>
@@ -37,8 +40,14 @@
                                     </option>
                                     {% endfor %}
                                 </select>
+                                <small class="text-muted text-warning">
+                                    <i class="fas fa-lock"></i> No se puede cambiar el equipo en edición.
+                                </small>
                                 {% if order.needs_equipment_registration %}
-                                    <small class="text-muted">Ubicación temporal: {{ order.temporary_location }}</small>
+                                    <div class="mt-2">
+                                        <small class="text-muted">Ubicación temporal: {{ order.temporary_location }}</small><br>
+                                        <small class="text-muted">Descripción temporal: {{ order.temporary_description }}</small>
+                                    </div>
                                 {% endif %}
                             </div>
 
@@ -112,23 +121,10 @@
                         </div>
                     </div>
 
-                    <!-- CAMPOS PARA PREVENTIVO -->
-                    <div id="preventiveFields" class="card mb-3" {% if order.work_type != 'preventive' %}style="display: none;"{% endif %}>
-                        <div class="card-header bg-light">
-                            <i class="fas fa-tasks"></i> Información Preventiva
-                        </div>
-                        <div class="card-body">
-                            <div class="mb-3">
-                                <label class="form-label">Instrucciones específicas</label>
-                                <textarea name="preventive_instructions" rows="3" class="form-control">{{ order.instructions or '' }}</textarea>
-                            </div>
-
-                            <div class="mb-3">
-                                <label class="form-label">Fecha planificada</label>
-                                <input type="date" name="planned_date" class="form-control" value="{{ order.planned_date.strftime('%Y-%m-%d') if order.planned_date else '' }}">
-                            </div>
-                        </div>
-                    </div>
+                    <!-- ============================================ -->
+                    <!-- INFORMACIÓN PREVENTIVA - ELIMINADA -->
+                    <!-- Ya no se muestran instrucciones específicas ni fecha planificada -->
+                    <!-- ============================================ -->
 
                     <div class="mb-3">
                         <label class="form-label">Resumen / Notas de cierre</label>
@@ -148,8 +144,7 @@
 </div>
 
 <script>
-    // Nota: No necesitamos toggle porque el tipo ya está definido al cargar la página
-    // Pero si el usuario pudiera cambiar el tipo (no recomendado), se podría agregar.
-    // Por ahora, solo mostramos los campos correspondientes al tipo existente.
+    // No se requiere lógica adicional porque el campo equipo está deshabilitado.
+    // El valor se envía mediante el campo oculto.
 </script>
 {% endblock %}

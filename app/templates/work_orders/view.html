@@ -61,8 +61,10 @@
                             <span class="badge bg-secondary">{{ order.status }}</span>
                         {% endif %}
 
-                        <!-- Mostrar enlace al PDF si está cerrada y existe reporte -->
-                        {% if order.status == 'closed' and order.report %}
+                        <!-- ============================================ -->
+                        <!-- BOTÓN PDF: Ahora aparece si existe el reporte, sin importar el estado -->
+                        <!-- ============================================ -->
+                        {% if order.report %}
                             <a href="{{ url_for('reports.download', report_id=order.report.id) }}" class="btn btn-sm btn-success ms-2">
                                 <i class="fas fa-file-pdf"></i> Ver Reporte PDF
                             </a>
@@ -128,30 +130,32 @@
                 <!-- SECCIÓN DE MEDICIONES (SOLO PREVENTIVO) -->
                 <!-- ============================================ -->
                 {% if order.work_type == 'preventive' and order.measurements %}
-                    <div class="alert alert-success mt-3">
-                        <strong><i class="fas fa-chart-line"></i> Mediciones registradas</strong>
-                        <div class="table-responsive mt-2">
-                            <table class="table table-sm table-bordered">
-                                <thead class="table-light">
+                <div class="alert alert-success mt-3">
+                    <strong><i class="fas fa-chart-line"></i> Mediciones registradas</strong>
+                    <div class="table-responsive mt-2">
+                        <table class="table table-sm table-bordered">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Actividad</th>
+                                    <th>Valor medido</th>
+                                    <th>Unidad</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for key, data in order.measurements.items() %}
+                                    {% if key != '_metadata' %}
                                     <tr>
-                                        <th>Actividad</th>
-                                        <th>Valor medido</th>
-                                        <th>Unidad</th>
+                                        <td>{{ data.name if data.name else 'Actividad ' + key }}</td>
+                                        <td>{{ data.measured_value if data.measured_value else '—' }}</td>
+                                        <td>{{ data.unit if data.unit else '—' }}</td>
                                     </tr>
-                                </thead>
-                                <tbody>
-                                    {% for act_id, data in order.measurements.items() %}
-                                    <tr>
-                                        <td>{{ data.name }}</td>
-                                        <td><strong>{{ data.value }}</strong></td>
-                                        <td>{{ data.unit }}</td>
-                                    </tr>
-                                    {% endfor %}
-                                </tbody>
-                            </table>
-                        </div>
+                                    {% endif %}
+                                {% endfor %}
+                            </tbody>
+                        </table>
                     </div>
-                    {% endif %}
+                </div>
+                {% endif %}
 
                 <!-- Notas de resolución (comunes) -->
                 {% if order.resolution_summary %}
@@ -259,7 +263,7 @@
                 <!-- BOTONES DE ACCIÓN -->
                 <!-- ============================================ -->
                 <div class="mt-4">
-                    <!-- Solo mostrar botones de inicio/completado/cierre para correctivos (o si la OT no está cerrada) -->
+                    <!-- Solo mostrar botones de inicio/completado/cierre para correctivos -->
                     {% if order.work_type != 'preventive' %}
                         {% if order.can_start(current_user) %}
                         <form method="POST" action="{{ url_for('work_orders.start_order', id=order.id) }}" style="display: inline;">
