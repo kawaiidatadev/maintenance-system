@@ -162,6 +162,7 @@ def config(template_key):
         for col in ['left', 'center', 'right']:
             setattr(config, f'header_{col}', request.form.get(f'header_{col}', ''))
             setattr(config, f'footer_{col}', request.form.get(f'footer_{col}', ''))
+
         # Guardar anchos de imagen
         for col in ['left', 'center', 'right']:
             w_header = request.form.get(f'header_{col}_img_width')
@@ -170,11 +171,46 @@ def config(template_key):
             w_footer = request.form.get(f'footer_{col}_img_width')
             if w_footer:
                 setattr(config, f'footer_{col}_img_width', int(w_footer))
-        # Opciones de empresa
+
+        # Procesar subida de imágenes y eliminación
+        for section in ['header', 'footer']:
+            for col in ['left', 'center', 'right']:
+                img_field = f'{section}_{col}_img'
+
+                # Eliminar imagen si se solicitó
+                if request.form.get(f'remove_{img_field}'):
+                    old_path = getattr(config, img_field)
+                    if old_path:
+                        full_old = os.path.join(current_app.root_path, 'static', old_path)
+                        if os.path.exists(full_old):
+                            os.remove(full_old)
+                        setattr(config, img_field, None)
+
+                # Subir nueva imagen
+                if img_field in request.files:
+                    file = request.files[img_field]
+                    if file and file.filename:
+                        ext = file.filename.rsplit('.', 1)[1].lower()
+                        if ext in {'png', 'jpg', 'jpeg', 'gif', 'svg'}:
+                            filename = secure_filename(
+                                f"{section}_{col}_{template_key}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.{ext}")
+                            upload_folder = os.path.join(current_app.root_path, 'static', 'uploads', 'pdf_config')
+                            ensure_dir(upload_folder)
+                            filepath = os.path.join(upload_folder, filename)
+                            file.save(filepath)
+                            # Eliminar imagen anterior si existe
+                            old = getattr(config, img_field)
+                            if old:
+                                full_old = os.path.join(current_app.root_path, 'static', old)
+                                if os.path.exists(full_old):
+                                    os.remove(full_old)
+                            setattr(config, img_field, f'uploads/pdf_config/{filename}')
+                            # Opcional: limpiar texto si se subió imagen
+                            setattr(config, f'{section}_{col}', '')
+
         config.use_company_logo = 'use_company_logo' in request.form
         config.use_company_name = 'use_company_name' in request.form
-        # Subida de imágenes (similar a antes)...
-        # (Código de subida de imágenes)
+
         db.session.commit()
         flash(f'Configuración de {template.name} guardada', 'success')
         return redirect(url_for('reports.config', template_key=template_key))

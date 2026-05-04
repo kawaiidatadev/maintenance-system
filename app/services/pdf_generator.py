@@ -587,7 +587,8 @@ def generate_preview_pdf(template_key=None):
     Genera vista previa para una plantilla específica.
     Si no se pasa template_key, usa la plantilla por defecto 'work_order'.
     """
-    # Determinar qué plantilla usar
+    from app.services.pdf_registry import PDFRegistry
+
     if template_key is None:
         template_key = 'work_order'
 
@@ -600,7 +601,7 @@ def generate_preview_pdf(template_key=None):
     company_name = Setting.get('company_name', 'Mi Empresa')
     company_logo = Setting.get('company_logo', '')
 
-    # Instanciar el generador adecuado (por ahora solo WorkOrderPDF)
-    pdf = WorkOrderPDF(config, company_name, company_logo)
+    # Instanciar el generador adecuado usando el registro
+    pdf = PDFRegistry.get_generator(template_key, config, company_name, company_logo)
     pdf.draw_report(work_order=None, preview_mode=True)
     return pdf.output_to_bytes()
