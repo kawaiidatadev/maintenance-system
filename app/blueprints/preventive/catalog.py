@@ -1,6 +1,6 @@
 from app.blueprints.preventive import preventive_bp
 from app.blueprints.preventive.helpers import admin_required
-from flask import render_template, flash, redirect, url_for, request
+from flask import render_template, flash, redirect, url_for, request, jsonify
 from flask_login import login_required
 from app import db
 from app.models.standard_activity import StandardActivity
@@ -85,3 +85,25 @@ def catalog_delete(id):
     db.session.commit()
     flash('Actividad desactivada', 'success')
     return redirect(url_for('preventive.catalog'))
+
+
+# ============================================================
+# NUEVA API PARA OBTENER DATOS DE ACTIVIDAD ESTÁNDAR
+# ============================================================
+@preventive_bp.route('/catalog/api/<int:act_id>')
+@login_required
+def catalog_api(act_id):
+    """API para obtener datos de una actividad estándar (usada por group_activities.html)"""
+    from app.models.standard_activity import StandardActivity
+    activity = StandardActivity.query.get_or_404(act_id)
+    return {
+        'id': activity.id,
+        'name': activity.name,
+        'description': activity.description or '',
+        'instructions': activity.instructions or '',
+        'estimated_duration_min': activity.estimated_duration_min or 0,
+        'requires_shutdown': activity.requires_shutdown,
+        'requires_qualification': activity.requires_qualification,
+        'default_freq_type': activity.default_freq_type or '',
+        'default_freq_value': activity.default_freq_value or 1
+    }

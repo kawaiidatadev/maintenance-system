@@ -91,8 +91,7 @@ def execute_group_for_equipment(group_id, equipment_id):
         flash('Este equipo no está asociado a este grupo.', 'danger')
         return redirect(url_for('preventive.tasks'))
 
-    if group.assigned_to_id and group.assigned_to_id != current_user.id and current_user.role not in ['admin',
-                                                                                                      'supervisor']:
+    if group.assigned_to_id and group.assigned_to_id != current_user.id and current_user.role not in ['admin', 'supervisor']:
         flash('No tienes permiso para ejecutar este grupo.', 'danger')
         return redirect(url_for('preventive.tasks'))
 
@@ -100,32 +99,16 @@ def execute_group_for_equipment(group_id, equipment_id):
         activities = [act for act in group.activities if act.is_active]
         return render_template('preventive/checklist.html', group=group, equipment=equipment, activities=activities)
 
+    # =========================
     # POST: procesar checklist
+    # =========================
     completed_ids = request.form.getlist('completed_activities')
     general_notes = request.form.get('general_notes', '')
     total_duration_seconds = int(request.form.get('total_duration', 0))
 
-    # Mediciones por actividad
-    measurements = {}
-    for act in group.activities:
-        measurement_key = f'measurement_{act.id}'
-        unit_key = f'unit_{act.id}'
-        if measurement_key in request.form and request.form.get(measurement_key):
-            measurements[str(act.id)] = {
-                'value': request.form.get(measurement_key),
-                'unit': request.form.get(unit_key, ''),
-                'name': act.name
-            }
-
-    # Duración por actividad (en segundos, se convierte a minutos para BD)
-    activity_durations = {}
-    for act in group.activities:
-        dur_key = f'duration_{act.id}'
-        if dur_key in request.form:
-            seconds = int(request.form.get(dur_key, 0))
-            activity_durations[str(act.id)] = seconds
-
-    # Obtener o crear schedule
+    # =========================
+    # Obtener schedule ANTES
+    # =========================
     schedule = PreventiveSchedule.query.filter_by(group_id=group.id).first()
     if not schedule:
         schedule = PreventiveSchedule(
@@ -137,41 +120,99 @@ def execute_group_for_equipment(group_id, equipment_id):
         db.session.add(schedule)
         db.session.commit()
 
+    # =========================
+    # Construcción de measurements
+    # =========================
+    measurements = {}
+
+    for act in group.activities:
+        act_id = str(act.id)
+        completed = act_id in completed_ids
+
+        dur_key = f'duration_{act.id}'
+        duration_seconds = int(request.form.get(dur_key, 0)) if dur_key in request.form else 0
+
+        measurement_key = f'measurement_{act.id}'
+        unit_key = f'unit_{act.id}'
+        measured_value = request.form.get(measurement_key, '').strip()
+        unit = request.form.get(unit_key, '').strip()
+
+        measurements[act_id] = {
+            'name': act.name,
+            'completed': completed,
+            'duration_seconds': duration_seconds,
+            'measured_value': measured_value if measured_value else '',
+            'unit': unit if unit else ''
+        }
+
+    # =========================
+    # Metadata (FUERA del loop)
+    # =========================
+    measurements['_metadata'] = {
+        'group_name': group.name,
+        'freq_value': group.freq_value,
+        'freq_type': group.freq_type,
+        'freq_display': group.frequency_suggested,
+        'scheduled_date': schedule.next_due_date.strftime('%d/%m/%Y') if schedule and schedule.next_due_date else 'N/A'
+    }
+
+    # =========================
     # Generar número de OT
+    # =========================
     last_order = WorkOrder.query.order_by(WorkOrder.id.desc()).first()
     next_id = (last_order.id + 1) if last_order else 1
     order_number = f"PRE-G{next_id:04d}"
 
-    # Construir descripción amigable (sin "Problema reportado")
-    completed_activities_names = [act.name for act in group.activities if str(act.id) in completed_ids]
-    description = f"Mantenimiento preventivo programado - Grupo: {group.name}\nEquipo: {equipment.code} - {equipment.name}\nEjecutado por: {current_user.username}\n\nActividades realizadas: {', '.join(completed_activities_names) if completed_activities_names else 'Ninguna'}\nObservaciones: {general_notes}\nTiempo total: {total_duration_seconds // 60} minutos"
+    # =========================
+    # Descripción
+    # =========================
+    completed_activities_names = [
+        act.name for act in group.activities if str(act.id) in completed_ids
+    ]
 
-    # Crear OT (inicialmente abierta, pero la cerraremos inmediatamente)
+    description = (
+        f"Mantenimiento preventivo programado - Grupo: {group.name}\n"
+        f"Equipo: {equipment.code} - {equipment.name}\n"
+        f"Ejecutado por: {current_user.username}\n\n"
+        f"Actividades realizadas: {', '.join(completed_activities_names) if completed_activities_names else 'Ninguna'}\n"
+        f"Observaciones: {general_notes}\n"
+        f"Tiempo total: {total_duration_seconds // 60} minutos"
+    )
+
+    # =========================
+    # Crear OT (completada, no cerrada)
+    # =========================
+    now = datetime.utcnow()
+
     work_order = WorkOrder(
         number=order_number,
         equipment_id=equipment.id,
         problem_description=description,
         created_by_id=current_user.id,
-        status='closed',  # ← directamente cerrada
+        status='completed',
         needs_equipment_registration=False,
         work_type='preventive',
         preventive_schedule_id=schedule.id,
         measurements=measurements,
-        start_date=datetime.utcnow(),  # fecha de inicio = ahora
-        completion_date=datetime.utcnow(),  # fecha de fin = ahora
+        start_date=now,
+        completion_date=now,
         closed_by_id=current_user.id,
-        closed_at=datetime.utcnow(),
+        closed_at=now,
         resolution_summary=general_notes
     )
+
     db.session.add(work_order)
     db.session.commit()
 
-    # Registrar historial de ejecución
+    # =========================
+    # Log de ejecución
+    # =========================
     from app.models.preventive_execution_log import PreventiveExecutionLog
+
     log = PreventiveExecutionLog(
         group_id=group.id,
         equipment_id=equipment.id,
-        executed_at=datetime.utcnow(),
+        executed_at=now,
         executed_by_id=current_user.id,
         work_order_id=work_order.id,
         notes=general_notes,
@@ -179,32 +220,44 @@ def execute_group_for_equipment(group_id, equipment_id):
         completed_activities=len(completed_ids),
         total_activities=len([act for act in group.activities if act.is_active])
     )
+
     db.session.add(log)
 
+    # =========================
     # Actualizar schedule
-    schedule.last_completion_date = datetime.utcnow()
+    # =========================
+    schedule.last_completion_date = now
     schedule.next_due_date = schedule.compute_next_due(schedule.last_completion_date)
     schedule.status = 'done'
+
     db.session.add(schedule)
     db.session.commit()
 
-    # Generar PDF (opcional)
+    # =========================
+    # Generar PDF
+    # =========================
     from app.services.pdf_generator import generate_work_order_pdf
     from app.models.work_order_report import WorkOrderReport
+
     try:
         pdf_info = generate_work_order_pdf(work_order)
+
         report = WorkOrderReport(
             work_order_id=work_order.id,
             file_path=pdf_info['file_path'],
             filename=pdf_info['filename'],
             file_size=pdf_info['file_size']
         )
+
         db.session.add(report)
         db.session.commit()
-    except Exception as e:
-        print(f"Error generando PDF: {e}")
+        flash('Mantenimiento preventivo completado y PDF generado correctamente.', 'success')
 
-    flash(f'Mantenimiento preventivo completado. Se ha registrado la ejecución y actualizado el calendario.', 'success')
+    except Exception as e:
+        # Mostrar error al usuario y registrar en consola
+        flash(f'Mantenimiento completado pero hubo un error al generar el PDF: {str(e)}', 'warning')
+        print(f"ERROR generando PDF para OT {work_order.id}: {e}")
+
     return redirect(url_for('work_orders.view_order', id=work_order.id))
 
 

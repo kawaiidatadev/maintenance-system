@@ -43,6 +43,7 @@ def create_app():
     from app.blueprints.reports import reports_bp
     from app.blueprints.preventive import preventive_bp
 
+
     # Registrar blueprints
     app.register_blueprint(auth_bp, url_prefix='/auth')
     app.register_blueprint(dashboard_bp, url_prefix='/')
