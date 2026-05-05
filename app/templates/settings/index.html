@@ -34,7 +34,6 @@
                     <!-- PESTAÑA GENERAL -->
                     <!-- ============================================ -->
                     <div class="tab-pane fade show active" id="general" role="tabpanel">
-                        <!-- Formulario de configuración general (sin el logo) -->
                         <form id="generalSettingsForm">
                             <div class="row">
                                 <div class="col-md-6 mb-3">
@@ -58,7 +57,6 @@
                                 </div>
                             </div>
 
-                            <!-- Nombre de la empresa -->
                             <div class="mb-3">
                                 <label for="company_name" class="form-label">Nombre de la empresa</label>
                                 <input type="text" name="company_name" id="company_name" class="form-control" value="{{ company_name }}">
@@ -76,9 +74,6 @@
                             </div>
                         </form>
 
-                        <!-- ============================================ -->
-                        <!-- FORMULARIO DE LOGO (SEPARADO - SIN ANIDAR) -->
-                        <!-- ============================================ -->
                         <hr class="my-4">
                         <h5><i class="fas fa-image"></i> Logo de la empresa</h5>
                         <div class="row">
@@ -115,9 +110,8 @@
                                 <strong>Nota sobre entrega de correos:</strong><br>
                                 <ul class="mb-0 mt-2">
                                     <li>✅ Los correos a cuentas <strong>Gmail</strong> suelen llegar sin problemas.</li>
-                                    <li>⚠️ Para dominios corporativos (como <code>@tudominio.com</code>), es posible que los correos no lleguen o caigan en spam.</li>
-                                    <li>🔧 Solución: Configura los registros <strong>SPF</strong> y <strong>DKIM</strong> de Brevo en tu dominio, o utiliza un remitente de Gmail (verificado en Brevo).</li>
-                                    <li>📧 Si usas un remitente Gmail, los correos llegarán a cualquier destinatario, pero el remitente mostrará la dirección de Gmail.</li>
+                                    <li>⚠️ Para dominios corporativos, es posible que los correos no lleguen o caigan en spam.</li>
+                                    <li>🔧 Solución: Configura los registros <strong>SPF</strong> y <strong>DKIM</strong> de Brevo en tu dominio.</li>
                                 </ul>
                             </div>
 
@@ -130,12 +124,10 @@
                                 <div class="mb-3">
                                     <label class="form-label">API Key de Brevo *</label>
                                     <input type="text" id="brevo_api_key" class="form-control" placeholder="xkeysib-...">
-                                    <small class="text-muted">Obtén tu clave en <strong>SMTP & API → API Keys</strong></small>
                                 </div>
                                 <div class="mb-3">
                                     <label class="form-label">Correo remitente (verificado en Brevo) *</label>
                                     <input type="email" id="brevo_from_email" class="form-control" placeholder="notificaciones@tudominio.com">
-                                    <small class="text-muted">Debes verificar este correo en <strong>Remitentes y dominios</strong></small>
                                 </div>
                                 <div class="mb-3">
                                     <label class="form-label">Nombre remitente</label>
@@ -144,23 +136,11 @@
                                 <div class="mb-3">
                                     <label class="form-label">Correo central para notificaciones (opcional)</label>
                                     <input type="email" id="central_notification_email" class="form-control" placeholder="notificaciones@tudominio.com">
-                                    <small class="text-muted">Si se especifica, todas las notificaciones por correo se enviarán a esta dirección en lugar de a cada usuario.</small>
                                 </div>
-                                <div class="alert alert-secondary mt-3">
-                                    <i class="fas fa-info-circle"></i>
-                                    <strong>📬 ¿Cómo enviar correos a otros dominios?</strong><br>
-                                    <ul class="mb-0 mt-2">
-                                        <li>✅ <strong>Gmail, Outlook, Yahoo, etc.</strong> – Funcionan sin configuración adicional.</li>
-                                        <li>⚠️ <strong>Dominios corporativos</strong> (ej: @tuempresa.com) – Requieren que configures <strong>SPF y DKIM</strong> en tu dominio desde el panel de Brevo (Sección <strong>Remitentes y dominios</strong> → <strong>Dominios</strong>).</li>
-                                        <li>🔧 Si no configuras SPF/DKIM, los correos pueden ir a <strong>spam</strong> o ser <strong>rechazados</strong>.</li>
-                                        <li>📧 <strong>Correo de prueba</strong> – Solo se enviará a tu dirección registrada. Si usas un dominio corporativo, verifica que el remitente esté verificado.</li>
-                                    </ul>
-                                </div>
-
                                 <button type="button" id="testBrevoBtn" class="btn btn-sm btn-info">Enviar correo de prueba</button>
                                 <span id="testResult" class="ms-2"></span>
                             </div>
-                            <!-- Contador de correos -->
+
                             <div class="mt-3 p-3 border rounded bg-light" id="emailStatsContainer">
                                 <div class="d-flex justify-content-between align-items-center">
                                     <div>
@@ -175,8 +155,8 @@
                                 <div class="progress mt-2" style="height: 10px;">
                                     <div id="email_progress_bar" class="progress-bar bg-info" role="progressbar" style="width: 0%;"></div>
                                 </div>
-                                <small class="text-muted mt-2 d-block">El límite gratuito de Brevo es de 300 correos por día. El contador se reinicia automáticamente cada día.</small>
                             </div>
+
                             <div class="mt-3">
                                 <button type="button" id="saveBrevoBtn" class="btn btn-primary">Guardar configuración</button>
                             </div>
@@ -184,13 +164,16 @@
                     </div>
 
                     <!-- ============================================ -->
-                    <!-- PESTAÑA NOTIFICACIONES (CON UMBRALES) -->
+                    <!-- PESTAÑA NOTIFICACIONES (CORRECTIVAS Y PREVENTIVAS) -->
                     <!-- ============================================ -->
                     <div class="tab-pane fade" id="notifications" role="tabpanel">
                         <form method="POST" action="{{ url_for('settings.update') }}">
                             <div class="alert alert-info">
                                 <i class="fas fa-info-circle"></i> Selecciona qué notificaciones quieres recibir y cómo.
                             </div>
+
+                            <!-- TABLA DE NOTIFICACIONES CORRECTIVAS -->
+                            <h5 class="mt-4">Notificaciones de Mantenimiento Correctivo</h5>
                             <div class="table-responsive">
                                 <table class="table table-bordered table-striped align-middle">
                                     <thead class="table-dark">
@@ -204,7 +187,7 @@
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {% for rule in rules %}
+                                        {% for rule in corrective_rules %}
                                         {% set pref = user_prefs[rule.id] %}
                                         <tr data-rule-id="{{ rule.id }}" data-event-type="{{ rule.event_type }}" data-threshold-unit="{{ rule.threshold_unit }}">
                                             <td>
@@ -213,8 +196,6 @@
                                                         OT vencida (<span id="name_threshold_{{ rule.id }}" class="name-threshold-value">{{ rule.threshold_value|default(7)|round(0)|int }}</span> días sin iniciar)
                                                     {% elif rule.event_type == 'equipment_life_critical' %}
                                                         Equipo crítico con vida útil restante baja
-                                                    {% elif rule.event_type == 'preventive_due_soon' %}
-                                                        Mantenimiento preventivo próximo
                                                     {% else %}
                                                         {{ rule.name }}
                                                     {% endif %}
@@ -225,8 +206,6 @@
                                                     Una orden lleva más de <span class="threshold-value">{{ rule.threshold_value|default(7)|round(0)|int }}</span> días en estado "asignada" sin iniciarse
                                                 {% elif rule.event_type == 'equipment_life_critical' %}
                                                     Vida restante &lt; <span class="threshold-value">{{ rule.threshold_value|default(10)|round(0)|int }}</span>% de la estimada
-                                                {% elif rule.event_type == 'preventive_due_soon' %}
-                                                    Faltan <span class="threshold-value">{{ rule.threshold_value|default(5)|round(0)|int }}</span> días para el mantenimiento preventivo programado
                                                 {% else %}
                                                     {{ rule.description }}
                                                 {% endif %}
@@ -258,6 +237,73 @@
                                     </tbody>
                                 </table>
                             </div>
+
+                            <!-- TABLA DE NOTIFICACIONES PREVENTIVAS -->
+                            <h5 class="mt-4">Notificaciones de Mantenimiento Preventivo</h5>
+                            <div class="table-responsive">
+                                <table class="table table-bordered table-striped align-middle">
+                                    <thead class="table-dark">
+                                        <tr>
+                                            <th style="width: 20%">Tipo de notificación</th>
+                                            <th style="width: 35%">Descripción</th>
+                                            <th style="width: 10%" class="text-center">Activar</th>
+                                            <th style="width: 20%" class="text-center">Umbral</th>
+                                            <th style="width: 10%" class="text-center">Correo</th>
+                                            <th style="width: 15%" class="text-center">Destinatarios</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {% for rule in preventive_rules %}
+                                        {% set pref = user_prefs[rule.id] %}
+                                        <tr data-rule-id="{{ rule.id }}" data-event-type="{{ rule.event_type }}" data-threshold-unit="{{ rule.threshold_unit }}">
+                                            <td>
+                                                <strong>
+                                                    {% if rule.event_type == 'preventive_due_soon' %}
+                                                        Mantenimiento preventivo próximo (<span id="name_threshold_{{ rule.id }}" class="name-threshold-value">{{ rule.threshold_value|default(5)|round(0)|int }}</span> días)
+                                                    {% elif rule.event_type == 'preventive_overdue' %}
+                                                        Mantenimiento preventivo vencido
+                                                    {% else %}
+                                                        {{ rule.name }}
+                                                    {% endif %}
+                                                </strong>
+                                            </td>
+                                            <td id="desc_{{ rule.id }}">
+                                                {% if rule.event_type == 'preventive_due_soon' %}
+                                                    Faltan <span class="threshold-value">{{ rule.threshold_value|default(5)|round(0)|int }}</span> {{ rule.threshold_unit or 'días' }} para el mantenimiento preventivo programado
+                                                {% elif rule.event_type == 'preventive_overdue' %}
+                                                    El mantenimiento preventivo ya ha superado su fecha programada
+                                                {% else %}
+                                                    {{ rule.description }}
+                                                {% endif %}
+                                            </td>
+                                            <td class="text-center">
+                                                <input type="checkbox" name="rule_{{ rule.id }}_enabled" {% if pref.is_enabled %}checked{% endif %} class="form-check-input">
+                                            </td>
+                                            <td class="text-center">
+                                                {% if rule.is_customizable and rule.threshold_value is not none %}
+                                                <div class="d-flex justify-content-center align-items-center">
+                                                    <input type="number" step="1" name="rule_{{ rule.id }}_threshold" value="{{ rule.threshold_value|round(0)|int }}" class="form-control form-control-sm threshold-input" style="width: 80px;" data-rule-id="{{ rule.id }}" data-event-type="{{ rule.event_type }}" data-unit="{{ rule.threshold_unit }}">
+                                                    <span class="text-muted ms-1">{{ rule.threshold_unit }}</span>
+                                                </div>
+                                                {% else %}
+                                                <span class="text-muted">—</span>
+                                                {% endif %}
+                                            </td>
+                                            <td class="text-center">
+                                                <input type="checkbox" name="rule_{{ rule.id }}_email" {% if pref.channel_email %}checked{% endif %} class="form-check-input">
+                                            </td>
+                                            <td class="text-center">
+                                                <button type="button" class="btn btn-sm btn-outline-info configure-recipients"
+                                                        data-rule-id="{{ rule.id }}" data-rule-name="{{ rule.name }}">
+                                                    <i class="fas fa-users"></i> Configurar
+                                                </button>
+                                            </td>
+                                        </tr>
+                                        {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+
                             <div class="mt-3">
                                 <button type="submit" class="btn btn-primary">Guardar preferencias</button>
                             </div>
@@ -408,7 +454,7 @@
     datetimeFormatInput.addEventListener('input', updatePreview);
     updatePreview();
 
-    // Guardar configuración general (incluye company_name)
+    // Guardar configuración general
     document.getElementById('saveGeneralBtn').addEventListener('click', async function() {
         const timezone = timezoneSelect.value;
         const dateFormat = dateFormatInput.value;
@@ -439,7 +485,7 @@
     });
 
     // ============================================
-    // CONFIGURACIÓN BREVO (con correo central)
+    // CONFIGURACIÓN BREVO
     // ============================================
     const brevoEnabled = document.getElementById('brevo_enabled');
     const brevoFields = document.getElementById('brevoFields');
@@ -535,16 +581,16 @@
     });
 
     // ============================================
-    // ACTUALIZAR DESCRIPCIONES DE NOTIFICACIONES EN TIEMPO REAL
+    // ACTUALIZAR DESCRIPCIONES DE NOTIFICACIONES
     // ============================================
     function updateDescription(ruleId, eventType, newValue, unit) {
         const descSpan = document.getElementById(`desc_${ruleId}`);
         if (!descSpan) return;
 
         const thresholdSpan = descSpan.querySelector('.threshold-value');
-        if (!thresholdSpan) return;
-
-        thresholdSpan.textContent = newValue;
+        if (thresholdSpan) {
+            thresholdSpan.textContent = newValue;
+        }
 
         let newText = '';
         if (eventType === 'work_order_overdue') {
@@ -556,12 +602,11 @@
         } else {
             return;
         }
-
         descSpan.innerHTML = newText.replace(newValue, `<span class="threshold-value">${newValue}</span>`);
     }
 
     function updateRuleName(ruleId, eventType, newValue, unit) {
-        if (eventType === 'work_order_overdue') {
+        if (eventType === 'work_order_overdue' || eventType === 'preventive_due_soon') {
             const nameSpan = document.getElementById(`name_threshold_${ruleId}`);
             if (nameSpan) {
                 nameSpan.textContent = newValue;
@@ -569,7 +614,6 @@
         }
     }
 
-    // Escuchar cambios en los inputs de umbral
     document.querySelectorAll('.threshold-input').forEach(input => {
         input.addEventListener('change', function() {
             const ruleId = this.dataset.ruleId;
@@ -582,7 +626,7 @@
     });
 
     // ============================================
-    // CONFIGURACIÓN DE DESTINATARIOS POR REGLA
+    // CONFIGURACIÓN DE DESTINATARIOS
     // ============================================
     let currentRuleId = null;
 
@@ -595,7 +639,6 @@
 
     document.getElementById('recipient_type').addEventListener('change', toggleRecipientFields);
 
-    // Abrir modal y cargar configuración actual
     document.querySelectorAll('.configure-recipients').forEach(btn => {
         btn.addEventListener('click', async function() {
             currentRuleId = this.dataset.ruleId;
@@ -608,21 +651,15 @@
                 if (data.success && data.config) {
                     const config = data.config;
                     document.getElementById('recipient_type').value = config.type || 'none';
-
-                    // Roles
                     document.querySelectorAll('.role-checkbox').forEach(cb => {
                         cb.checked = config.type === 'roles' && config.targets && config.targets.includes(cb.value);
                     });
-
-                    // Usuarios
                     if (config.type === 'users' && config.targets) {
                         const userSelect = document.getElementById('recipient_users');
                         for (let i = 0; i < userSelect.options.length; i++) {
                             userSelect.options[i].selected = config.targets.includes(parseInt(userSelect.options[i].value));
                         }
                     }
-
-                    // Externos
                     if (config.type === 'external' && config.targets) {
                         document.getElementById('recipient_external').value = config.targets.join(', ');
                     }
@@ -631,12 +668,10 @@
             } catch (error) {
                 console.error('Error cargando configuración:', error);
             }
-
             new bootstrap.Modal(document.getElementById('recipientModal')).show();
         });
     });
 
-    // Guardar configuración
     document.getElementById('saveRecipientsBtn').addEventListener('click', async () => {
         const ruleId = document.getElementById('recipient_rule_id').value;
         const type = document.getElementById('recipient_type').value;
@@ -672,7 +707,7 @@
     });
 
     // ============================================
-    // CARGAR ESTADÍSTICAS DE CORREOS
+    // ESTADÍSTICAS Y LOGO
     // ============================================
     async function loadEmailStats() {
         try {
@@ -682,8 +717,6 @@
                 document.getElementById('email_today_count').textContent = data.today_count;
                 document.getElementById('email_daily_limit').textContent = data.daily_limit;
                 document.getElementById('email_remaining').textContent = `${data.remaining} restantes`;
-
-                // Cambiar color según el porcentaje
                 const progressBar = document.getElementById('email_progress_bar');
                 progressBar.style.width = `${data.percentage}%`;
                 if (data.percentage >= 90) {
@@ -699,8 +732,6 @@
                     progressBar.classList.add('bg-info');
                     document.getElementById('email_remaining').className = 'badge bg-success';
                 }
-
-                // Si se alcanzó el límite, mostrar advertencia
                 if (data.remaining === 0) {
                     let alertDiv = document.querySelector('#emailStatsContainer .alert-warning');
                     if (!alertDiv) {
@@ -719,27 +750,21 @@
         }
     }
 
-    // ============================================
-    // SUBIR LOGO (MANEJO MEJORADO)
-    // ============================================
     const submitLogoBtn = document.getElementById('submitLogoBtn');
     if (submitLogoBtn) {
         submitLogoBtn.addEventListener('click', function(e) {
             e.preventDefault();
             const form = document.getElementById('logoUploadForm');
             const fileInput = document.getElementById('logoFile');
-
             if (!fileInput.files.length) {
                 alert('Por favor, selecciona un archivo de imagen primero');
                 return;
             }
-
             const formData = new FormData(form);
             const btn = submitLogoBtn;
             const originalText = btn.innerHTML;
             btn.disabled = true;
             btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Subiendo...';
-
             fetch('/settings/upload_logo', {
                 method: 'POST',
                 body: formData
@@ -751,14 +776,9 @@
                     return response.json();
                 }
             })
-            .then(data => {
-                if (data && !data.success) {
-                    alert('Error: ' + (data.error || 'Error desconocido'));
-                }
-            })
             .catch(error => {
                 console.error('Error al subir logo:', error);
-                alert('Error de conexión al subir el logo. Revisa la consola para más detalles.');
+                alert('Error de conexión al subir el logo.');
             })
             .finally(() => {
                 btn.disabled = false;
@@ -767,7 +787,6 @@
         });
     }
 
-    // Cargar estadísticas al iniciar la página y cada 30 segundos
     loadEmailStats();
     setInterval(loadEmailStats, 30000);
 </script>

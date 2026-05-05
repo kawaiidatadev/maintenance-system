@@ -6,6 +6,7 @@ from app.models.frequency_group import FrequencyGroup
 from app.models.preventive_schedule import PreventiveSchedule
 from app.models.work_order import WorkOrder
 from app.models.equipment import Equipment
+from app.models.user import User
 from datetime import datetime, timedelta
 from dateutil.relativedelta import relativedelta
 
@@ -16,10 +17,6 @@ from dateutil.relativedelta import relativedelta
 @preventive_bp.route('/')
 @login_required
 def dashboard():
-    from app.models.frequency_group import FrequencyGroup
-    from app.models.preventive_schedule import PreventiveSchedule
-    from datetime import datetime
-
     groups = FrequencyGroup.query.filter_by(is_active=True).all()
     tasks = []
 
@@ -45,7 +42,6 @@ def dashboard():
 
     # Ordenar por fecha
     tasks.sort(key=lambda x: x['next_date'])
-
     return render_template('preventive/dashboard.html', tasks=tasks)
 
 
@@ -254,9 +250,28 @@ def execute_group_for_equipment(group_id, equipment_id):
         flash('Mantenimiento preventivo completado y PDF generado correctamente.', 'success')
 
     except Exception as e:
-        # Mostrar error al usuario y registrar en consola
         flash(f'Mantenimiento completado pero hubo un error al generar el PDF: {str(e)}', 'warning')
         print(f"ERROR generando PDF para OT {work_order.id}: {e}")
+
+    # =========================
+    # NOTIFICACIÓN EN TIEMPO REAL (ejecución completada)
+    # =========================
+    from app.models.notification_rule import NotificationRule
+    from app.notifications_helper import create_notification
+
+    rule = NotificationRule.query.filter_by(event_type='preventive_executed', is_active=True).first()
+    if rule and rule.target_roles:
+        roles = rule.target_roles.split(',')
+        users = User.query.filter(User.role.in_(roles)).all()
+        for user in users:
+            create_notification(
+                user_id=user.id,
+                title=f"✅ Mantenimiento preventivo completado",
+                message=f"Se completó el mantenimiento '{group.name}' en el equipo {equipment.code}. OT: {work_order.number}",
+                event_type='preventive_executed',
+                related_id=work_order.id,
+                link=url_for('work_orders.view_order', id=work_order.id, _external=True)
+            )
 
     return redirect(url_for('work_orders.view_order', id=work_order.id))
 
@@ -276,6 +291,27 @@ def postpone(schedule_id):
         db.session.commit()
         flash(f'Actividad reprogramada para {schedule.next_due_date.strftime("%d/%m/%Y")}', 'info')
 
+    # =========================
+    # NOTIFICACIÓN EN TIEMPO REAL (reprogramación)
+    # =========================
+    from app.models.notification_rule import NotificationRule
+    from app.notifications_helper import create_notification
+
+    rule = NotificationRule.query.filter_by(event_type='preventive_rescheduled', is_active=True).first()
+    if rule and rule.target_roles:
+        roles = rule.target_roles.split(',')
+        users = User.query.filter(User.role.in_(roles)).all()
+        group = FrequencyGroup.query.get(schedule.group_id)
+        for user in users:
+            create_notification(
+                user_id=user.id,
+                title=f"📅 Mantenimiento reprogramado",
+                message=f"El mantenimiento del grupo {group.name if group else 'N/A'} fue reprogramado para {schedule.next_due_date.strftime('%d/%m/%Y')}. Motivo: {reason or 'No especificado'}",
+                event_type='preventive_rescheduled',
+                related_id=schedule.group_id,
+                link=url_for('preventive.tasks', _external=True)
+            )
+
     return redirect(url_for('preventive.dashboard'))
 
 
@@ -291,12 +327,12 @@ def api_stats():
         'monthly': [{'month': m[0], 'count': m[1]} for m in monthly]
     })
 
+
 @preventive_bp.route('/calendar')
 @login_required
 def calendar():
     """Vista de calendario preventivo"""
     groups = FrequencyGroup.query.filter_by(is_active=True).all()
-    # Pasamos datos básicos para filtros
     return render_template('preventive/calendar.html', groups=groups)
 
 
@@ -304,7 +340,7 @@ def calendar():
 @login_required
 def calendar_events():
     """Retorna eventos en formato JSON para FullCalendar"""
-    start_str = request.args.get('start')  # ISO date
+    start_str = request.args.get('start')
     end_str = request.args.get('end')
     if not start_str or not end_str:
         return jsonify([])
@@ -312,7 +348,6 @@ def calendar_events():
     start_date = datetime.fromisoformat(start_str)
     end_date = datetime.fromisoformat(end_str)
 
-    # Consultar todos los grupos activos y sus schedules
     groups = FrequencyGroup.query.filter_by(is_active=True).all()
     events = []
 
@@ -322,22 +357,19 @@ def calendar_events():
             continue
 
         next_date = schedule.next_due_date
-        # Solo mostrar si la fecha está en el rango solicitado
         if next_date.date() < start_date.date() or next_date.date() > end_date.date():
             continue
 
-        # Para cada equipo asociado al grupo, crear un evento
         for equipment in group.equipments:
-            # Determinar color según días restantes
             days_left = (next_date.date() - datetime.utcnow().date()).days
             if days_left < 0:
-                color = '#dc3545'  # rojo (vencido)
+                color = '#dc3545'
                 text_color = 'white'
             elif days_left <= group.tolerance_days:
-                color = '#ffc107'  # amarillo (próximo)
+                color = '#ffc107'
                 text_color = 'black'
             else:
-                color = '#28a745'  # verde (en plazo)
+                color = '#28a745'
                 text_color = 'white'
 
             events.append({
@@ -361,6 +393,7 @@ def calendar_events():
             })
 
     return jsonify(events)
+
 
 @preventive_bp.route('/get-schedule-id')
 @login_required

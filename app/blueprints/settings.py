@@ -22,6 +22,7 @@ def admin_required(func):
             flash('Acceso denegado. Se requieren permisos de administrador.', 'danger')
             return redirect(url_for('dashboard.index'))
         return func(*args, **kwargs)
+
     return decorated_view
 
 
@@ -36,10 +37,16 @@ def index():
     company_name = Setting.get('company_name', 'Mi Empresa')
     company_logo = Setting.get('company_logo', '')
 
+    # Obtener todas las reglas activas
+    all_rules = NotificationRule.query.filter_by(is_active=True).all()
+
+    # Separar reglas por tipo
+    corrective_rules = [r for r in all_rules if not r.event_type.startswith('preventive_')]
+    preventive_rules = [r for r in all_rules if r.event_type.startswith('preventive_')]
+
     # Preferencias de notificaciones del usuario actual
-    rules = NotificationRule.query.filter_by(is_active=True).all()
     user_prefs = {}
-    for rule in rules:
+    for rule in all_rules:
         pref = UserNotificationPreference.query.filter_by(user_id=current_user.id, rule_id=rule.id).first()
         if not pref:
             pref = UserNotificationPreference(
@@ -71,7 +78,8 @@ def index():
                            date_format=date_format,
                            datetime_format=datetime_format,
                            timezones=timezones,
-                           rules=rules,
+                           corrective_rules=corrective_rules,
+                           preventive_rules=preventive_rules,
                            user_prefs=user_prefs,
                            preview_date=now_local,
                            preview_datetime=now_local,
