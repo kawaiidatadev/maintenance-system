@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="row">
+    <div class="col-md-8 mx-auto">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h4>{{ title }}</h4>
+            </div>
+            <div class="card-body">
+                <form method="POST">
+                    {{ form.hidden_tag() }}
+                    <div class="row">
+                        <div class="col-md-6 mb-2">
+                            {{ form.code.label }} {{ form.code(class="form-control") }}
+                        </div>
+                        <div class="col-md-6 mb-2">
+                            {{ form.name.label }} {{ form.name(class="form-control") }}
+                        </div>
+                    </div>
+                    <div class="mb-2">
+                        {{ form.description.label }} {{ form.description(class="form-control", rows=2) }}
+                    </div>
+                    <div class="row">
+                        <div class="col-md-4 mb-2">
+                            {{ form.item_type.label }} {{ form.item_type(class="form-select") }}
+                        </div>
+                        <div class="col-md-4 mb-2">
+                            {{ form.brand.label }} {{ form.brand(class="form-control") }}
+                        </div>
+                        <div class="col-md-4 mb-2">
+                            {{ form.model.label }} {{ form.model(class="form-control") }}
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-2">
+                            {{ form.supplier.label }} {{ form.supplier(class="form-control") }}
+                        </div>
+                        <div class="col-md-6 mb-2">
+                            {{ form.supplier_part_number.label }} {{ form.supplier_part_number(class="form-control") }}
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-4 mb-2">
+                            {{ form.category.label }} {{ form.category(class="form-control") }}
+                        </div>
+                        <div class="col-md-4 mb-2">
+                            {{ form.unit.label }} {{ form.unit(class="form-control") }}
+                        </div>
+                        <div class="col-md-4 mb-2">
+                            {{ form.criticality.label }} {{ form.criticality(class="form-select") }}
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-2">
+                            {{ form.unit_price.label }} {{ form.unit_price(class="form-control") }}
+                        </div>
+                        <div class="col-md-6 mb-2">
+                            {{ form.shipping_cost.label }} {{ form.shipping_cost(class="form-control") }}
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-2">
+                            {{ form.estimated_life_hours.label }} {{ form.estimated_life_hours(class="form-control") }}
+                        </div>
+                        <div class="col-md-6 mb-2">
+                            {{ form.estimated_life_years.label }} {{ form.estimated_life_years(class="form-control") }}
+                        </div>
+                    </div>
+                    <div class="mb-2">
+                        {{ form.purchase_url.label }} {{ form.purchase_url(class="form-control") }}
+                    </div>
+                    <div class="mb-2">
+                        {{ form.technical_data.label }} {{ form.technical_data(class="form-control", rows=2, placeholder='{"voltaje": "220V", "capacidad": "5A"}') }}
+                    </div>
+                    <div class="mb-2">
+                        {{ form.image_path.label }} {{ form.image_path(class="form-control") }}
+                    </div>
+                    <div class="mb-2">
+                        {{ form.barcode.label }} {{ form.barcode(class="form-control") }}
+                    </div>
+                    <button type="submit" class="btn btn-primary">Guardar</button>
+                    <a href="{{ url_for('spare_parts.index') }}" class="btn btn-secondary">Cancelar</a>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

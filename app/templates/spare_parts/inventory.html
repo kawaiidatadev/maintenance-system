@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card">
+    <div class="card-header bg-primary text-white">
+        <h4>Inventario de Refacciones</h4>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-bordered">
+                <thead>
+                    <tr><th>Código</th><th>Nombre</th><th>Almacén</th><th>Stock actual</th><th>Mínimo</th><th>Máximo</th><th>Estado</th><th>Ubicación</th></tr>
+                </thead>
+                <tbody>
+                    {% for s in stocks %}
+                    {% set status = 'success' if s.current_stock > s.minimum_stock else 'warning' if s.current_stock > 0 else 'danger' %}
+                    <tr>
+                        <td><a href="{{ url_for('spare_parts.view', id=s.spare_part.id) }}">{{ s.spare_part.code }}</a></td>
+                        <td>{{ s.spare_part.name }}</td>
+                        <td>{{ s.warehouse }}</td>
+                        <td class="text-{{ status }}">{{ s.current_stock }}</td>
+                        <td>{{ s.minimum_stock }}</td>
+                        <td>{{ s.maximum_stock }}</td>
+                        <td>{% if s.current_stock <= s.minimum_stock %}⚠️ Bajo stock{% else %}✔️ Normal{% endif %}</td>
+                        <td>{{ s.location_shelf or '-' }}</td>
+                    </tr>
+                    {% else %}
+                    <tr><td colspan="8">No hay inventario registrado</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

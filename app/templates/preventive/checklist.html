@@ -57,6 +57,54 @@
                             <input type="text" class="form-control form-control-sm" name="unit_{{ act.id }}" placeholder="Ej: A, °C">
                         </div>
                     </div>
+
+                    <!-- ============================================ -->
+                    <!-- REFACCIONES Y CONSUMIBLES ASOCIADOS A LA ACTIVIDAD -->
+                    <!-- ============================================ -->
+                    {% if act.spare_parts_links.count() > 0 %}
+                    <div class="row mt-3">
+                        <div class="col-12">
+                            <div class="alert alert-secondary py-2">
+                                <label class="form-label small fw-bold mb-1">
+                                    <i class="fas fa-boxes"></i> Refacciones / Consumibles:
+                                </label>
+                                <div class="table-responsive">
+                                    <table class="table table-sm table-borderless mb-0">
+                                        <thead>
+                                            <tr>
+                                                <th style="width: 50%">Refacción</th>
+                                                <th style="width: 30%">Cantidad a consumir</th>
+                                                <th style="width: 20%">Unidad</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% for link in act.spare_parts_links %}
+                                            <tr>
+                                                <td>
+                                                    {{ link.spare_part.name }}
+                                                    <br>
+                                                    <small class="text-muted">({{ link.spare_part.code }})</small>
+                                                </td>
+                                                <td>
+                                                    <input type="number"
+                                                           name="consumed_qty_{{ link.spare_part_id }}"
+                                                           value="{{ link.quantity_required }}"
+                                                           class="form-control form-control-sm"
+                                                           min="0"
+                                                           step="1"
+                                                           style="width: 100px;">
+                                                </td>
+                                                <td>{{ link.spare_part.unit }}</td>
+                                            </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                                <small class="text-muted">Ajuste la cantidad si se consumió más o menos de lo planeado. Deje 0 si no se usó.</small>
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
                 </div>
             </div>
             {% endfor %}

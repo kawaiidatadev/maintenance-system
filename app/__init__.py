@@ -42,6 +42,10 @@ def create_app():
     from app.scheduler import start_scheduler
     from app.blueprints.reports import reports_bp
     from app.blueprints.preventive import preventive_bp
+    from app.blueprints.spare_parts import spare_parts_bp
+
+
+
 
 
     # Registrar blueprints
@@ -56,7 +60,7 @@ def create_app():
     app.register_blueprint(notifications_bp)
     app.register_blueprint(reports_bp)
     app.register_blueprint(preventive_bp)
-
+    app.register_blueprint(spare_parts_bp)
     # ============================================
     # REGISTRAR TIPOS DE PDF (IMPORTANTE: dentro del contexto de app)
     # ============================================

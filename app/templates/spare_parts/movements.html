@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card">
+    <div class="card-header bg-primary text-white">
+        <h4>Historial de movimientos: {{ part.name }} ({{ part.code }})</h4>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-sm">
+                <thead><tr><th>Fecha</th><th>Tipo</th><th>Cantidad</th><th>Referencia</th><th>Descripción</th><th>Realizado por</th><th>Asociado a</th></tr></thead>
+                <tbody>
+                    {% for m in movements %}
+                    <tr>
+                        <td>{{ m.created_at.strftime('%d/%m/%Y %H:%M') }}</td>
+                        <td>{{ 'Entrada' if m.movement_type=='in' else 'Salida' }}</td>
+                        <td>{{ m.quantity }}</td>
+                        <td>{{ m.reference_number or '-' }}</td>
+                        <td>{{ m.description or '-' }}</td>
+                        <td>{{ m.performed_by.username if m.performed_by else 'Sistema' }}</td>
+                        <td>
+                            {% if m.work_order_id %}OT #{{ m.work_order_id }}{% elif m.preventive_execution_log_id %}Preventivo{% endif %}
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr><td colspan="7">Sin movimientos</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <a href="{{ url_for('spare_parts.view', id=part.id) }}" class="btn btn-secondary">Volver</a>
+    </div>
+</div>
+{% endblock %}

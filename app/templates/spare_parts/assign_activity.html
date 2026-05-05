@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-8 mx-auto">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h4><i class="fas fa-link"></i> Asignar Refacción a Actividad Preventiva</h4>
+            </div>
+            <div class="card-body">
+                <form method="POST" class="block-on-submit">
+                    <div class="row g-3">
+                        <div class="col-md-5">
+                            <label class="form-label">Actividad Preventiva *</label>
+                            <select name="activity_id" class="form-select" required>
+                                <option value="">-- Seleccione actividad --</option>
+                                {% for act in activities %}
+                                <option value="{{ act.id }}">{{ act.name }} (Grupo: {{ act.group.name if act.group else 'N/A' }})</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Refacción/Consumible *</label>
+                            <select name="spare_part_id" class="form-select" required>
+                                <option value="">-- Seleccione refacción --</option>
+                                {% for sp in spare_parts %}
+                                <option value="{{ sp.id }}">{{ sp.code }} - {{ sp.name }} (Stock: {{ sp.stocks[0].current_stock if sp.stocks else 0 }})</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">Cantidad requerida</label>
+                            <input type="number" name="quantity_required" class="form-control" value="1" min="1" step="1">
+                        </div>
+                        <div class="col-md-1 d-flex align-items-end">
+                            <button type="submit" class="btn btn-success w-100">
+                                <i class="fas fa-plus"></i>
+                            </button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header bg-info text-white">
+                <h4><i class="fas fa-list"></i> Refacciones asignadas</h4>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-bordered">
+                        <thead class="table-dark">
+                            <tr>
+                                <th>Actividad</th>
+                                <th>Refacción</th>
+                                <th>Cantidad</th>
+                                <th>Unidad</th>
+                                <th>Stock actual</th>
+                                <th>Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for act in activities %}
+                                {% for assignment in act.spare_parts_links %}
+                                <tr>
+                                    <td>{{ act.name }} ({{ act.group.name if act.group else 'N/A' }})</td>
+                                    <td>{{ assignment.spare_part.code }} - {{ assignment.spare_part.name }}</td>
+                                    <td>{{ assignment.quantity_required }}</td>
+                                    <td>{{ assignment.spare_part.unit or 'pieza' }}</td>
+                                    <td>{{ assignment.spare_part.stocks[0].current_stock if assignment.spare_part.stocks else 0 }}</td>
+                                    <td>
+                                        <a href="{{ url_for('spare_parts.delete_activity_assignment', assignment_id=assignment.id) }}"
+                                           class="btn btn-sm btn-danger"
+                                           onclick="return confirm('¿Eliminar esta asignación?')">
+                                            <i class="fas fa-trash"></i>
+                                        </a>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            {% else %}
+                                <tr>
+                                    <td colspan="6" class="text-center">No hay asignaciones registradas</td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Opcional: Autocompletar o información dinámica
+    document.querySelector('select[name="activity_id"]').addEventListener('change', function() {
+        const activityId = this.value;
+        if (activityId) {
+            fetch(`/spare-parts/api/activity-spare-parts/${activityId}`)
+                .then(response => response.json())
+                .then(data => {
+                    const table = document.querySelector('.table tbody');
+                    // Podrías actualizar algo aquí si lo deseas
+                })
+                .catch(error => console.error('Error:', error));
+        }
+    });
+</script>
+{% endblock %}

@@ -220,6 +220,35 @@ def execute_group_for_equipment(group_id, equipment_id):
     db.session.add(log)
 
     # =========================
+    # Procesar consumos de refacciones/consumibles
+    # =========================
+    from app.blueprints.spare_parts.services import consume_spare_part
+
+    # Procesar consumos por actividad completada
+    for act in group.activities:
+        if str(act.id) in completed_ids:
+            # Verificar si la actividad tiene refacciones asignadas
+            if hasattr(act, 'spare_parts_links') and act.spare_parts_links.count() > 0:
+                for asp in act.spare_parts_links:
+                    # Obtener cantidad consumida del formulario
+                    qty_key = f'consumed_qty_{asp.spare_part_id}'
+                    if qty_key in request.form:
+                        try:
+                            qty = int(request.form.get(qty_key, 0))
+                            if qty > 0:
+                                consume_spare_part(
+                                    spare_part_id=asp.spare_part_id,
+                                    quantity=qty,
+                                    warehouse='General',
+                                    reference=f'Preventivo {group.name} - Actividad {act.name}',
+                                    preventive_execution_log_id=log.id,
+                                    performed_by_id=current_user.id
+                                )
+                                print(f"✅ Consumido {qty} de {asp.spare_part.name}")
+                        except ValueError:
+                            print(f"⚠️ Cantidad inválida para refacción {asp.spare_part_id}")
+
+    # =========================
     # Actualizar schedule
     # =========================
     schedule.last_completion_date = now
@@ -228,6 +257,31 @@ def execute_group_for_equipment(group_id, equipment_id):
 
     db.session.add(schedule)
     db.session.commit()
+
+    # ============================================
+    # PROCESAR CONSUMOS DE REFACCIONES (NUEVO)
+    # ============================================
+    from app.blueprints.spare_parts.services import consume_spare_part
+
+    for act in group.activities:
+        if str(act.id) in completed_ids:
+            if hasattr(act, 'spare_parts_links') and act.spare_parts_links.count() > 0:
+                for asp in act.spare_parts_links:
+                    qty_key = f'consumed_qty_{asp.spare_part_id}'
+                    if qty_key in request.form:
+                        try:
+                            qty = int(request.form.get(qty_key, 0))
+                            if qty > 0:
+                                consume_spare_part(
+                                    spare_part_id=asp.spare_part_id,
+                                    quantity=qty,
+                                    warehouse='General',
+                                    reference=f'Preventivo {group.name} - Actividad {act.name}',
+                                    preventive_execution_log_id=log.id,
+                                    performed_by_id=current_user.id
+                                )
+                        except ValueError:
+                            pass
 
     # =========================
     # Generar PDF

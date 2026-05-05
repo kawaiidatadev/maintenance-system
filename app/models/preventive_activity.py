@@ -2,12 +2,13 @@ from app import db
 from datetime import datetime
 import json
 
+
 class PreventiveActivity(db.Model):
     __tablename__ = 'preventive_activities'
 
     id = db.Column(db.Integer, primary_key=True)
-    equipment_id = db.Column(db.Integer, db.ForeignKey('equipment.id'), nullable=False)
-    group_id = db.Column(db.Integer, db.ForeignKey('frequency_groups.id'), nullable=True)  # ← agregar
+    equipment_id = db.Column(db.Integer, db.ForeignKey('equipment.id'), nullable=True)  # solo una vez
+    group_id = db.Column(db.Integer, db.ForeignKey('frequency_groups.id'), nullable=True)
     code = db.Column(db.String(50), unique=True, nullable=False)
     name = db.Column(db.String(200), nullable=False)
     description = db.Column(db.Text)
@@ -25,9 +26,19 @@ class PreventiveActivity(db.Model):
     is_active = db.Column(db.Boolean, default=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
-
-    equipment_id = db.Column(db.Integer, db.ForeignKey('equipment.id'), nullable=True)
+    # Relaciones
     group = db.relationship('FrequencyGroup', backref='activities', foreign_keys=[group_id])
+
+    # ============================================
+    # NUEVA RELACIÓN CON REFACCIONES (Paso 3.1)
+    # ============================================
+    # Relación uno a muchos con ActivitySparePart
+    spare_parts_links = db.relationship(
+        'ActivitySparePart',
+        backref='activity',
+        lazy='dynamic',
+        cascade='all, delete-orphan'
+    )
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -44,3 +55,20 @@ class PreventiveActivity(db.Model):
 
     def get_spare_parts(self):
         return json.loads(self.spare_parts_required) if self.spare_parts_required else []
+
+    # ============================================
+    # PROPIEDAD PARA ACCEDER DIRECTAMENTE A LOS OBJETOS SparePart (Paso 3.1)
+    # ============================================
+    @property
+    def spare_parts(self):
+        """
+        Retorna una lista de objetos SparePart asociados a esta actividad.
+        """
+        return [link.spare_part for link in self.spare_parts_links]
+
+    @property
+    def spare_parts_with_quantity(self):
+        """
+        Retorna una lista de tuplas (spare_part, quantity_required) para usar en formularios.
+        """
+        return [(link.spare_part, link.quantity_required) for link in self.spare_parts_links]

@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="row">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h4>{{ part.name }} ({{ part.code }})</h4>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <table class="table table-bordered">
+                            <tr><th>Código</th><td>{{ part.code }}</td></tr>
+                            <tr><th>Nombre</th><td>{{ part.name }}</td></tr>
+                            <tr><th>Tipo</th><td>{{ 'Refacción' if part.item_type=='spare' else 'Consumible' }}</td></tr>
+                            <tr><th>Marca</th><td>{{ part.brand or '-' }}</td></tr>
+                            <tr><th>Modelo</th><td>{{ part.model or '-' }}</td></tr>
+                            <tr><th>Número de serie</th><td>{{ part.serial_number or '-' }}</td></tr>
+                            <tr><th>Proveedor</th><td>{{ part.supplier or '-' }}</td></tr>
+                            <tr><th>N° pieza proveedor</th><td>{{ part.supplier_part_number or '-' }}</td></tr>
+                            <tr><th>Categoría</th><td>{{ part.category or '-' }}</td></tr>
+                            <tr><th>Unidad</th><td>{{ part.unit }}</td></tr>
+                            <tr><th>Criticidad</th><td>{{ part.criticality }}</td></tr>
+                            <tr><th>Precio unitario</th><td>{{ part.unit_price }} {{ part.currency }}</td></tr>
+                            <tr><th>Costo de envío</th><td>{{ part.shipping_cost }} {{ part.currency }}</td></tr>
+                            <tr><th>Vida útil (horas)</th><td>{{ part.estimated_life_hours or '-' }}</td></tr>
+                            <tr><th>Vida útil (años)</th><td>{{ part.estimated_life_years or '-' }}</td></tr>
+                        </table>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-header bg-info text-white">Inventario actual</div>
+                            <div class="card-body">
+                                {% if stock %}
+                                <p><strong>Almacén:</strong> {{ stock.warehouse }}</p>
+                                <p><strong>Stock actual:</strong> {{ stock.current_stock }} {{ part.unit }}</p>
+                                <p><strong>Stock mínimo:</strong> {{ stock.minimum_stock }}</p>
+                                <p><strong>Stock máximo:</strong> {{ stock.maximum_stock }}</p>
+                                <p><strong>Punto de reorden:</strong> {{ stock.reorder_point }}</p>
+                                <p><strong>Ubicación:</strong> {{ stock.location_shelf or '-' }}</p>
+                                {% else %}
+                                <p>Sin inventario registrado.</p>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <h5 class="mt-3">Datos técnicos</h5>
+                <pre>{{ part.technical_data | tojson(indent=2) if part.technical_data else 'No especificados' }}</pre>
+                <h5 class="mt-3">Movimientos recientes</h5>
+                <div class="table-responsive">
+                    <table class="table table-sm">
+                        <thead><tr><th>Fecha</th><th>Tipo</th><th>Cantidad</th><th>Referencia</th><th>Realizado por</th></tr></thead>
+                        <tbody>
+                            {% for m in movements %}
+                            <tr>
+                                <td>{{ m.created_at.strftime('%d/%m/%Y %H:%M') }}</td>
+                                <td>{{ 'Entrada' if m.movement_type=='in' else 'Salida' }}</td>
+                                <td>{{ m.quantity }}</td>
+                                <td>{{ m.reference_number or '-' }}</td>
+                                <td>{{ m.performed_by.username if m.performed_by else 'Sistema' }}</td>
+                            </tr>
+                            {% else %}
+                            <tr><td colspan="5">Sin movimientos</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                <div class="mt-3">
+                    <a href="{{ url_for('spare_parts.edit', id=part.id) }}" class="btn btn-warning">Editar</a>
+                    <a href="{{ url_for('spare_parts.inventory') }}" class="btn btn-secondary">Ver inventario</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
