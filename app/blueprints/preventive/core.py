@@ -290,3 +290,85 @@ def api_stats():
     return jsonify({
         'monthly': [{'month': m[0], 'count': m[1]} for m in monthly]
     })
+
+@preventive_bp.route('/calendar')
+@login_required
+def calendar():
+    """Vista de calendario preventivo"""
+    groups = FrequencyGroup.query.filter_by(is_active=True).all()
+    # Pasamos datos básicos para filtros
+    return render_template('preventive/calendar.html', groups=groups)
+
+
+@preventive_bp.route('/calendar/events')
+@login_required
+def calendar_events():
+    """Retorna eventos en formato JSON para FullCalendar"""
+    start_str = request.args.get('start')  # ISO date
+    end_str = request.args.get('end')
+    if not start_str or not end_str:
+        return jsonify([])
+
+    start_date = datetime.fromisoformat(start_str)
+    end_date = datetime.fromisoformat(end_str)
+
+    # Consultar todos los grupos activos y sus schedules
+    groups = FrequencyGroup.query.filter_by(is_active=True).all()
+    events = []
+
+    for group in groups:
+        schedule = PreventiveSchedule.query.filter_by(group_id=group.id).first()
+        if not schedule or not schedule.next_due_date:
+            continue
+
+        next_date = schedule.next_due_date
+        # Solo mostrar si la fecha está en el rango solicitado
+        if next_date.date() < start_date.date() or next_date.date() > end_date.date():
+            continue
+
+        # Para cada equipo asociado al grupo, crear un evento
+        for equipment in group.equipments:
+            # Determinar color según días restantes
+            days_left = (next_date.date() - datetime.utcnow().date()).days
+            if days_left < 0:
+                color = '#dc3545'  # rojo (vencido)
+                text_color = 'white'
+            elif days_left <= group.tolerance_days:
+                color = '#ffc107'  # amarillo (próximo)
+                text_color = 'black'
+            else:
+                color = '#28a745'  # verde (en plazo)
+                text_color = 'white'
+
+            events.append({
+                'id': f"{group.id}_{equipment.id}",
+                'title': f"{group.name} - {equipment.code}",
+                'start': next_date.isoformat(),
+                'allDay': True,
+                'color': color,
+                'textColor': text_color,
+                'extendedProps': {
+                    'group_id': group.id,
+                    'equipment_id': equipment.id,
+                    'group_name': group.name,
+                    'equipment_name': equipment.name,
+                    'equipment_code': equipment.code,
+                    'responsible_role': group.responsible_role_es,
+                    'frequency': group.frequency_suggested,
+                    'days_left': days_left,
+                    'status': 'Vencida' if days_left < 0 else ('Próxima' if days_left <= group.tolerance_days else 'En plazo')
+                }
+            })
+
+    return jsonify(events)
+
+@preventive_bp.route('/get-schedule-id')
+@login_required
+def get_schedule_id():
+    group_id = request.args.get('group_id', type=int)
+    if not group_id:
+        return jsonify({'error': 'group_id required'}), 400
+    schedule = PreventiveSchedule.query.filter_by(group_id=group_id).first()
+    if schedule:
+        return jsonify({'schedule_id': schedule.id})
+    return jsonify({'schedule_id': None})

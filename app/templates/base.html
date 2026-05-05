@@ -84,9 +84,12 @@
                             <li><a class="dropdown-item" href="{{ url_for('preventive.catalog') }}">
                                 <i class="fas fa-book"></i> Actividades estándar
                             </a></li>
+                            <!-- Calendario - CORREGIDO: como <li> con <a> -->
+                            <li><a class="dropdown-item" href="{{ url_for('preventive.calendar') }}">
+                                <i class="fas fa-calendar-alt"></i> Calendario
+                            </a></li>
                         </ul>
                     </li>
-
                     <!-- Enlace para Análisis de Criticidad -->
                     <li class="nav-item">
                         <a class="nav-link" href="{{ url_for('criticality.index') }}">

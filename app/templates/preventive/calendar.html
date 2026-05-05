@@ -1,0 +1,185 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card">
+    <div class="card-header bg-primary text-white">
+        <h4><i class="fas fa-calendar-alt"></i> Calendario de Mantenimiento Preventivo</h4>
+    </div>
+    <div class="card-body">
+        <div id="calendar" style="min-height: 500px;"></div>
+    </div>
+</div>
+
+<!-- Modal para detalles y acciones -->
+<div class="modal fade" id="eventModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-info text-white">
+                <h5 class="modal-title">Detalle del mantenimiento</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="modalBody"></div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+                <a href="#" id="modalExecuteBtn" class="btn btn-success">Ejecutar ahora</a>
+                <button type="button" id="modalPostponeBtn" class="btn btn-warning">Reprogramar</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal para reprogramación -->
+<div class="modal fade" id="postponeModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-warning">
+                <h5 class="modal-title">Reprogramar mantenimiento</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="postponeForm">
+                <div class="modal-body">
+                    <input type="hidden" name="schedule_id" id="postponeScheduleId">
+                    <div class="mb-3">
+                        <label class="form-label">Días a posponer</label>
+                        <input type="number" name="days" class="form-control" value="7" min="1" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Motivo</label>
+                        <textarea name="reason" class="form-control" rows="2" placeholder="Ej: Por falta de insumos"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Guardar reprogramación</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<link href="https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/main.min.css" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/main.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/fullcalendar@5.11.3/locales/es.js"></script>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    var calendarEl = document.getElementById('calendar');
+    if (!calendarEl) {
+        console.error('No se encontró el elemento #calendar');
+        return;
+    }
+
+    // Variable global para almacenar el group_id actual
+    var currentGroupId = null;
+    var currentEquipmentId = null;
+    var currentScheduleId = null;
+
+    var calendar = new FullCalendar.Calendar(calendarEl, {
+        initialView: 'dayGridMonth',
+        locale: 'es',
+        headerToolbar: {
+            left: 'prev,next today',
+            center: 'title',
+            right: 'dayGridMonth,timeGridWeek,timeGridDay'
+        },
+        buttonText: {
+            today: 'Hoy',
+            month: 'Mes',
+            week: 'Semana',
+            day: 'Día'
+        },
+        events: function(info, successCallback, failureCallback) {
+            // Obtener fechas del rango actual
+            const startParam = info.start.toISOString();
+            const endParam = info.end.toISOString();
+
+            // Llamar a la API con fetch directamente
+            fetch(`/preventive/calendar/events?start=${startParam}&end=${endParam}`)
+                .then(response => response.json())
+                .then(data => {
+                    successCallback(data);
+                })
+                .catch(error => {
+                    console.error('Error cargando eventos:', error);
+                    failureCallback(error);
+                });
+        },
+        eventClick: function(info) {
+            var props = info.event.extendedProps;
+            currentGroupId = props.group_id;
+            currentEquipmentId = props.equipment_id;
+
+            // Obtener schedule_id
+            fetch(`/preventive/get-schedule-id?group_id=${currentGroupId}`)
+                .then(res => res.json())
+                .then(data => {
+                    currentScheduleId = data.schedule_id;
+                    document.getElementById('postponeScheduleId').value = currentScheduleId;
+                });
+
+            // Llenar modal
+            var modalBody = document.getElementById('modalBody');
+            modalBody.innerHTML = `
+                <dl class="row">
+                    <dt class="col-sm-4">Grupo</dt><dd class="col-sm-8">${props.group_name || '-'}</dd>
+                    <dt class="col-sm-4">Equipo</dt><dd class="col-sm-8">${props.equipment_name} (${props.equipment_code})</dd>
+                    <dt class="col-sm-4">Responsable</dt><dd class="col-sm-8">${props.responsible_role || '-'}</dd>
+                    <dt class="col-sm-4">Frecuencia</dt><dd class="col-sm-8">${props.frequency || '-'}</dd>
+                    <dt class="col-sm-4">Próxima fecha</dt><dd class="col-sm-8">${info.event.start ? info.event.start.toLocaleDateString() : '-'}</dd>
+                    <dt class="col-sm-4">Estado</dt><dd class="col-sm-8"><span class="badge ${props.days_left < 0 ? 'bg-danger' : (props.days_left <= 7 ? 'bg-warning' : 'bg-success')} text-dark">${props.status || '-'}</span></dd>
+                </dl>
+            `;
+
+            var executeBtn = document.getElementById('modalExecuteBtn');
+            executeBtn.href = "{{ url_for('preventive.execute_group_for_equipment', group_id=0, equipment_id=0) }}".replace('0', currentGroupId).replace('0', currentEquipmentId);
+
+            var modal = new bootstrap.Modal(document.getElementById('eventModal'));
+            modal.show();
+        }
+    });
+
+    calendar.render();
+    console.log('Calendario renderizado correctamente');
+
+    // Botón refrescar (opcional)
+    var refreshBtn = document.getElementById('refreshBtn');
+    if (refreshBtn) {
+        refreshBtn.addEventListener('click', function() {
+            calendar.refetchEvents();
+        });
+    }
+});
+
+// Reprogramación
+document.getElementById('postponeForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    const formData = new FormData(this);
+    const scheduleId = formData.get('schedule_id');
+    if (!scheduleId) {
+        alert('Error: no se pudo identificar el schedule');
+        return;
+    }
+    try {
+        const response = await fetch(`/preventive/postpone/${scheduleId}`, {
+            method: 'POST',
+            body: formData
+        });
+        if (response.ok) {
+            alert('Mantenimiento reprogramado correctamente');
+            bootstrap.Modal.getInstance(document.getElementById('postponeModal')).hide();
+            bootstrap.Modal.getInstance(document.getElementById('eventModal')).hide();
+            location.reload();
+        } else {
+            alert('Error al reprogramar');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        alert('Error de red al reprogramar');
+    }
+});
+
+document.getElementById('modalPostponeBtn').addEventListener('click', function() {
+    bootstrap.Modal.getInstance(document.getElementById('eventModal')).hide();
+    new bootstrap.Modal(document.getElementById('postponeModal')).show();
+});
+</script>
+{% endblock %}
