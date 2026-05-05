@@ -1,5 +1,53 @@
 {% extends "base.html" %}
 {% block content %}
+<!-- Panel de filtros -->
+<div class="card mb-3">
+    <div class="card-header bg-light">
+        <i class="fas fa-filter"></i> Filtrar tareas
+        <button class="btn btn-sm btn-outline-secondary float-end" id="clearFiltersBtn">Limpiar filtros</button>
+    </div>
+    <div class="card-body">
+        <div class="row g-3">
+            <div class="col-md-3">
+                <label class="form-label">Equipo</label>
+                <select id="filterEquipment" class="form-select">
+                    <option value="">Todos</option>
+                    {% for eq in equipments %}
+                    <option value="{{ eq.id }}">{{ eq.name }} ({{ eq.code }})</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Responsable</label>
+                <select id="filterResponsible" class="form-select">
+                    <option value="">Todos</option>
+                    <option value="specialized">Especializado</option>
+                    <option value="external">Externo</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Frecuencia</label>
+                <select id="filterFrequency" class="form-select">
+                    <option value="">Todas</option>
+                    <option value="days">Diaria</option>
+                    <option value="weeks">Semanal</option>
+                    <option value="months">Mensual</option>
+                    <option value="years">Anual</option>
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Estado</label>
+                <select id="filterStatus" class="form-select">
+                    <option value="">Todos</option>
+                    <option value="overdue">Vencida</option>
+                    <option value="due_soon">Próxima</option>
+                    <option value="ok">En plazo</option>
+                </select>
+            </div>
+        </div>
+    </div>
+</div>
+
 <div class="card">
     <div class="card-header bg-primary text-white">
         <h4><i class="fas fa-calendar-alt"></i> Calendario de Mantenimiento Preventivo</h4>
@@ -68,10 +116,46 @@ document.addEventListener('DOMContentLoaded', function() {
         return;
     }
 
-    // Variable global para almacenar el group_id actual
+    // Variables globales
     var currentGroupId = null;
     var currentEquipmentId = null;
     var currentScheduleId = null;
+
+    // ============================================
+    // FILTROS DINÁMICOS
+    // ============================================
+    const filterEquipment = document.getElementById('filterEquipment');
+    const filterResponsible = document.getElementById('filterResponsible');
+    const filterFrequency = document.getElementById('filterFrequency');
+    const filterStatus = document.getElementById('filterStatus');
+    const clearFiltersBtn = document.getElementById('clearFiltersBtn');
+
+    function getFilterParams() {
+        return {
+            equipment_id: filterEquipment.value || '',
+            responsible: filterResponsible.value || '',
+            freq_type: filterFrequency.value || '',
+            status: filterStatus.value || ''
+        };
+    }
+
+    function refreshCalendar() {
+        calendar.refetchEvents();
+    }
+
+    // Event listeners para los filtros
+    filterEquipment.addEventListener('change', refreshCalendar);
+    filterResponsible.addEventListener('change', refreshCalendar);
+    filterFrequency.addEventListener('change', refreshCalendar);
+    filterStatus.addEventListener('change', refreshCalendar);
+
+    clearFiltersBtn.addEventListener('click', function() {
+        filterEquipment.value = '';
+        filterResponsible.value = '';
+        filterFrequency.value = '';
+        filterStatus.value = '';
+        refreshCalendar();
+    });
 
     var calendar = new FullCalendar.Calendar(calendarEl, {
         initialView: 'dayGridMonth',
@@ -88,12 +172,20 @@ document.addEventListener('DOMContentLoaded', function() {
             day: 'Día'
         },
         events: function(info, successCallback, failureCallback) {
-            // Obtener fechas del rango actual
             const startParam = info.start.toISOString();
             const endParam = info.end.toISOString();
+            const filters = getFilterParams();
 
-            // Llamar a la API con fetch directamente
-            fetch(`/preventive/calendar/events?start=${startParam}&end=${endParam}`)
+            // Construir URL con filtros
+            const url = new URL('/preventive/calendar/events', window.location.origin);
+            url.searchParams.append('start', startParam);
+            url.searchParams.append('end', endParam);
+            if (filters.equipment_id) url.searchParams.append('equipment_id', filters.equipment_id);
+            if (filters.responsible) url.searchParams.append('responsible', filters.responsible);
+            if (filters.freq_type) url.searchParams.append('freq_type', filters.freq_type);
+            if (filters.status) url.searchParams.append('status', filters.status);
+
+            fetch(url)
                 .then(response => response.json())
                 .then(data => {
                     successCallback(data);

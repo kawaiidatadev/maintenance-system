@@ -341,15 +341,13 @@ def api_stats():
 @preventive_bp.route('/calendar')
 @login_required
 def calendar():
-    """Vista de calendario preventivo"""
     groups = FrequencyGroup.query.filter_by(is_active=True).all()
-    return render_template('preventive/calendar.html', groups=groups)
-
+    equipments = Equipment.query.order_by(Equipment.name).all()
+    return render_template('preventive/calendar.html', groups=groups, equipments=equipments)
 
 @preventive_bp.route('/calendar/events')
 @login_required
 def calendar_events():
-    """Retorna eventos en formato JSON para FullCalendar"""
     start_str = request.args.get('start')
     end_str = request.args.get('end')
     if not start_str or not end_str:
@@ -358,7 +356,25 @@ def calendar_events():
     start_date = datetime.fromisoformat(start_str)
     end_date = datetime.fromisoformat(end_str)
 
-    groups = FrequencyGroup.query.filter_by(is_active=True).all()
+    # Obtener filtros
+    equipment_id = request.args.get('equipment_id', type=int)
+    responsible = request.args.get('responsible')
+    freq_type = request.args.get('freq_type')
+    status_filter = request.args.get('status')  # 'overdue', 'due_soon', 'ok'
+
+    # Consultar grupos activos
+    groups_query = FrequencyGroup.query.filter_by(is_active=True)
+
+    # Filtrar por responsable (specialized/external) si viene
+    if responsible:
+        groups_query = groups_query.filter_by(responsible_role=responsible)
+
+    # Filtrar por frecuencia si viene
+    if freq_type:
+        groups_query = groups_query.filter_by(freq_type=freq_type)
+
+    groups = groups_query.all()
+
     events = []
 
     for group in groups:
@@ -370,8 +386,24 @@ def calendar_events():
         if next_date.date() < start_date.date() or next_date.date() > end_date.date():
             continue
 
+        # Para cada equipo asociado al grupo
         for equipment in group.equipments:
+            # Filtro por equipo específico
+            if equipment_id and equipment.id != equipment_id:
+                continue
+
             days_left = (next_date.date() - datetime.utcnow().date()).days
+
+            # Filtro por estado (vencida, próxima, en plazo)
+            if status_filter:
+                if status_filter == 'overdue' and days_left >= 0:
+                    continue
+                elif status_filter == 'due_soon' and (days_left <= 0 or days_left > group.tolerance_days):
+                    continue
+                elif status_filter == 'ok' and (days_left < 0 or days_left <= group.tolerance_days):
+                    continue
+
+            # Determinar color
             if days_left < 0:
                 color = '#dc3545'
                 text_color = 'white'
@@ -403,8 +435,6 @@ def calendar_events():
             })
 
     return jsonify(events)
-
-
 @preventive_bp.route('/get-schedule-id')
 @login_required
 def get_schedule_id():
