@@ -1,11 +1,11 @@
 {% extends "email/base_email.html" %}
 
 {% block content %}
-<h2 style="color: #ed6c02;">⏰ Mantenimiento Preventivo Próximo</h2>
+<h2 style="color: #d32f2f;">⚠️ Mantenimiento Preventivo Vencido</h2>
 <p>Hola <strong>{{ user_name }}</strong>,</p>
-<p>El siguiente mantenimiento preventivo está programado próximamente:</p>
+<p>El siguiente mantenimiento preventivo ha superado su fecha programada:</p>
 
-<div class="info-box" style="background-color: #fff3e0; border-left: 4px solid #ed6c02;">
+<div class="info-box" style="background-color: #ffebee; border-left: 4px solid #d32f2f;">
     <div class="info-item">
         <span class="info-label">📋 Grupo:</span>
         {{ group_name }}
@@ -19,10 +19,10 @@
         {{ due_date }}
     </div>
     <div class="info-item">
-        <span class="info-label">⏳ Días restantes:</span>
-        {{ days_left }} días
+        <span class="info-label">⏳ Días vencido:</span>
+        {{ overdue_days }} días
     </div>
 </div>
 
-<a href="{{ link }}" class="button" style="background-color: #ed6c02;">📋 Ver tareas preventivas</a>
+<a href="{{ link }}" class="button" style="background-color: #d32f2f;">⚠️ Atender ahora</a>
 {% endblock %}

@@ -15,6 +15,7 @@ from flask_login import current_user
 def create_notification(user_id, title, message, event_type, related_id=None, link=None):
     """
     Crea una notificación usando el event_type (debe existir en notification_rules).
+    Solo se envía correo para eventos NO preventivos.
     """
     rule = NotificationRule.query.filter_by(event_type=event_type, is_active=True).first()
     if not rule:
@@ -34,7 +35,7 @@ def create_notification(user_id, title, message, event_type, related_id=None, li
         if last_notif and last_notif.created_at > datetime.utcnow() - timedelta(hours=rule.throttling_hours):
             return
 
-    # Crear notificación in-app
+    # Crear notificación in-app (siempre se crea)
     notif = Notification(
         user_id=user_id,
         rule_id=rule.id,
@@ -48,7 +49,16 @@ def create_notification(user_id, title, message, event_type, related_id=None, li
     db.session.commit()
 
     # ============================================
-    # PREPARAR DATOS PARA CORREO
+    # DETERMINAR SI DEBE ENVIARSE CORREO
+    # ============================================
+    # Los eventos preventivos NO deben enviar correo aquí
+    # (ya se enviará desde el flujo de ejecución con el PDF adjunto)
+    if event_type.startswith('preventive_'):
+        print(f"📧 Evento preventivo '{event_type}' - No se envía correo desde notificaciones (se envía aparte con PDF)")
+        return notif
+
+    # ============================================
+    # PREPARAR DATOS PARA CORREO (solo eventos NO preventivos)
     # ============================================
     template_name = None
     user_obj = User.query.get(user_id)
@@ -82,8 +92,7 @@ def create_notification(user_id, title, message, event_type, related_id=None, li
         order = WorkOrder.query.get(related_id)
         if order:
             from datetime import date
-            overdue_days = (
-                        date.today() - order.assigned_at.date()).days if order.assigned_at else rule.threshold_value or 7
+            overdue_days = (date.today() - order.assigned_at.date()).days if order.assigned_at else rule.threshold_value or 7
             template_data.update({
                 'order_number': order.number,
                 'equipment_name': order.equipment.name if order.equipment else 'No especificado',
@@ -106,7 +115,7 @@ def create_notification(user_id, title, message, event_type, related_id=None, li
             template_name = 'email/equipment_life_critical.html'
 
     # ============================================
-    # ENVIAR CORREO
+    # ENVIAR CORREO (solo si el usuario tiene habilitado email)
     # ============================================
     if pref.channel_email:
         user = User.query.get(user_id)

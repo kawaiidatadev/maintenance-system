@@ -1,0 +1,28 @@
+{% extends "email/base_email.html" %}
+
+{% block content %}
+<h2 style="color: #0288d1;">🔄 Mantenimiento Preventivo Reprogramado</h2>
+<p>Hola <strong>{{ user_name }}</strong>,</p>
+<p>Se ha reprogramado el siguiente mantenimiento preventivo:</p>
+
+<div class="info-box" style="background-color: #e1f5fe; border-left: 4px solid #0288d1;">
+    <div class="info-item">
+        <span class="info-label">📋 Grupo:</span>
+        {{ group_name }}
+    </div>
+    <div class="info-item">
+        <span class="info-label">🔧 Equipo:</span>
+        {{ equipment_name }}
+    </div>
+    <div class="info-item">
+        <span class="info-label">📅 Nueva fecha:</span>
+        {{ new_date }}
+    </div>
+    <div class="info-item">
+        <span class="info-label">💬 Motivo:</span>
+        {{ reason|default('No especificado') }}
+    </div>
+</div>
+
+<a href="{{ link }}" class="button" style="background-color: #0288d1;">📅 Ver calendario</a>
+{% endblock %}

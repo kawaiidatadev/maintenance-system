@@ -8,7 +8,7 @@ from app.models.work_order import WorkOrder
 from app.models.equipment import Equipment
 from app.models.user import User
 from datetime import datetime, timedelta
-from dateutil.relativedelta import relativedelta
+from app.models.setting import Setting
 
 # ============================================================
 # DASHBOARD Y TAREAS
@@ -258,6 +258,7 @@ def execute_group_for_equipment(group_id, equipment_id):
     # =========================
     from app.models.notification_rule import NotificationRule
     from app.notifications_helper import create_notification
+    from app.email_dispatcher import send_preventive_completed_email  # nueva función
 
     rule = NotificationRule.query.filter_by(event_type='preventive_executed', is_active=True).first()
     if rule and rule.target_roles:
@@ -272,6 +273,12 @@ def execute_group_for_equipment(group_id, equipment_id):
                 related_id=work_order.id,
                 link=url_for('work_orders.view_order', id=work_order.id, _external=True)
             )
+    # Envío de correo con adjunto (si Brevo está activado y la regla tiene email habilitado)
+    if Setting.get('brevo_enabled') == 'true' and rule:
+        try:
+            send_preventive_completed_email(work_order, pdf_info['absolute_path'])
+        except Exception as e:
+            print(f"Error enviando correo preventivo: {e}")
 
     return redirect(url_for('work_orders.view_order', id=work_order.id))
 
