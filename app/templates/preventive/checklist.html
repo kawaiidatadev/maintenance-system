@@ -7,7 +7,10 @@
         <h6>{{ equipment.name }} ({{ equipment.code }})</h6>
     </div>
     <div class="card-body">
-        <form method="POST" id="checklistForm">
+        <!-- ============================================ -->
+        <!-- FORMULARIO CON CLASE block-on-submit -->
+        <!-- ============================================ -->
+        <form method="POST" id="checklistForm" class="block-on-submit">
             <!-- Documentos del grupo -->
             {% if group.documents.count() > 0 %}
             <div class="alert alert-info">
@@ -150,7 +153,6 @@
             totalSeconds += seconds;
         }
         document.getElementById('total_duration').value = totalSeconds;
-        // (opcional) mostrar mensaje de procesamiento
     });
 </script>
 {% endblock %}

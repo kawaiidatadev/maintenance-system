@@ -274,11 +274,14 @@ def execute_group_for_equipment(group_id, equipment_id):
                 link=url_for('work_orders.view_order', id=work_order.id, _external=True)
             )
     # Envío de correo con adjunto (si Brevo está activado y la regla tiene email habilitado)
-    if Setting.get('brevo_enabled') == 'true' and rule:
+    if Setting.get('brevo_enabled') == 'true':
+        from app.email_dispatcher import send_preventive_completed_email
         try:
             send_preventive_completed_email(work_order, pdf_info['absolute_path'])
+            print("✅ Correo preventivo enviado")
         except Exception as e:
-            print(f"Error enviando correo preventivo: {e}")
+            # Solo registro en log, no mostramos error al usuario
+            print(f"❌ Error enviando correo preventivo (no crítico): {e}")
 
     return redirect(url_for('work_orders.view_order', id=work_order.id))
 

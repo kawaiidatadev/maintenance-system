@@ -167,6 +167,7 @@ def send_email_with_attachment(to_email, subject, template, context, attachment_
 def send_email_with_attachment_to_multiple(to_emails, subject, template, context, attachment_path, attachment_name):
     """
     Envía un SOLO correo con archivo adjunto a MÚLTIPLES destinatarios.
+    Con reintentos automáticos en caso de fallo de conexión.
     """
     if not to_emails:
         return False
@@ -198,12 +199,12 @@ def send_email_with_attachment_to_multiple(to_emails, subject, template, context
         return False
 
     # Leer PDF y codificar en base64
-    if os.path.exists(attachment_path):
-        with open(attachment_path, 'rb') as f:
-            file_content = base64.b64encode(f.read()).decode()
-    else:
+    if not os.path.exists(attachment_path):
         print(f"❌ Archivo no encontrado: {attachment_path}")
         return False
+
+    with open(attachment_path, 'rb') as f:
+        file_content = base64.b64encode(f.read()).decode()
 
     attachment = {
         "name": attachment_name,
@@ -215,7 +216,7 @@ def send_email_with_attachment_to_multiple(to_emails, subject, template, context
 
     payload = {
         "sender": {"name": from_name, "email": from_email},
-        "to": recipients_list,  # Todos los destinatarios en un solo envío
+        "to": recipients_list,
         "subject": subject,
         "htmlContent": html_content,
         "attachment": [attachment]
@@ -224,18 +225,51 @@ def send_email_with_attachment_to_multiple(to_emails, subject, template, context
     headers = {"api-key": api_key, "content-type": "application/json"}
     url = "https://api.brevo.com/v3/smtp/email"
 
-    try:
-        response = requests.post(url, json=payload, headers=headers, timeout=60)
-        if response.status_code == 201:
-            increment_today_count()
-            print(f"✅ Correo enviado a {len(to_emails)} destinatarios: {to_emails}")
-            return True
-        else:
-            print(f"❌ Error Brevo: {response.status_code} - {response.text}")
-            return False
-    except Exception as e:
-        print(f"❌ Excepción enviando correo: {e}")
-        return False
+    # Reintentos automáticos (3 intentos con backoff)
+    max_retries = 3
+    retry_delay = 2  # segundos iniciales
+
+    for attempt in range(max_retries):
+        try:
+            print(f"📡 Intento {attempt + 1} de enviar correo a {len(to_emails)} destinatarios...")
+            response = requests.post(url, json=payload, headers=headers, timeout=60)
+
+            if response.status_code == 201:
+                increment_today_count()
+                print(f"✅ Correo enviado a {len(to_emails)} destinatarios en el intento {attempt + 1}")
+                return True
+            else:
+                print(f"❌ Error Brevo (intento {attempt + 1}): {response.status_code} - {response.text}")
+                if attempt == max_retries - 1:
+                    return False
+
+        except requests.exceptions.ConnectionError as e:
+            print(f"⚠️ Error de conexión (intento {attempt + 1}): {e}")
+            if attempt < max_retries - 1:
+                wait_time = retry_delay * (attempt + 1)
+                print(f"🔄 Reintentando en {wait_time} segundos...")
+                time.sleep(wait_time)
+            else:
+                print("❌ Fallaron todos los reintentos. El correo no se envió.")
+                return False
+
+        except requests.exceptions.Timeout as e:
+            print(f"⚠️ Timeout (intento {attempt + 1}): {e}")
+            if attempt < max_retries - 1:
+                wait_time = retry_delay * (attempt + 1)
+                print(f"🔄 Reintentando en {wait_time} segundos...")
+                time.sleep(wait_time)
+            else:
+                print("❌ Fallaron todos los reintentos. El correo no se envió.")
+                return False
+
+        except Exception as e:
+            print(f"❌ Excepción inesperada (intento {attempt + 1}): {e}")
+            if attempt == max_retries - 1:
+                return False
+            time.sleep(retry_delay)
+
+    return False
 
 
 def send_email(to_emails, subject, body, template_name=None, template_data=None, user_id=None):
@@ -405,41 +439,37 @@ def send_work_order_closed_email(work_order, pdf_path):
 def send_preventive_completed_email(work_order, pdf_path):
     """
     Envía un SOLO correo con el PDF adjunto a TODOS los destinatarios configurados.
+    No interrumpe el flujo principal si falla.
     """
-    rule = NotificationRule.query.filter_by(event_type='preventive_executed', is_active=True).first()
-    if not rule:
-        print("❌ Regla 'preventive_executed' no encontrada")
-        return False
-
-    # Determinar destinatarios según configuración de la regla (incluyendo correo central)
-    recipients = get_recipients_for_rule(rule, include_central=True)
-
-    # Eliminar duplicados
-    recipients = list(set([r for r in recipients if r]))
-
-    if not recipients:
-        print("❌ No hay destinatarios configurados para preventivo")
-        return False
-
-    print(f"📧 Enviando correo preventivo a {len(recipients)} destinatarios: {recipients}")
-
-    equipment = work_order.equipment
-    exec_log = work_order.preventive_execution_log
-
-    # Contexto para la plantilla
-    context = {
-        'user_name': 'Responsable',
-        'order_number': work_order.number,
-        'equipment_name': equipment.name if equipment else 'N/A',
-        'equipment_location': equipment.location if equipment else 'N/A',
-        'executed_date': format_datetime(work_order.completion_date) if work_order.completion_date else 'N/A',
-        'total_minutes': exec_log.duration_minutes if exec_log else 0,
-        'notes': work_order.resolution_summary or 'Sin observaciones',
-        'link': url_for('work_orders.view_order', id=work_order.id, _external=True)
-    }
-
-    # Enviar UN SOLO correo a todos los destinatarios
     try:
+        rule = NotificationRule.query.filter_by(event_type='preventive_executed', is_active=True).first()
+        if not rule:
+            print("❌ Regla 'preventive_executed' no encontrada")
+            return False
+
+        recipients = get_recipients_for_rule(rule, include_central=True)
+        recipients = list(set([r for r in recipients if r]))
+
+        if not recipients:
+            print("❌ No hay destinatarios configurados para preventivo")
+            return False
+
+        print(f"📧 Enviando correo preventivo a {len(recipients)} destinatarios: {recipients}")
+
+        equipment = work_order.equipment
+        exec_log = work_order.preventive_execution_log
+
+        context = {
+            'user_name': 'Responsable',
+            'order_number': work_order.number,
+            'equipment_name': equipment.name if equipment else 'N/A',
+            'equipment_location': equipment.location if equipment else 'N/A',
+            'executed_date': format_datetime(work_order.completion_date) if work_order.completion_date else 'N/A',
+            'total_minutes': exec_log.duration_minutes if exec_log else 0,
+            'notes': work_order.resolution_summary or 'Sin observaciones',
+            'link': url_for('work_orders.view_order', id=work_order.id, _external=True)
+        }
+
         result = send_email_with_attachment_to_multiple(
             to_emails=recipients,
             subject=f"✅ Mantenimiento Preventivo Completado: {work_order.number} - {equipment.name if equipment else 'N/A'}",
@@ -448,12 +478,15 @@ def send_preventive_completed_email(work_order, pdf_path):
             attachment_path=pdf_path,
             attachment_name=f"Preventivo_{work_order.number}.pdf"
         )
+
         if result:
             print(f"✅ Correo preventivo enviado a {len(recipients)} destinatarios")
-            return True
         else:
-            print(f"❌ Falló el envío del correo preventivo")
-            return False
+            print(f"❌ Falló el envío del correo preventivo después de reintentos")
+
+        return result
+
     except Exception as e:
-        print(f"❌ Excepción enviando correo: {e}")
+        print(f"❌ Excepción en send_preventive_completed_email: {e}")
+        # No relanzamos la excepción para que no interrumpa el flujo principal
         return False
