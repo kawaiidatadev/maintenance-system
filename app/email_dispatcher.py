@@ -424,7 +424,7 @@ def send_work_order_closed_email(work_order, pdf_path):
     url = "https://api.brevo.com/v3/smtp/email"
 
     try:
-        response = requests.post(url, json=payload, headers=headers, timeout=30)
+        response = requests.post(url, json=payload, headers=headers, timeout=60)
         if response.status_code == 201:
             increment_today_count()
             return True

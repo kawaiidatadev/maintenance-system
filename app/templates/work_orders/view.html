@@ -298,6 +298,7 @@
 <!-- ============================================ -->
 <!-- MODAL PARA CERRAR ORDEN CON NOTAS (SOLO CORRECTIVO) -->
 <!-- ============================================ -->
+<!-- MODAL PARA CERRAR ORDEN CON NOTAS (SOLO CORRECTIVO) -->
 {% if order.work_type != 'preventive' and order.can_close(current_user) %}
 <div class="modal fade" id="closeOrderModal" tabindex="-1">
     <div class="modal-dialog">
@@ -308,7 +309,10 @@
                 </h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
-            <form method="POST" action="{{ url_for('work_orders.close_order', id=order.id) }}" onsubmit="return confirm('¿Estás seguro de cerrar esta OT? Se generará un reporte PDF.')">
+            <!-- ============================================ -->
+            <!-- AGREGAR CLASE block-on-submit AQUÍ -->
+            <!-- ============================================ -->
+            <form method="POST" action="{{ url_for('work_orders.close_order', id=order.id) }}" class="block-on-submit" onsubmit="return confirm('¿Estás seguro de cerrar esta OT? Se generará un reporte PDF.')">
                 <div class="modal-body">
                     <div class="alert alert-info">
                         <i class="fas fa-info-circle"></i> Al cerrar esta orden se generará automáticamente un reporte en PDF que quedará guardado en el sistema.
