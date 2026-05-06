@@ -9,8 +9,6 @@
             <div class="card-body">
                 <form method="POST">
                     {{ form.hidden_tag() }}
-
-                    <!-- Campo oculto para el ID (necesario para validación en edición) -->
                     {{ form.id() }}
 
                     <div class="row">
@@ -18,97 +16,123 @@
                             {{ form.code.label }}
                             <div class="input-group">
                                 {{ form.code(class="form-control", id="code_field", **{'readonly': part is defined}) }}
+
                                 {% if part is not defined %}
                                 <button type="button" class="btn btn-secondary" id="suggestCodeBtn">
-                                    <i class="fas fa-robot"></i> Sugerir código
+                                    <i class="fas fa-robot"></i>
                                 </button>
                                 {% endif %}
                             </div>
+                            <div id="code_feedback" class="form-text"></div>
                         </div>
+
                         <div class="col-md-6 mb-2">
                             {{ form.name.label }} {{ form.name(class="form-control") }}
                         </div>
                     </div>
+
                     <div class="mb-2">
                         {{ form.description.label }} {{ form.description(class="form-control", rows=2) }}
                     </div>
+
                     <div class="row">
                         <div class="col-md-4 mb-2">
-                            {{ form.item_type.label }} {{ form.item_type(class="form-select") }}
+                            {{ form.item_type.label }}
+                            {{ form.item_type(class="form-select", id="item_type_field") }}
                         </div>
+
                         <div class="col-md-4 mb-2">
                             {{ form.brand.label }} {{ form.brand(class="form-control") }}
                         </div>
+
                         <div class="col-md-4 mb-2">
                             {{ form.model.label }} {{ form.model(class="form-control") }}
                         </div>
                     </div>
+
                     <div class="row">
                         <div class="col-md-6 mb-2">
                             {{ form.supplier.label }} {{ form.supplier(class="form-control") }}
                         </div>
+
                         <div class="col-md-6 mb-2">
                             {{ form.supplier_part_number.label }} {{ form.supplier_part_number(class="form-control") }}
                         </div>
                     </div>
+
                     <div class="row">
                         <div class="col-md-4 mb-2">
                             {{ form.category.label }} {{ form.category(class="form-control") }}
                         </div>
+
                         <div class="col-md-4 mb-2">
                             {{ form.unit.label }} {{ form.unit(class="form-control") }}
                         </div>
+
                         <div class="col-md-4 mb-2">
                             {{ form.criticality.label }} {{ form.criticality(class="form-select") }}
                         </div>
                     </div>
+
                     <div class="row">
                         <div class="col-md-6 mb-2">
                             {{ form.unit_price.label }} {{ form.unit_price(class="form-control") }}
                         </div>
+
                         <div class="col-md-6 mb-2">
                             {{ form.shipping_cost.label }} {{ form.shipping_cost(class="form-control") }}
                         </div>
                     </div>
+
                     <div class="row">
                         <div class="col-md-6 mb-2">
                             {{ form.estimated_life_hours.label }} {{ form.estimated_life_hours(class="form-control") }}
                         </div>
+
                         <div class="col-md-6 mb-2">
                             {{ form.estimated_life_years.label }} {{ form.estimated_life_years(class="form-control") }}
                         </div>
                     </div>
+
                     <div class="mb-2">
                         {{ form.purchase_url.label }} {{ form.purchase_url(class="form-control") }}
                     </div>
+
                     <div class="mb-2">
-                        {{ form.technical_data.label }} {{ form.technical_data(class="form-control", rows=2, placeholder='{"voltaje": "220V", "capacidad": "5A"}') }}
+                        {{ form.technical_data.label }}
+                        {{ form.technical_data(class="form-control", rows=2, placeholder='{"voltaje": "220V", "capacidad": "5A"}') }}
                     </div>
+
                     <div class="mb-2">
                         {{ form.image_path.label }} {{ form.image_path(class="form-control") }}
                     </div>
+
                     <div class="mb-2">
                         {{ form.barcode.label }} {{ form.barcode(class="form-control") }}
                     </div>
 
                     <hr>
                     <h5>Parámetros de inventario</h5>
+
                     <div class="row">
                         <div class="col-md-4 mb-2">
                             {{ form.minimum_stock.label }} {{ form.minimum_stock(class="form-control") }}
                         </div>
+
                         <div class="col-md-4 mb-2">
                             {{ form.maximum_stock.label }} {{ form.maximum_stock(class="form-control") }}
                         </div>
+
                         <div class="col-md-4 mb-2">
                             {{ form.reorder_point.label }} {{ form.reorder_point(class="form-control") }}
                         </div>
+
                         <div class="col-md-12 mb-2">
                             {{ form.location_shelf.label }} {{ form.location_shelf(class="form-control") }}
                         </div>
                     </div>
 
-                    <button type="submit" class="btn btn-primary">Guardar</button>
+                    <button type="submit" class="btn btn-primary" id="submitBtn">Guardar</button>
                     <a href="{{ url_for('spare_parts.index') }}" class="btn btn-secondary">Cancelar</a>
                 </form>
             </div>
@@ -117,22 +141,108 @@
 </div>
 
 {% if part is not defined %}
+<style>
+.shake {
+    animation: shake 0.3s;
+}
+@keyframes shake {
+    0% { transform: translateX(0px); }
+    25% { transform: translateX(-5px); }
+    50% { transform: translateX(5px); }
+    75% { transform: translateX(-5px); }
+    100% { transform: translateX(0px); }
+}
+</style>
+
 <script>
-    document.getElementById('suggestCodeBtn').addEventListener('click', function() {
-        fetch('{{ url_for("spare_parts.suggest_code") }}')
-            .then(response => response.json())
-            .then(data => {
-                if (data.code) {
-                    document.getElementById('code_field').value = data.code;
-                } else {
-                    alert('No se pudo generar un código.');
-                }
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                alert('Error al generar código');
-            });
-    });
+const suggestBtn = document.getElementById('suggestCodeBtn');
+const codeField = document.getElementById('code_field');
+const itemTypeField = document.getElementById('item_type_field');
+const feedback = document.getElementById('code_feedback');
+const submitBtn = document.getElementById('submitBtn');
+
+let autoGenerated = false;
+let timeout = null;
+let isValid = false;
+
+// Generar código
+function generateCode() {
+    const itemType = itemTypeField.value;
+
+    fetch(`{{ url_for("spare_parts.suggest_code") }}?item_type=${encodeURIComponent(itemType)}`)
+        .then(res => res.json())
+        .then(data => {
+            if (data.code) {
+                codeField.value = data.code;
+                autoGenerated = true;
+                validateCode();
+            }
+        });
+}
+
+// Validar código
+function validateCode() {
+    const code = codeField.value.trim();
+
+    if (!code) {
+        feedback.innerHTML = '';
+        codeField.classList.remove('is-valid', 'is-invalid');
+        submitBtn.disabled = true;
+        return;
+    }
+
+    fetch(`{{ url_for("spare_parts.validate_code") }}?code=${encodeURIComponent(code)}`)
+        .then(res => res.json())
+        .then(data => {
+            if (data.valid) {
+                codeField.classList.remove('is-invalid');
+                codeField.classList.add('is-valid');
+
+                feedback.innerHTML = '✅ Código disponible';
+                feedback.style.color = 'green';
+
+                isValid = true;
+                submitBtn.disabled = false;
+            } else {
+                codeField.classList.remove('is-valid');
+                codeField.classList.add('is-invalid');
+
+                feedback.innerHTML = '❌ ' + data.message;
+                feedback.style.color = 'red';
+
+                codeField.classList.add('shake');
+                setTimeout(() => codeField.classList.remove('shake'), 300);
+
+                isValid = false;
+                submitBtn.disabled = true;
+            }
+        });
+}
+
+// Input manual
+codeField.addEventListener('input', function () {
+    autoGenerated = false;
+
+    clearTimeout(timeout);
+    timeout = setTimeout(validateCode, 400);
+});
+
+// Cambio tipo automático
+itemTypeField.addEventListener('change', function () {
+    if (codeField.value.trim() === '' || autoGenerated) {
+        generateCode();
+    }
+});
+
+// Botón manual
+suggestBtn.addEventListener('click', generateCode);
+
+// Inicial
+window.addEventListener('load', function () {
+    if (codeField.value.trim() === '') {
+        generateCode();
+    }
+});
 </script>
 {% endif %}
 

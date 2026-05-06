@@ -1,3 +1,5 @@
+import re
+
 from flask import render_template, request, redirect, url_for, flash, jsonify
 from flask_login import login_required, current_user
 from app import db
@@ -336,18 +338,76 @@ def api_equipment_spare_parts(equipment_id):
     return jsonify(data)
 
 
+
+
 @spare_parts_bp.route('/suggest-code', methods=['GET'])
 @login_required
 @admin_required
 def suggest_code():
-    """Genera un código único sugerido para una nueva refacción"""
-    import random
+    item_type = request.args.get('item_type', 'spare').strip().lower()
 
-    prefix = 'REF'  # Puedes cambiarlo por 'R' o 'C' según tipo, o usar un contador
-    while True:
-        # Generar código: prefijo + 4 dígitos aleatorios
-        code = prefix + str(random.randint(1, 9999)).zfill(4)
-        # Verificar si el código ya existe (solo activos)
-        exists = SparePart.query.filter_by(code=code, is_active=True).first()
-        if not exists:
-            return jsonify({'code': code})
+    # 🔹 Definir prefijo
+    prefix = 'REF' if item_type == 'spare' else 'CON'
+
+    # 🔹 Traer solo códigos que empiezan con el prefijo
+    codes = db.session.query(SparePart.code).filter(
+        SparePart.code.ilike(f'{prefix}%')
+    ).all()
+
+    max_num = 0
+
+    # 🔹 Regex seguro
+    pattern = re.compile(rf'^{prefix}(\d+)$', re.IGNORECASE)
+
+    for (code,) in codes:
+        if not code:
+            continue
+
+        code_clean = code.strip().upper()
+        match = pattern.match(code_clean)
+
+        if match:
+            try:
+                num = int(match.group(1))
+                if num > max_num:
+                    max_num = num
+            except ValueError:
+                continue
+
+    next_number = max_num + 1
+
+    # 🔥 Aquí puedes decidir formato
+    # Opción A: REF1, REF2, REF3
+    next_code = f"{prefix}{next_number}"
+
+    # Opción B (más pro): REF0001, REF0002
+    # next_code = f"{prefix}{str(next_number).zfill(4)}"
+
+    return jsonify({
+        'code': next_code,
+        'prefix': prefix,
+        'next_number': next_number
+    })
+
+@spare_parts_bp.route('/validate-code', methods=['GET'])
+@login_required
+@admin_required
+def validate_code():
+    code = request.args.get('code', '').strip()
+    part_id = request.args.get('id')  # 👈 importante
+
+    if not code:
+        return jsonify({'valid': False, 'message': 'Código vacío'})
+
+    query = SparePart.query.filter(SparePart.code == code)
+
+    # 🔥 Si estamos editando, excluir el mismo registro
+    if part_id:
+        query = query.filter(SparePart.id != int(part_id))
+
+    exists = query.first()
+
+    if exists:
+        return jsonify({'valid': False, 'message': 'Código ya existe'})
+    else:
+        return jsonify({'valid': True, 'message': 'Código disponible'})
