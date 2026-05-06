@@ -1,4 +1,9 @@
 # app/blueprints/spare_parts/services.py
+from app.blueprints.spare_parts.models import StockAlert
+from app.models.notification_rule import NotificationRule
+from app.notifications_helper import create_notification
+from datetime import datetime
+from flask import url_for
 from app import db
 from app.blueprints.spare_parts.models import SparePart, InventoryStock, SparePartMovement
 from flask_login import current_user
@@ -61,9 +66,9 @@ def register_movement(spare_part_id, quantity, movement_type, warehouse, referen
     return True
 
 
-def consume_spare_part(spare_part_id, quantity, warehouse, reference, preventive_execution_log_id, performed_by_id):
+def consume_spare_part(spare_part_id, quantity, warehouse, reference, preventive_execution_log_id=None, work_order_id=None, performed_by_id=None):
     """
-    Registra un consumo (movimiento 'out') específico para mantenimiento preventivo.
+    Registra un consumo (movimiento 'out') para mantenimiento preventivo o correctivo.
     """
     return register_movement(
         spare_part_id=spare_part_id,
@@ -71,9 +76,10 @@ def consume_spare_part(spare_part_id, quantity, warehouse, reference, preventive
         movement_type='out',
         warehouse=warehouse,
         reference=reference,
-        description=f"Consumo en mantenimiento preventivo (log {preventive_execution_log_id})",
+        description=f"Consumo en mantenimiento: {reference}",
         performed_by_id=performed_by_id,
-        preventive_execution_log_id=preventive_execution_log_id
+        preventive_execution_log_id=preventive_execution_log_id,
+        work_order_id=work_order_id
     )
 
 
@@ -90,3 +96,68 @@ def add_stock(spare_part_id, quantity, warehouse, reference, description, perfor
         description=description,
         performed_by_id=performed_by_id
     )
+
+def check_stock_availability(spare_part_id, quantity, warehouse='General'):
+    """
+    Verifica si hay suficiente stock disponible.
+    Retorna (disponible, stock_actual)
+    """
+    stock = InventoryStock.query.filter_by(spare_part_id=spare_part_id, warehouse=warehouse).first()
+    if not stock:
+        return False, 0
+    return stock.current_stock >= quantity, stock.current_stock
+
+
+def check_stock_alerts():
+    """Verifica todos los stocks y genera alertas no resueltas, además de notificaciones internas."""
+    stocks = InventoryStock.query.all()
+    for stock in stocks:
+        alert_type = None
+        if stock.current_stock <= stock.minimum_stock:
+            alert_type = 'low_stock'
+        elif stock.current_stock <= stock.reorder_point:
+            alert_type = 'reorder'
+
+        if alert_type:
+            # Verificar si ya hay alerta sin resolver para este stock y tipo
+            existing = StockAlert.query.filter_by(
+                spare_part_id=stock.spare_part_id,
+                warehouse=stock.warehouse,
+                alert_type=alert_type,
+                resolved_at=None
+            ).first()
+            if not existing:
+                alert = StockAlert(
+                    spare_part_id=stock.spare_part_id,
+                    warehouse=stock.warehouse,
+                    alert_type=alert_type
+                )
+                db.session.add(alert)
+                db.session.commit()  # Guardar para tener ID
+
+                # Crear notificación interna (opcional, si existe regla 'stock_low')
+                rule = NotificationRule.query.filter_by(event_type='stock_low', is_active=True).first()
+                if rule and rule.target_roles:
+                    from app.models.user import User
+                    roles = rule.target_roles.split(',')
+                    users = User.query.filter(User.role.in_(roles)).all()
+                    for user in users:
+                        create_notification(
+                            user_id=user.id,
+                            title=f"⚠️ Alerta de inventario: {stock.spare_part.name}",
+                            message=f"Stock actual: {stock.current_stock} {stock.spare_part.unit}. "
+                                    f"{'Por debajo del mínimo' if alert_type == 'low_stock' else 'Punto de pedido alcanzado'}.",
+                            event_type='stock_low',
+                            related_id=stock.spare_part_id,
+                            link=url_for('spare_parts.inventory', _external=True)
+                        )
+        else:
+            # Si ya no hay condición, resolver alertas pendientes del mismo ítem
+            pending = StockAlert.query.filter_by(
+                spare_part_id=stock.spare_part_id,
+                warehouse=stock.warehouse,
+                resolved_at=None
+            ).all()
+            for alert in pending:
+                alert.resolved_at = datetime.utcnow()
+            db.session.commit()

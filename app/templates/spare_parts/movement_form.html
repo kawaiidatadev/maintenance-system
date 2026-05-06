@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="row">
+    <div class="col-md-6 mx-auto">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h4>Registrar movimiento: {{ part.code }} - {{ part.name }}</h4>
+            </div>
+            <div class="card-body">
+                <form method="POST">
+                    <div class="mb-3">
+                        <label class="form-label">Tipo de movimiento</label>
+                        <select name="movement_type" class="form-select" required>
+                            <option value="in">Entrada (compra / devolución)</option>
+                            <option value="out">Salida (consumo / baja)</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Cantidad</label>
+                        <input type="number" name="quantity" class="form-control" min="1" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Almacén</label>
+                        <input type="text" name="warehouse" class="form-control" value="General">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Número de referencia (ej. OC #123)</label>
+                        <input type="text" name="reference_number" class="form-control">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Descripción / justificación</label>
+                        <textarea name="description" class="form-control" rows="3" placeholder="Motivo de la entrada/salida"></textarea>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Guardar movimiento</button>
+                    <a href="{{ url_for('spare_parts.view', id=part.id) }}" class="btn btn-secondary">Cancelar</a>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

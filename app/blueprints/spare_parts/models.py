@@ -15,15 +15,14 @@ class SparePart(db.Model):
     serial_number = db.Column(db.String(100))
     supplier = db.Column(db.String(200))
     supplier_part_number = db.Column(db.String(100))
-    category = db.Column(db.String(50))  # Eléctrica, Mecánica, etc.
-    technical_data = db.Column(db.JSON)  # Almacena atributos flexibles
+    category = db.Column(db.String(50))
+    technical_data = db.Column(db.JSON)
     unit = db.Column(db.String(20), default='pieza')
     criticality = db.Column(db.Enum('low', 'medium', 'high', 'critical'), default='medium')
     purchase_url = db.Column(db.String(500))
     unit_price = db.Column(db.Numeric(12, 2))
     shipping_cost = db.Column(db.Numeric(12, 2))
     currency = db.Column(db.String(3), default='USD')
-    # total_unit_cost se puede calcular con propiedad
     estimated_life_hours = db.Column(db.Integer)
     estimated_life_years = db.Column(db.Numeric(5, 2))
     image_path = db.Column(db.String(255))
@@ -32,11 +31,10 @@ class SparePart(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, onupdate=datetime.utcnow)
 
-    # Relaciones
+    # Relaciones (activity_links eliminada)
     stocks = db.relationship('InventoryStock', backref='spare_part', lazy='dynamic')
     movements = db.relationship('SparePartMovement', backref='spare_part', lazy='dynamic')
     equipment_links = db.relationship('EquipmentSparePart', backref='spare_part', lazy='dynamic')
-    activity_links = db.relationship('ActivitySparePart', backref='spare_part', lazy='dynamic')
 
     @property
     def total_unit_cost(self):
@@ -50,62 +48,45 @@ class SparePart(db.Model):
 
 class InventoryStock(db.Model):
     __tablename__ = 'inventory_stocks'
-
     id = db.Column(db.Integer, primary_key=True)
     spare_part_id = db.Column(db.Integer, db.ForeignKey('spare_parts.id'), nullable=False)
     warehouse = db.Column(db.String(50), default='General')
-    location_shelf = db.Column(db.String(50))  # Ubicación física
+    location_shelf = db.Column(db.String(50))
     minimum_stock = db.Column(db.Integer, default=0)
     maximum_stock = db.Column(db.Integer, default=0)
     reorder_point = db.Column(db.Integer, default=0)
     current_stock = db.Column(db.Integer, default=0)
     last_count_date = db.Column(db.Date)
-
     __table_args__ = (db.UniqueConstraint('spare_part_id', 'warehouse', name='unique_spare_warehouse'),)
-
-    def __repr__(self):
-        return f'<InventoryStock {self.spare_part.code} ({self.warehouse}): {self.current_stock}>'
 
 
 class SparePartMovement(db.Model):
     __tablename__ = 'spare_part_movements'
-
     id = db.Column(db.Integer, primary_key=True)
     spare_part_id = db.Column(db.Integer, db.ForeignKey('spare_parts.id'), nullable=False)
     warehouse = db.Column(db.String(50), default='General')
     movement_type = db.Column(db.Enum('in', 'out'), nullable=False)
     quantity = db.Column(db.Integer, nullable=False)
-    reference_number = db.Column(db.String(100))  # Número de orden de compra o albarán
+    reference_number = db.Column(db.String(100))
     description = db.Column(db.Text)
     performed_by_id = db.Column(db.Integer, db.ForeignKey('users.id'))
     work_order_id = db.Column(db.Integer, db.ForeignKey('work_orders.id'), nullable=True)
     preventive_execution_log_id = db.Column(db.Integer, db.ForeignKey('preventive_execution_log.id'), nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
-
-    # Relaciones
     performed_by = db.relationship('User', foreign_keys=[performed_by_id])
     work_order = db.relationship('WorkOrder', foreign_keys=[work_order_id])
     preventive_log = db.relationship('PreventiveExecutionLog', foreign_keys=[preventive_execution_log_id])
 
-    def __repr__(self):
-        return f'<Movement {self.movement_type} {self.quantity} of {self.spare_part_id}>'
-
 
 class EquipmentSparePart(db.Model):
     __tablename__ = 'equipment_spare_parts'
-
     id = db.Column(db.Integer, primary_key=True)
     equipment_id = db.Column(db.Integer, db.ForeignKey('equipment.id'), nullable=False)
     spare_part_id = db.Column(db.Integer, db.ForeignKey('spare_parts.id'), nullable=False)
-    quantity_required = db.Column(db.Integer, default=1)  # Cantidad que usa el equipo
+    quantity_required = db.Column(db.Integer, default=1)
     notes = db.Column(db.Text)
-
     equipment = db.relationship('Equipment', backref='spare_parts_links')
-
     __table_args__ = (db.UniqueConstraint('equipment_id', 'spare_part_id', name='unique_equipment_spare'),)
-
-    def __repr__(self):
-        return f'<EquipSpare {self.equipment_id} -> {self.spare_part_id}>'
 
 
 class ActivitySparePart(db.Model):
@@ -115,15 +96,18 @@ class ActivitySparePart(db.Model):
     spare_part_id = db.Column(db.Integer, db.ForeignKey('spare_parts.id'))
     quantity_required = db.Column(db.Integer, default=1)
 
-    # Relaciones sin backref
+    # Solo la relación con PreventiveActivity (sin backref conflictivo)
     preventive_activity = db.relationship('PreventiveActivity', back_populates='spare_parts_links')
-    spare_part = db.relationship('SparePart', backref='activity_links')
+
+    # Opcional: propiedad para obtener el objeto SparePart sin relación directa
+    @property
+    def spare_part(self):
+        from app.blueprints.spare_parts.models import SparePart
+        return SparePart.query.get(self.spare_part_id)
 
 
-# Tabla opcional para alertas de stock bajo (sugerida pero no obligatoria)
 class StockAlert(db.Model):
     __tablename__ = 'stock_alerts'
-
     id = db.Column(db.Integer, primary_key=True)
     spare_part_id = db.Column(db.Integer, db.ForeignKey('spare_parts.id'), nullable=False)
     warehouse = db.Column(db.String(50))
@@ -131,6 +115,5 @@ class StockAlert(db.Model):
     triggered_at = db.Column(db.DateTime, default=datetime.utcnow)
     resolved_at = db.Column(db.DateTime)
     resolved_by_id = db.Column(db.Integer, db.ForeignKey('users.id'))
-
     spare_part = db.relationship('SparePart', backref='alerts')
     resolved_by = db.relationship('User', foreign_keys=[resolved_by_id])

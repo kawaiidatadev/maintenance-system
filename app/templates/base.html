@@ -63,7 +63,16 @@
                         </a>
                     </li>
 
-                 <!-- MENÚ PREVENTIVOS (único punto de entrada) -->
+                    <!-- ============================================ -->
+                    <!-- BOTÓN INVENTARIO (NUEVO MÓDULO) -->
+                    <!-- ============================================ -->
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('spare_parts.inventory') }}">
+                            <i class="fas fa-boxes"></i> Inventario
+                        </a>
+                    </li>
+
+                    <!-- MENÚ PREVENTIVOS (único punto de entrada) -->
                     <li class="nav-item dropdown">
                         <a class="nav-link dropdown-toggle" href="#" id="preventiveDropdown" role="button" data-bs-toggle="dropdown">
                             <i class="fas fa-calendar-check"></i> Preventivos
@@ -90,6 +99,7 @@
                             </a></li>
                         </ul>
                     </li>
+
                     <!-- Enlace para Análisis de Criticidad -->
                     <li class="nav-item">
                         <a class="nav-link" href="{{ url_for('criticality.index') }}">
@@ -265,27 +275,19 @@
 <!-- ============================================ -->
 <script>
     document.addEventListener('DOMContentLoaded', function() {
-        // Selecciona todos los formularios que deben mostrar el modal al enviarse
         const formsToBlock = document.querySelectorAll('form.block-on-submit');
-
         formsToBlock.forEach(form => {
             form.addEventListener('submit', function(e) {
-                // Evita múltiples envíos si ya se está procesando
                 if (form.getAttribute('data-submitting') === 'true') {
                     e.preventDefault();
                     return false;
                 }
                 form.setAttribute('data-submitting', 'true');
-
-                // Muestra el modal de carga
                 const modalEl = document.getElementById('loadingModal');
                 const modal = new bootstrap.Modal(modalEl);
                 modal.show();
-
-                // Deshabilitar botón de submit dentro del formulario
                 const submitBtn = form.querySelector('button[type="submit"]');
                 if (submitBtn) {
-                    // Guardar estado original
                     if (!submitBtn.hasAttribute('data-original-text')) {
                         submitBtn.setAttribute('data-original-text', submitBtn.innerHTML);
                     }

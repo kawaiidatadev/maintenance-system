@@ -13,7 +13,7 @@ from app.models.setting import Setting
 from app.email_dispatcher import send_work_order_closed_email
 from app.models.preventive_schedule import PreventiveSchedule
 from app.models.preventive_execution_log import PreventiveExecutionLog
-from sqlalchemy import asc, desc  # ← necesario para ordenamiento
+from sqlalchemy import asc, desc
 
 work_orders_bp = Blueprint('work_orders', __name__, url_prefix='/work-orders')
 
@@ -26,30 +26,25 @@ def admin_or_supervisor_required(func):
             flash('Acceso denegado. Se requieren permisos de administrador o supervisor.', 'danger')
             return redirect(url_for('dashboard.index'))
         return func(*args, **kwargs)
+
     return decorated_view
 
 
 @work_orders_bp.route('/')
 @login_required
 def list_orders():
-    # Parámetros de filtros
     tipo = request.args.get('tipo', 'todos')
     status = request.args.get('status', '')
-    # Paginación
     page = request.args.get('page', 1, type=int)
-    per_page = 15  # registros por página
-
-    # Ordenamiento
+    per_page = 15
     sort_by = request.args.get('sort', 'created_at')
-    sort_order = request.args.get('order', 'desc')   # 'asc' o 'desc'
+    sort_order = request.args.get('order', 'desc')
 
-    # Construcción de la query base según rol
     if current_user.role in ['admin', 'supervisor']:
         query = WorkOrder.query
     else:
         query = WorkOrder.query.filter_by(assigned_to_id=current_user.id)
 
-    # Filtros por tipo y estado
     if tipo == 'corrective':
         query = query.filter(WorkOrder.work_type == 'corrective')
     elif tipo == 'preventive':
@@ -58,11 +53,9 @@ def list_orders():
     if status:
         query = query.filter(WorkOrder.status == status)
 
-    # --- ORDENAMIENTO DINÁMICO ---
-    # Mapeo de columnas válidas
     sort_columns = {
         'number': WorkOrder.number,
-        'equipment': WorkOrder.equipment_id,  # se hará join más abajo
+        'equipment': WorkOrder.equipment_id,
         'type': WorkOrder.work_type,
         'problem': WorkOrder.problem_description,
         'assigned_to': WorkOrder.assigned_to_id,
@@ -71,7 +64,6 @@ def list_orders():
     }
 
     if sort_by == 'equipment':
-        # Ordenar por nombre del equipo (requiere join)
         query = query.outerjoin(Equipment).order_by(
             asc(Equipment.name) if sort_order == 'asc' else desc(Equipment.name)
         )
@@ -82,7 +74,6 @@ def list_orders():
         else:
             query = query.order_by(desc(column))
 
-    # Paginación
     pagination = query.paginate(page=page, per_page=per_page, error_out=False)
     orders = pagination.items
 
@@ -99,15 +90,10 @@ def list_orders():
 @login_required
 def create_order():
     if request.method == 'POST':
-        # ============================================
-        # SEGURIDAD: Forzar a corrective siempre
-        # No se permiten órdenes preventivas manuales
-        # ============================================
         work_type = request.form.get('work_type', 'corrective')
         if work_type != 'corrective':
             flash('No se permiten órdenes preventivas manuales. Use el módulo de mantenimiento preventivo.', 'warning')
             return redirect(url_for('work_orders.create_order'))
-        # ============================================
 
         number = WorkOrder.generate_number()
 
@@ -126,7 +112,7 @@ def create_order():
                 created_by_id=current_user.id,
                 status='open',
                 needs_equipment_registration=False,
-                work_type='corrective'  # Siempre correctivo
+                work_type='corrective'
             )
         else:
             work_order = WorkOrder(
@@ -138,10 +124,9 @@ def create_order():
                 created_by_id=current_user.id,
                 status='open',
                 needs_equipment_registration=True,
-                work_type='corrective'  # Siempre correctivo
+                work_type='corrective'
             )
 
-        # Campos específicos de correctivo
         work_order.failure_type = request.form.get('failure_type') or None
         work_order.root_cause = request.form.get('root_cause') or None
         work_order.work_performed = request.form.get('work_performed') or None
@@ -165,7 +150,20 @@ def view_order(id):
     if current_user.role not in ['admin', 'supervisor'] and order.assigned_to_id != current_user.id:
         flash('No tienes permiso para ver esta OT', 'danger')
         return redirect(url_for('work_orders.list_orders'))
-    return render_template('work_orders/view.html', order=order)
+
+    # ============================================
+    # Obtener refacciones asociadas al equipo (para correctivos)
+    # ============================================
+    equipment_spare_parts = []
+    if order.equipment_id and order.work_type == 'corrective':
+        from app.blueprints.spare_parts.models import EquipmentSparePart, SparePart, InventoryStock
+        equipment_spare_parts = EquipmentSparePart.query.filter_by(equipment_id=order.equipment_id).all()
+        for esp in equipment_spare_parts:
+            esp.spare_part = SparePart.query.get(esp.spare_part_id)
+            stock = InventoryStock.query.filter_by(spare_part_id=esp.spare_part_id).first()
+            esp.current_stock = stock.current_stock if stock else 0
+
+    return render_template('work_orders/view.html', order=order, equipment_spare_parts=equipment_spare_parts)
 
 
 @work_orders_bp.route('/<int:id>/edit', methods=['GET', 'POST'])
@@ -194,7 +192,6 @@ def edit_order(id):
         old_assigned_id = order.assigned_to_id
         order.assigned_to_id = new_assigned_id
 
-        # Solo enviar notificación si es CORRECTIVA
         if new_assigned_id and new_assigned_id != old_assigned_id:
             if order.work_type == 'corrective':
                 create_notification(
@@ -216,7 +213,6 @@ def edit_order(id):
             elif new_status == 'assigned' and not order.assigned_at:
                 order.assigned_at = datetime.utcnow()
 
-        # Solo guardar campos de correctivo si la orden es correctiva
         if order.work_type == 'corrective':
             order.failure_type = request.form.get('failure_type') or None
             order.root_cause = request.form.get('root_cause') or None
@@ -285,7 +281,6 @@ def complete_order(id):
 
         db.session.commit()
 
-        # Solo enviar notificación si es CORRECTIVA
         if order.created_by_id and order.created_by_id != current_user.id:
             if order.work_type == 'corrective':
                 create_notification(
@@ -315,19 +310,51 @@ def close_order(id):
     if closure_notes:
         order.resolution_summary = closure_notes
 
-    # Calcular duración real (si hay fechas)
     duration_minutes = None
     if order.start_date and order.completion_date:
         duration_minutes = int((order.completion_date - order.start_date).total_seconds() / 60)
 
-    # Actualizar estado y fechas
     order.status = 'closed'
     order.closed_by_id = current_user.id
     order.closed_at = datetime.utcnow()
     db.session.commit()
 
+    # ============================================
+    # PROCESAR CONSUMOS DE REFACCIONES (CORRECTIVO)
+    # ============================================
+    if order.work_type == 'corrective' and order.equipment_id:
+        from app.blueprints.spare_parts.models import EquipmentSparePart
+        from app.blueprints.spare_parts.services import consume_spare_part, check_stock_availability
+
+        equipment_spare_parts = EquipmentSparePart.query.filter_by(equipment_id=order.equipment_id).all()
+        for esp in equipment_spare_parts:
+            qty_key = f'consumed_qty_{esp.spare_part_id}'
+            if qty_key in request.form:
+                try:
+                    qty = int(request.form.get(qty_key, 0))
+                    if qty > 0:
+                        disponible, stock_actual = check_stock_availability(esp.spare_part_id, qty)
+                        if not disponible:
+                            flash(
+                                f'⚠️ Stock insuficiente para refacción ID {esp.spare_part_id}. Disponible: {stock_actual}, requerido: {qty}',
+                                'warning')
+                            continue
+
+                        consume_spare_part(
+                            spare_part_id=esp.spare_part_id,
+                            quantity=qty,
+                            warehouse='General',
+                            reference=f'Correctivo OT {order.number}',
+                            work_order_id=order.id,
+                            performed_by_id=current_user.id
+                        )
+                        flash(f'✅ Consumido {qty} de {esp.spare_part.name}', 'info')
+                except ValueError:
+                    flash(f'⚠️ Cantidad inválida para refacción ID {esp.spare_part_id}', 'warning')
+
+    # ============================================
     # ACTUALIZAR SCHEDULE PREVENTIVO Y REGISTRAR HISTORIAL
-    # Solo para órdenes preventivas
+    # ============================================
     if order.work_type == 'preventive' and order.preventive_schedule_id:
         schedule = PreventiveSchedule.query.get(order.preventive_schedule_id)
         if schedule:
@@ -350,7 +377,9 @@ def close_order(id):
             db.session.commit()
             flash('Calendario preventivo actualizado y ejecución registrada', 'info')
 
-    # GENERAR PDF Y REGISTRAR EN BD (tanto correctivas como preventivas)
+    # ============================================
+    # GENERAR PDF Y REGISTRAR EN BD
+    # ============================================
     try:
         pdf_info = generate_work_order_pdf(order)
         report = WorkOrderReport(
@@ -367,7 +396,9 @@ def close_order(id):
         db.session.rollback()
         return redirect(url_for('work_orders.view_order', id=order.id))
 
+    # ============================================
     # ENVIAR CORREO CON ADJUNTO (SOLO PARA CORRECTIVAS)
+    # ============================================
     if Setting.get('brevo_enabled') == 'true':
         if order.work_type == 'corrective':
             try:

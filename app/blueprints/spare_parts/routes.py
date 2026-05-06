@@ -1,20 +1,26 @@
-from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify
+from flask import render_template, request, redirect, url_for, flash, jsonify
 from flask_login import login_required, current_user
 from app import db
-from app.blueprints.spare_parts.models import SparePart, InventoryStock, SparePartMovement, EquipmentSparePart, ActivitySparePart
+from app.blueprints.spare_parts.models import SparePart, InventoryStock, SparePartMovement, EquipmentSparePart, \
+    ActivitySparePart
 from app.models.user import User
 from app.models.preventive_activity import PreventiveActivity
-from app.decorators import admin_required
+from app.blueprints.spare_parts.services import get_or_create_stock, register_movement
+from app.blueprints.spare_parts.forms import SparePartForm
+from functools import wraps
+from . import spare_parts_bp
+
 
 def admin_required(func):
-    from functools import wraps
     @wraps(func)
     def decorated_view(*args, **kwargs):
         if not current_user.is_authenticated or current_user.role != 'admin':
             flash('Acceso denegado. Se requieren permisos de administrador.', 'danger')
             return redirect(url_for('dashboard.index'))
         return func(*args, **kwargs)
+
     return decorated_view
+
 
 # ------------------- Catálogo de refacciones -------------------
 @spare_parts_bp.route('/')
@@ -23,30 +29,32 @@ def index():
     parts = SparePart.query.filter_by(is_active=True).order_by(SparePart.code).all()
     return render_template('spare_parts/index.html', parts=parts)
 
+
 @spare_parts_bp.route('/<int:id>')
 @login_required
 def view(id):
     part = SparePart.query.get_or_404(id)
-    # Obtener stock
     stock = InventoryStock.query.filter_by(spare_part_id=id).first()
-    # Obtener movimientos recientes
-    movements = SparePartMovement.query.filter_by(spare_part_id=id).order_by(SparePartMovement.created_at.desc()).limit(20).all()
+    movements = SparePartMovement.query.filter_by(spare_part_id=id).order_by(SparePartMovement.created_at.desc()).limit(
+        20).all()
     return render_template('spare_parts/view.html', part=part, stock=stock, movements=movements)
+
 
 @spare_parts_bp.route('/create', methods=['GET', 'POST'])
 @login_required
 @admin_required
 def create():
     form = SparePartForm()
+
     if form.validate_on_submit():
-        # Convertir technical_data a JSON si es necesario
+        import json
         tech_data = None
         if form.technical_data.data:
             try:
-                import json
                 tech_data = json.loads(form.technical_data.data)
             except:
                 tech_data = form.technical_data.data
+
         part = SparePart(
             code=form.code.data,
             name=form.name.data,
@@ -72,46 +80,90 @@ def create():
         )
         db.session.add(part)
         db.session.commit()
-        # Crear registro de inventario por defecto
-        get_or_create_stock(part.id)
+
+        # Crear o actualizar stock con los valores del formulario
+        stock = get_or_create_stock(part.id)
+        stock.minimum_stock = form.minimum_stock.data or 0
+        stock.maximum_stock = form.maximum_stock.data or 0
+        stock.reorder_point = form.reorder_point.data or 0
+        stock.location_shelf = form.location_shelf.data
+        db.session.commit()
+
         flash(f'Refacción {part.code} creada correctamente', 'success')
         return redirect(url_for('spare_parts.index'))
+
     return render_template('spare_parts/form.html', form=form, title='Nueva Refacción')
+
 
 @spare_parts_bp.route('/edit/<int:id>', methods=['GET', 'POST'])
 @login_required
 @admin_required
 def edit(id):
+    from wtforms.validators import DataRequired, Length
     part = SparePart.query.get_or_404(id)
     form = SparePartForm(obj=part)
-    # Para editar, no validar unicidad del código si es el mismo
     form.code.validators = [DataRequired(), Length(max=50)]
-    if request.method == 'POST' and form.validate_on_submit():
-        part.code = form.code.data
-        part.name = form.name.data
-        part.description = form.description.data
-        part.item_type = form.item_type.data
-        part.brand = form.brand.data
-        part.model = form.model.data
-        part.serial_number = form.serial_number.data
-        part.supplier = form.supplier.data
-        part.supplier_part_number = form.supplier_part_number.data
-        part.category = form.category.data
-        part.technical_data = form.technical_data.data
-        part.unit = form.unit.data
-        part.criticality = form.criticality.data
-        part.purchase_url = form.purchase_url.data
-        part.unit_price = form.unit_price.data
-        part.shipping_cost = form.shipping_cost.data
-        part.currency = form.currency.data
-        part.estimated_life_hours = form.estimated_life_hours.data
-        part.estimated_life_years = form.estimated_life_years.data
-        part.image_path = form.image_path.data
-        part.barcode = form.barcode.data
+
+    # 🔥 ASIGNAR EL ID ACTUAL AL FORMULARIO PARA LA VALIDACIÓN
+    form.id.data = part.id
+
+    # Obtener el stock asociado
+    stock = InventoryStock.query.filter_by(spare_part_id=part.id).first()
+    if not stock:
+        stock = InventoryStock(spare_part_id=part.id, current_stock=0)
+        db.session.add(stock)
         db.session.commit()
-        flash(f'Refacción {part.code} actualizada', 'success')
-        return redirect(url_for('spare_parts.view', id=part.id))
+
+    # Cargar valores del stock en el formulario (para mostrar en GET)
+    if request.method == 'GET':
+        form.minimum_stock.data = stock.minimum_stock
+        form.maximum_stock.data = stock.maximum_stock
+        form.reorder_point.data = stock.reorder_point
+        form.location_shelf.data = stock.location_shelf
+
+    if request.method == 'POST':
+        if form.validate_on_submit():
+            # Actualizar campos de la refacción
+            part.code = form.code.data
+            part.name = form.name.data
+            part.description = form.description.data
+            part.item_type = form.item_type.data
+            part.brand = form.brand.data
+            part.model = form.model.data
+            part.serial_number = form.serial_number.data
+            part.supplier = form.supplier.data
+            part.supplier_part_number = form.supplier_part_number.data
+            part.category = form.category.data
+            part.technical_data = form.technical_data.data
+            part.unit = form.unit.data
+            part.criticality = form.criticality.data
+            part.purchase_url = form.purchase_url.data
+            part.unit_price = form.unit_price.data
+            part.shipping_cost = form.shipping_cost.data
+            part.currency = form.currency.data
+            part.estimated_life_hours = form.estimated_life_hours.data
+            part.estimated_life_years = form.estimated_life_years.data
+            part.image_path = form.image_path.data
+            part.barcode = form.barcode.data
+            db.session.commit()
+
+            # Actualizar inventario
+            stock.minimum_stock = form.minimum_stock.data or 0
+            stock.maximum_stock = form.maximum_stock.data or 0
+            stock.reorder_point = form.reorder_point.data or 0
+            stock.location_shelf = form.location_shelf.data
+            db.session.commit()
+
+            flash(f'Refacción {part.code} actualizada', 'success')
+            return redirect(url_for('spare_parts.view', id=part.id))
+        else:
+            # Mostrar errores al usuario
+            for field, errors in form.errors.items():
+                for error in errors:
+                    flash(f'Error en el campo {field}: {error}', 'danger')
+
     return render_template('spare_parts/form.html', form=form, title='Editar Refacción', part=part)
+
 
 @spare_parts_bp.route('/delete/<int:id>', methods=['POST'])
 @login_required
@@ -123,6 +175,7 @@ def delete(id):
     flash(f'Refacción {part.code} desactivada', 'success')
     return redirect(url_for('spare_parts.index'))
 
+
 # ------------------- Inventario y movimientos -------------------
 @spare_parts_bp.route('/inventory')
 @login_required
@@ -130,24 +183,59 @@ def inventory():
     stocks = InventoryStock.query.join(SparePart).filter(SparePart.is_active == True).all()
     return render_template('spare_parts/inventory.html', stocks=stocks)
 
+
 @spare_parts_bp.route('/movements/<int:part_id>')
 @login_required
 def movements(part_id):
     part = SparePart.query.get_or_404(part_id)
-    movements = SparePartMovement.query.filter_by(spare_part_id=part_id).order_by(SparePartMovement.created_at.desc()).all()
+    movements = SparePartMovement.query.filter_by(spare_part_id=part_id).order_by(
+        SparePartMovement.created_at.desc()).all()
     return render_template('spare_parts/movements.html', part=part, movements=movements)
+
+
+# ============================================
+# MOVIMIENTOS MANUALES (entradas/salidas)
+# ============================================
+@spare_parts_bp.route('/movement/add/<int:part_id>', methods=['GET', 'POST'])
+@login_required
+@admin_required
+def add_movement(part_id):
+    part = SparePart.query.get_or_404(part_id)
+
+    if request.method == 'POST':
+        movement_type = request.form.get('movement_type')
+        quantity = int(request.form.get('quantity'))
+        warehouse = request.form.get('warehouse', 'General')
+        reference_number = request.form.get('reference_number', '')
+        description = request.form.get('description', '')
+
+        success = register_movement(
+            spare_part_id=part.id,
+            quantity=quantity,
+            movement_type=movement_type,
+            warehouse=warehouse,
+            reference=reference_number,
+            description=description,
+            performed_by_id=current_user.id
+        )
+
+        if success:
+            flash(f'Movimiento registrado correctamente', 'success')
+            return redirect(url_for('spare_parts.view', id=part.id))
+        else:
+            flash('Error: Stock insuficiente para la salida', 'danger')
+            return redirect(request.url)
+
+    return render_template('spare_parts/movement_form.html', part=part)
 
 
 # ============================================
 # ASIGNACIÓN DE REFACCIONES A ACTIVIDADES PREVENTIVAS
 # ============================================
-
 @spare_parts_bp.route('/assign-activity')
 @login_required
 @admin_required
 def assign_activity():
-    """Vista para asignar refacciones a actividades preventivas"""
-    from app.models.preventive_activity import PreventiveActivity
     activities = PreventiveActivity.query.filter_by(is_active=True).all()
     spare_parts = SparePart.query.filter_by(is_active=True).all()
     return render_template('spare_parts/assign_activity.html',
@@ -159,7 +247,6 @@ def assign_activity():
 @login_required
 @admin_required
 def assign_activity_post():
-    """Guarda la asignación de refacción a actividad"""
     activity_id = request.form.get('activity_id')
     spare_part_id = request.form.get('spare_part_id')
     quantity_required = int(request.form.get('quantity_required', 1))
@@ -168,11 +255,9 @@ def assign_activity_post():
         flash('Debe seleccionar una actividad y una refacción', 'danger')
         return redirect(url_for('spare_parts.assign_activity'))
 
-    from app.models.preventive_activity import PreventiveActivity
     activity = PreventiveActivity.query.get_or_404(activity_id)
     spare_part = SparePart.query.get_or_404(spare_part_id)
 
-    # Verificar si ya existe la asignación
     existing = ActivitySparePart.query.filter_by(
         preventive_activity_id=activity_id,
         spare_part_id=spare_part_id
@@ -182,7 +267,6 @@ def assign_activity_post():
         flash(f'La refacción {spare_part.code} ya está asignada a esta actividad', 'warning')
         return redirect(url_for('spare_parts.assign_activity'))
 
-    # Crear nueva asignación
     assignment = ActivitySparePart(
         preventive_activity_id=activity_id,
         spare_part_id=spare_part_id,
@@ -199,7 +283,6 @@ def assign_activity_post():
 @login_required
 @admin_required
 def delete_activity_assignment(assignment_id):
-    """Elimina una asignación de refacción a actividad"""
     assignment = ActivitySparePart.query.get_or_404(assignment_id)
     activity_name = assignment.activity.name if assignment.activity else 'N/A'
     spare_code = assignment.spare_part.code if assignment.spare_part else 'N/A'
@@ -214,8 +297,6 @@ def delete_activity_assignment(assignment_id):
 @spare_parts_bp.route('/api/activity-spare-parts/<int:activity_id>')
 @login_required
 def api_activity_spare_parts(activity_id):
-    """API para obtener las refacciones de una actividad en formato JSON"""
-    from app.models.preventive_activity import PreventiveActivity
     activity = PreventiveActivity.query.get_or_404(activity_id)
     assignments = activity.spare_parts_links.all()
 
@@ -230,3 +311,43 @@ def api_activity_spare_parts(activity_id):
             'unit': assignment.spare_part.unit if assignment.spare_part else 'pieza'
         })
     return jsonify(data)
+
+
+# ============================================
+# API PARA OBTENER REFACCIONES POR EQUIPO (útil para correctivos)
+# ============================================
+@spare_parts_bp.route('/api/equipment-spare-parts/<int:equipment_id>')
+@login_required
+def api_equipment_spare_parts(equipment_id):
+    """Devuelve las refacciones asociadas a un equipo"""
+    assignments = EquipmentSparePart.query.filter_by(equipment_id=equipment_id).all()
+    data = []
+    for assignment in assignments:
+        if assignment.spare_part and assignment.spare_part.is_active:
+            data.append({
+                'id': assignment.id,
+                'spare_part_id': assignment.spare_part_id,
+                'code': assignment.spare_part.code,
+                'name': assignment.spare_part.name,
+                'quantity_required': assignment.quantity_required,
+                'unit': assignment.spare_part.unit,
+                'current_stock': assignment.spare_part.stocks[0].current_stock if assignment.spare_part.stocks else 0
+            })
+    return jsonify(data)
+
+
+@spare_parts_bp.route('/suggest-code', methods=['GET'])
+@login_required
+@admin_required
+def suggest_code():
+    """Genera un código único sugerido para una nueva refacción"""
+    import random
+
+    prefix = 'REF'  # Puedes cambiarlo por 'R' o 'C' según tipo, o usar un contador
+    while True:
+        # Generar código: prefijo + 4 dígitos aleatorios
+        code = prefix + str(random.randint(1, 9999)).zfill(4)
+        # Verificar si el código ya existe (solo activos)
+        exists = SparePart.query.filter_by(code=code, is_active=True).first()
+        if not exists:
+            return jsonify({'code': code})

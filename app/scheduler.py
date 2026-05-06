@@ -10,6 +10,9 @@ from app.models.preventive_schedule import PreventiveSchedule
 from app.notifications_helper import create_notification
 from flask import url_for, current_app
 
+# Importar la función de alertas de stock
+from app.blueprints.spare_parts.services import check_stock_alerts
+
 
 def check_overdue_orders():
     """OTs correctivas asignadas hace más de X días sin iniciar (umbral configurable)"""
@@ -151,5 +154,11 @@ def start_scheduler(app):
     scheduler.add_job(func=check_overdue_orders, trigger="interval", hours=1, id='overdue_check')
     scheduler.add_job(func=check_low_life_equipment, trigger="interval", hours=24, id='life_check')
     scheduler.add_job(func=check_preventive_tasks, trigger="interval", hours=6, id='preventive_check')
+
+    # ============================================
+    # AGREGAR JOB DE ALERTAS DE STOCK
+    # ============================================
+    scheduler.add_job(func=check_stock_alerts, trigger="interval", hours=6, id='stock_alerts_check')
+
     scheduler.start()
     return scheduler

@@ -298,10 +298,9 @@
 <!-- ============================================ -->
 <!-- MODAL PARA CERRAR ORDEN CON NOTAS (SOLO CORRECTIVO) -->
 <!-- ============================================ -->
-<!-- MODAL PARA CERRAR ORDEN CON NOTAS (SOLO CORRECTIVO) -->
 {% if order.work_type != 'preventive' and order.can_close(current_user) %}
 <div class="modal fade" id="closeOrderModal" tabindex="-1">
-    <div class="modal-dialog">
+    <div class="modal-dialog modal-lg">
         <div class="modal-content">
             <div class="modal-header bg-primary text-white">
                 <h5 class="modal-title">
@@ -309,14 +308,51 @@
                 </h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
-            <!-- ============================================ -->
-            <!-- AGREGAR CLASE block-on-submit AQUÍ -->
-            <!-- ============================================ -->
             <form method="POST" action="{{ url_for('work_orders.close_order', id=order.id) }}" class="block-on-submit" onsubmit="return confirm('¿Estás seguro de cerrar esta OT? Se generará un reporte PDF.')">
                 <div class="modal-body">
                     <div class="alert alert-info">
                         <i class="fas fa-info-circle"></i> Al cerrar esta orden se generará automáticamente un reporte en PDF que quedará guardado en el sistema.
                     </div>
+
+                    <!-- ============================================ -->
+                    <!-- SECCIÓN DE REFACCIONES CONSUMIDAS (SOLO CORRECTIVO) -->
+                    <!-- ============================================ -->
+                    {% if equipment_spare_parts %}
+                    <div class="mb-3">
+                        <label class="form-label fw-bold"><i class="fas fa-boxes"></i> Refacciones / Consumibles utilizados</label>
+                        <div class="table-responsive">
+                            <table class="table table-sm table-bordered">
+                                <thead>
+                                    <tr>
+                                        <th>Refacción</th>
+                                        <th>Cantidad</th>
+                                        <th>Stock actual</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for esp in equipment_spare_parts %}
+                                    <tr>
+                                        <td>
+                                            {{ esp.spare_part.name }} ({{ esp.spare_part.code }})
+                                            <input type="hidden" name="spare_part_id_{{ esp.spare_part_id }}" value="{{ esp.spare_part_id }}">
+                                        </td>
+                                        <td>
+                                            <input type="number" name="consumed_qty_{{ esp.spare_part_id }}"
+                                                   value="0" min="0" max="{{ esp.current_stock }}"
+                                                   class="form-control form-control-sm" style="width: 100px;">
+                                        </td>
+                                        <td>
+                                            {{ esp.current_stock }} {{ esp.spare_part.unit }}
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                        <small class="text-muted">Indique la cantidad consumida de cada refacción (0 si no se usó).</small>
+                    </div>
+                    {% endif %}
+
                     <div class="mb-3">
                         <label for="closure_notes" class="form-label">Notas de cierre (opcional)</label>
                         <textarea name="closure_notes" id="closure_notes" class="form-control" rows="4"

@@ -33,12 +33,10 @@ class PreventiveActivity(db.Model):
     # NUEVA RELACIÓN CON REFACCIONES (Paso 3.1)
     # ============================================
     # Relación uno a muchos con ActivitySparePart
-    spare_parts_links = db.relationship(
-        'ActivitySparePart',
-        backref='activity',
-        lazy='dynamic',
-        cascade='all, delete-orphan'
-    )
+
+    spare_parts_links = db.relationship('ActivitySparePart',
+                                        back_populates='preventive_activity',
+                                        lazy='dynamic')
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
