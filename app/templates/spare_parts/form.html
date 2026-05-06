@@ -15,7 +15,15 @@
 
                     <div class="row">
                         <div class="col-md-6 mb-2">
-                            {{ form.code.label }} {{ form.code(class="form-control") }}
+                            {{ form.code.label }}
+                            <div class="input-group">
+                                {{ form.code(class="form-control", id="code_field", **{'readonly': part is defined}) }}
+                                {% if part is not defined %}
+                                <button type="button" class="btn btn-secondary" id="suggestCodeBtn">
+                                    <i class="fas fa-robot"></i> Sugerir código
+                                </button>
+                                {% endif %}
+                            </div>
                         </div>
                         <div class="col-md-6 mb-2">
                             {{ form.name.label }} {{ form.name(class="form-control") }}
@@ -107,4 +115,25 @@
         </div>
     </div>
 </div>
+
+{% if part is not defined %}
+<script>
+    document.getElementById('suggestCodeBtn').addEventListener('click', function() {
+        fetch('{{ url_for("spare_parts.suggest_code") }}')
+            .then(response => response.json())
+            .then(data => {
+                if (data.code) {
+                    document.getElementById('code_field').value = data.code;
+                } else {
+                    alert('No se pudo generar un código.');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Error al generar código');
+            });
+    });
+</script>
+{% endif %}
+
 {% endblock %}
