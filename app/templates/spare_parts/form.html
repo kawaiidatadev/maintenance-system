@@ -7,7 +7,8 @@
                 <h4>{{ title }}</h4>
             </div>
             <div class="card-body">
-                <form method="POST">
+                <!-- IMPORTANTE: Agregar enctype para subir archivos -->
+                <form method="POST" enctype="multipart/form-data">
                     {{ form.hidden_tag() }}
                     {{ form.id() }}
 
@@ -121,7 +122,7 @@
                                             <button type="button" class="btn btn-sm btn-outline-primary" id="add-tech-field">
                                                 <i class="fas fa-plus"></i> Agregar parámetro
                                             </button>
-                                        </td>
+                                         </td>
                                     </tr>
                                 </tfoot>
                             </table>
@@ -129,8 +130,18 @@
                         <input type="hidden" name="technical_data" id="technical_data_json">
                     </div>
 
+                    <!-- ============================================ -->
+                    <!-- CAMPO DE IMAGEN (subida de archivo) -->
+                    <!-- ============================================ -->
                     <div class="mb-2">
-                        {{ form.image_path.label }} {{ form.image_path(class="form-control") }}
+                        {{ form.image.label }}
+                        {{ form.image(class="form-control") }}
+                        {% if part and part.image_path %}
+                            <div class="mt-2">
+                                <img src="{{ url_for('static', filename=part.image_path) }}" alt="Imagen actual" style="max-height: 100px; border: 1px solid #ddd; border-radius: 4px; padding: 2px;">
+                                <small class="text-muted d-block mt-1">Imagen actual</small>
+                            </div>
+                        {% endif %}
                     </div>
 
                     <div class="mb-2">
@@ -188,7 +199,6 @@ document.addEventListener('DOMContentLoaded', function() {
     const hiddenJsonField = document.getElementById('technical_data_json');
     let fieldIndex = 0;
 
-    // Función para cargar datos existentes desde el objeto (si se está editando)
     function loadExistingTechData(data) {
         if (!data) return;
         let parsedData = data;
@@ -224,18 +234,16 @@ document.addEventListener('DOMContentLoaded', function() {
                     <button type="button" class="btn btn-sm btn-outline-danger remove-row" data-row="${rowId}">
                         <i class="fas fa-trash-alt"></i>
                     </button>
-                </td>
-            </tr>
+                 </td>
+             </tr>
         `;
         container.insertAdjacentHTML('beforeend', html);
 
-        // Agregar evento de eliminación
         document.getElementById(rowId).querySelector('.remove-row').addEventListener('click', function() {
             document.getElementById(rowId).remove();
             updateJsonField();
         });
 
-        // Agregar eventos a los inputs para actualizar JSON
         const inputs = document.querySelectorAll(`#${rowId} input`);
         inputs.forEach(input => input.addEventListener('input', updateJsonField));
         updateJsonField();
@@ -272,7 +280,6 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // Botón para agregar nueva fila
     const addBtn = document.getElementById('add-tech-field');
     if (addBtn) {
         addBtn.addEventListener('click', function() {
@@ -280,7 +287,6 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // Inicializar con datos existentes (si los hay)
     {% if part and part.technical_data %}
         const existingData = {{ part.technical_data|tojson|safe }};
         loadExistingTechData(existingData);
@@ -362,7 +368,6 @@ document.addEventListener('DOMContentLoaded', function() {
         suggestBtn.addEventListener('click', generateCode);
     }
 
-    // Inicializar
     if (codeField.value.trim() === '') {
         generateCode();
     }

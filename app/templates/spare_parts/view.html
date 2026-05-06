@@ -11,6 +11,7 @@
             </div>
             <div class="card-body">
                 <div class="row">
+                    <!-- Columna izquierda: Información general -->
                     <div class="col-md-6">
                         <div class="card">
                             <div class="card-header bg-light">
@@ -42,7 +43,10 @@
                             </div>
                         </div>
                     </div>
+
+                    <!-- Columna derecha: Inventario e IMAGEN -->
                     <div class="col-md-6">
+                        <!-- Inventario actual -->
                         <div class="card">
                             <div class="card-header bg-info text-white">
                                 <h5><i class="fas fa-boxes"></i> Inventario actual</h5>
@@ -60,6 +64,28 @@
                                 </table>
                                 {% else %}
                                 <p class="text-muted">Sin inventario registrado.</p>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <!-- ============================================ -->
+                        <!-- IMAGEN DE LA REFACCIÓN (NUEVO BLOQUE) -->
+                        <!-- ============================================ -->
+                        <div class="card mt-3">
+                            <div class="card-header bg-secondary text-white">
+                                <h5><i class="fas fa-image"></i> Imagen de la refacción</h5>
+                            </div>
+                            <div class="card-body text-center">
+                                {% if part.image_path %}
+                                    <img src="{{ url_for('static', filename=part.image_path) }}" alt="{{ part.name }}" style="max-width: 100%; max-height: 250px; border-radius: 8px;">
+                                    <div class="mt-2">
+                                        <small class="text-muted">Imagen actual</small>
+                                    </div>
+                                {% else %}
+                                    <div class="text-muted">
+                                        <i class="fas fa-camera fa-3x mb-2"></i>
+                                        <p>No hay imagen disponible</p>
+                                    </div>
                                 {% endif %}
                             </div>
                         </div>
@@ -150,7 +176,7 @@
                                         <td>{{ m.performed_by.username if m.performed_by else 'Sistema' }}</td>
                                     </tr>
                                     {% else %}
-                                    <tr><td colspan="6" class="text-center py-3">No hay movimientos registrados</td></tr>
+                                    <table><td colspan="6" class="text-center py-3">No hay movimientos registrados</td></tr>
                                     {% endfor %}
                                 </tbody>
                             </table>

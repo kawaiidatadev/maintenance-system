@@ -1,4 +1,8 @@
 import re
+import os
+from datetime import datetime
+from werkzeug.utils import secure_filename
+from flask import current_app
 
 from flask import render_template, request, redirect, url_for, flash, jsonify
 from flask_login import login_required, current_user
@@ -20,8 +24,20 @@ def admin_required(func):
             flash('Acceso denegado. Se requieren permisos de administrador.', 'danger')
             return redirect(url_for('dashboard.index'))
         return func(*args, **kwargs)
-
     return decorated_view
+
+
+def save_uploaded_file(file, part_id):
+    """Guarda la imagen subida y retorna la ruta relativa"""
+    if not file or file.filename == '':
+        return None
+    ext = file.filename.rsplit('.', 1)[1].lower()
+    filename = f"spare_{part_id}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.{ext}"
+    upload_folder = os.path.join(current_app.root_path, 'static', 'uploads', 'spare_parts')
+    os.makedirs(upload_folder, exist_ok=True)
+    filepath = os.path.join(upload_folder, filename)
+    file.save(filepath)
+    return f'uploads/spare_parts/{filename}'
 
 
 # ------------------- Catálogo de refacciones -------------------
@@ -37,8 +53,7 @@ def index():
 def view(id):
     part = SparePart.query.get_or_404(id)
     stock = InventoryStock.query.filter_by(spare_part_id=id).first()
-    movements = SparePartMovement.query.filter_by(spare_part_id=id).order_by(SparePartMovement.created_at.desc()).limit(
-        20).all()
+    movements = SparePartMovement.query.filter_by(spare_part_id=id).order_by(SparePartMovement.created_at.desc()).limit(20).all()
     return render_template('spare_parts/view.html', part=part, stock=stock, movements=movements)
 
 
@@ -77,13 +92,20 @@ def create():
             currency=form.currency.data,
             estimated_life_hours=form.estimated_life_hours.data,
             estimated_life_years=form.estimated_life_years.data,
-            image_path=form.image_path.data,
+            image_path=None,  # Se asignará después si hay imagen
             barcode=form.barcode.data
         )
         db.session.add(part)
         db.session.commit()
 
-        # Crear o actualizar stock con los valores del formulario
+        # Guardar imagen si se subió
+        if form.image.data:
+            image_path = save_uploaded_file(form.image.data, part.id)
+            if image_path:
+                part.image_path = image_path
+                db.session.commit()
+
+        # Crear stock con los valores del formulario
         stock = get_or_create_stock(part.id)
         stock.minimum_stock = form.minimum_stock.data or 0
         stock.maximum_stock = form.maximum_stock.data or 0
@@ -106,7 +128,7 @@ def edit(id):
     form = SparePartForm(obj=part)
     form.code.validators = [DataRequired(), Length(max=50)]
 
-    # 🔥 ASIGNAR EL ID ACTUAL AL FORMULARIO PARA LA VALIDACIÓN
+    # Asignar el ID actual al formulario para la validación
     form.id.data = part.id
 
     # Obtener el stock asociado
@@ -145,9 +167,19 @@ def edit(id):
             part.currency = form.currency.data
             part.estimated_life_hours = form.estimated_life_hours.data
             part.estimated_life_years = form.estimated_life_years.data
-            part.image_path = form.image_path.data
             part.barcode = form.barcode.data
             db.session.commit()
+
+            # Manejo de imagen
+            if form.image.data:
+                # Eliminar imagen anterior si existe
+                if part.image_path and os.path.exists(os.path.join(current_app.root_path, 'static', part.image_path)):
+                    os.remove(os.path.join(current_app.root_path, 'static', part.image_path))
+                # Guardar nueva
+                image_path = save_uploaded_file(form.image.data, part.id)
+                if image_path:
+                    part.image_path = image_path
+                    db.session.commit()
 
             # Actualizar inventario
             stock.minimum_stock = form.minimum_stock.data or 0
@@ -338,34 +370,22 @@ def api_equipment_spare_parts(equipment_id):
     return jsonify(data)
 
 
-
-
 @spare_parts_bp.route('/suggest-code', methods=['GET'])
 @login_required
 @admin_required
 def suggest_code():
     item_type = request.args.get('item_type', 'spare').strip().lower()
 
-    # 🔹 Definir prefijo
     prefix = 'REF' if item_type == 'spare' else 'CON'
-
-    # 🔹 Traer solo códigos que empiezan con el prefijo
-    codes = db.session.query(SparePart.code).filter(
-        SparePart.code.ilike(f'{prefix}%')
-    ).all()
-
+    codes = db.session.query(SparePart.code).filter(SparePart.code.ilike(f'{prefix}%')).all()
     max_num = 0
-
-    # 🔹 Regex seguro
     pattern = re.compile(rf'^{prefix}(\d+)$', re.IGNORECASE)
 
     for (code,) in codes:
         if not code:
             continue
-
         code_clean = code.strip().upper()
         match = pattern.match(code_clean)
-
         if match:
             try:
                 num = int(match.group(1))
@@ -375,13 +395,7 @@ def suggest_code():
                 continue
 
     next_number = max_num + 1
-
-    # 🔥 Aquí puedes decidir formato
-    # Opción A: REF1, REF2, REF3
     next_code = f"{prefix}{next_number}"
-
-    # Opción B (más pro): REF0001, REF0002
-    # next_code = f"{prefix}{str(next_number).zfill(4)}"
 
     return jsonify({
         'code': next_code,
@@ -389,19 +403,18 @@ def suggest_code():
         'next_number': next_number
     })
 
+
 @spare_parts_bp.route('/validate-code', methods=['GET'])
 @login_required
 @admin_required
 def validate_code():
     code = request.args.get('code', '').strip()
-    part_id = request.args.get('id')  # 👈 importante
+    part_id = request.args.get('id')
 
     if not code:
         return jsonify({'valid': False, 'message': 'Código vacío'})
 
     query = SparePart.query.filter(SparePart.code == code)
-
-    # 🔥 Si estamos editando, excluir el mismo registro
     if part_id:
         query = query.filter(SparePart.id != int(part_id))
 

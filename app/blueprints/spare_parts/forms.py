@@ -1,4 +1,5 @@
 from flask_wtf import FlaskForm
+from flask_wtf.file import FileField, FileAllowed
 from wtforms import StringField, TextAreaField, SelectField, DecimalField, IntegerField, BooleanField, URLField, \
     FloatField, HiddenField
 from wtforms.validators import DataRequired, Length, Optional, NumberRange, ValidationError
@@ -29,8 +30,22 @@ class SparePartForm(FlaskForm):
     currency = StringField('Moneda', default='USD', validators=[Optional(), Length(max=3)])
     estimated_life_hours = IntegerField('Vida útil (horas)', validators=[Optional()])
     estimated_life_years = FloatField('Vida útil (años)', validators=[Optional()])
+
+    # ============================================
+    # CAMPO PARA SUBIR IMAGEN (reemplaza al campo image_path)
+    # ============================================
+    image = FileField('Imagen', validators=[
+        Optional(),
+        FileAllowed(['jpg', 'jpeg', 'png', 'gif'], 'Solo se permiten imágenes (jpg, jpeg, png, gif)')
+    ])
+
+    # image_path se mantiene pero ahora se llena automáticamente al subir una imagen
     image_path = StringField('Ruta de imagen', validators=[Optional(), Length(max=255)])
     barcode = StringField('Código de barras', validators=[Optional(), Length(max=100)])
+
+    # ============================================
+    # PARÁMETROS DE INVENTARIO
+    # ============================================
     minimum_stock = IntegerField('Stock mínimo', validators=[Optional()], default=0)
     maximum_stock = IntegerField('Stock máximo', validators=[Optional()], default=0)
     reorder_point = IntegerField('Punto de pedido', validators=[Optional()], default=0)
