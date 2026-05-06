@@ -3,6 +3,7 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 from flask_login import LoginManager, current_user
 from config import Config
+import json
 
 # Inicializar extensiones (fuera de la función)
 db = SQLAlchemy()
@@ -44,10 +45,6 @@ def create_app():
     from app.blueprints.preventive import preventive_bp
     from app.blueprints.spare_parts import spare_parts_bp
 
-
-
-
-
     # Registrar blueprints
     app.register_blueprint(auth_bp, url_prefix='/auth')
     app.register_blueprint(dashboard_bp, url_prefix='/')
@@ -61,6 +58,7 @@ def create_app():
     app.register_blueprint(reports_bp)
     app.register_blueprint(preventive_bp)
     app.register_blueprint(spare_parts_bp)
+
     # ============================================
     # REGISTRAR TIPOS DE PDF (IMPORTANTE: dentro del contexto de app)
     # ============================================
@@ -113,6 +111,19 @@ def create_app():
             return f"{value:,.2f}".replace(',', ' ')
         except:
             return str(value)
+
+    # ============================================
+    # FILTRO PARA CONVERTIR JSON EN DICCIONARIO (para datos técnicos)
+    # ============================================
+    @app.template_filter('from_json')
+    def from_json_filter(value):
+        """Convierte un string JSON en un diccionario Python para usar en templates"""
+        if not value:
+            return {}
+        try:
+            return json.loads(value)
+        except (json.JSONDecodeError, TypeError):
+            return {}
 
     # Ruta raíz
     @app.route('/')

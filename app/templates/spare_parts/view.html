@@ -3,72 +3,177 @@
 <div class="row">
     <div class="col-md-12">
         <div class="card">
-            <div class="card-header bg-primary text-white">
-                <h4>{{ part.name }} ({{ part.code }})</h4>
+            <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                <h4 class="mb-0">{{ part.name }} ({{ part.code }})</h4>
+                <span class="badge {% if part.item_type == 'spare' %}bg-warning{% else %}bg-info{% endif %}">
+                    {{ 'Refacción' if part.item_type == 'spare' else 'Consumible' }}
+                </span>
             </div>
             <div class="card-body">
                 <div class="row">
                     <div class="col-md-6">
-                        <table class="table table-bordered">
-                            <tr><th>Código</th><td>{{ part.code }}</td></tr>
-                            <tr><th>Nombre</th><td>{{ part.name }}</td></tr>
-                            <tr><th>Tipo</th><td>{{ 'Refacción' if part.item_type=='spare' else 'Consumible' }}</td></tr>
-                            <tr><th>Marca</th><td>{{ part.brand or '-' }}</td></tr>
-                            <tr><th>Modelo</th><td>{{ part.model or '-' }}</td></tr>
-                            <tr><th>Número de serie</th><td>{{ part.serial_number or '-' }}</td></tr>
-                            <tr><th>Proveedor</th><td>{{ part.supplier or '-' }}</td></tr>
-                            <tr><th>N° pieza proveedor</th><td>{{ part.supplier_part_number or '-' }}</td></tr>
-                            <tr><th>Categoría</th><td>{{ part.category or '-' }}</td></tr>
-                            <tr><th>Unidad</th><td>{{ part.unit }}</td></tr>
-                            <tr><th>Criticidad</th><td>{{ part.criticality }}</td></tr>
-                            <tr><th>Precio unitario</th><td>{{ part.unit_price }} {{ part.currency }}</td></tr>
-                            <tr><th>Costo de envío</th><td>{{ part.shipping_cost }} {{ part.currency }}</td></tr>
-                            <tr><th>Vida útil (horas)</th><td>{{ part.estimated_life_hours or '-' }}</td></tr>
-                            <tr><th>Vida útil (años)</th><td>{{ part.estimated_life_years or '-' }}</td></tr>
-                        </table>
+                        <div class="card">
+                            <div class="card-header bg-light">
+                                <h5><i class="fas fa-info-circle"></i> Información general</h5>
+                            </div>
+                            <div class="card-body p-0">
+                                <table class="table table-bordered mb-0">
+                                    <tr><th style="width: 40%">Código</th><td>{{ part.code }}</td></tr>
+                                    <tr><th>Nombre</th><td>{{ part.name }}</td></tr>
+                                    <tr><th>Marca</th><td>{{ part.brand or '-' }}</td></tr>
+                                    <tr><th>Modelo</th><td>{{ part.model or '-' }}</td></tr>
+                                    <tr><th>Número de serie</th><td>{{ part.serial_number or '-' }}</td></tr>
+                                    <tr><th>Proveedor</th><td>{{ part.supplier or '-' }}</td></tr>
+                                    <tr><th>N° pieza proveedor</th><td>{{ part.supplier_part_number or '-' }}</td></tr>
+                                    <tr><th>Categoría</th><td>{{ part.category or '-' }}</td></tr>
+                                    <tr><th>Unidad</th><td>{{ part.unit }}</td></tr>
+                                    <tr><th>Criticidad</th><td>
+                                        <span class="badge {% if part.criticality == 'critical' %}bg-danger{% elif part.criticality == 'high' %}bg-warning{% elif part.criticality == 'medium' %}bg-info{% else %}bg-secondary{% endif %}">
+                                            {{ part.criticality }}
+                                        </span>
+                                    </td></tr>
+                                    <tr><th>Precio unitario</th><td>{{ part.unit_price }} {{ part.currency }}</td></tr>
+                                    <tr><th>Costo de envío</th><td>{{ part.shipping_cost }} {{ part.currency }}</td></tr>
+                                    <tr><th>Vida útil (horas)</th><td>{{ part.estimated_life_hours or '-' }}</td></tr>
+                                    <tr><th>Vida útil (años)</th><td>{{ part.estimated_life_years or '-' }}</td></tr>
+                                    <tr><th>URL de compra</th><td>{% if part.purchase_url %}<a href="{{ part.purchase_url }}" target="_blank">Ver</a>{% else %}-{% endif %}</td></tr>
+                                    <tr><th>Código de barras</th><td>{{ part.barcode or '-' }}</td></tr>
+                                </table>
+                            </div>
+                        </div>
                     </div>
                     <div class="col-md-6">
                         <div class="card">
-                            <div class="card-header bg-info text-white">Inventario actual</div>
+                            <div class="card-header bg-info text-white">
+                                <h5><i class="fas fa-boxes"></i> Inventario actual</h5>
+                            </div>
                             <div class="card-body">
                                 {% if stock %}
-                                <p><strong>Almacén:</strong> {{ stock.warehouse }}</p>
-                                <p><strong>Stock actual:</strong> {{ stock.current_stock }} {{ part.unit }}</p>
-                                <p><strong>Stock mínimo:</strong> {{ stock.minimum_stock }}</p>
-                                <p><strong>Stock máximo:</strong> {{ stock.maximum_stock }}</p>
-                                <p><strong>Punto de reorden:</strong> {{ stock.reorder_point }}</p>
-                                <p><strong>Ubicación:</strong> {{ stock.location_shelf or '-' }}</p>
+                                <table class="table table-sm">
+                                    <tr><th>Almacén:</th><td>{{ stock.warehouse }}</td></tr>
+                                    <tr><th>Stock actual:</th><td class="{% if stock.current_stock <= stock.minimum_stock %}text-danger fw-bold{% endif %}">{{ stock.current_stock }} {{ part.unit }}</td></tr>
+                                    <tr><th>Stock mínimo:</th><td>{{ stock.minimum_stock }}</td></tr>
+                                    <tr><th>Stock máximo:</th><td>{{ stock.maximum_stock }}</td></tr>
+                                    <tr><th>Punto de reorden:</th><td>{{ stock.reorder_point }}</td></tr>
+                                    <tr><th>Ubicación:</th><td>{{ stock.location_shelf or '-' }}</td></tr>
+                                    <tr><th>Último conteo:</th><td>{{ stock.last_count_date or '-' }}</td></tr>
+                                </table>
                                 {% else %}
-                                <p>Sin inventario registrado.</p>
+                                <p class="text-muted">Sin inventario registrado.</p>
                                 {% endif %}
                             </div>
                         </div>
                     </div>
                 </div>
-                <h5 class="mt-3">Datos técnicos</h5>
-                <pre>{{ part.technical_data | tojson(indent=2) if part.technical_data else 'No especificados' }}</pre>
-                <h5 class="mt-3">Movimientos recientes</h5>
-                <div class="table-responsive">
-                    <table class="table table-sm">
-                        <thead><tr><th>Fecha</th><th>Tipo</th><th>Cantidad</th><th>Referencia</th><th>Realizado por</th></tr></thead>
-                        <tbody>
-                            {% for m in movements %}
-                            <tr>
-                                <td>{{ m.created_at.strftime('%d/%m/%Y %H:%M') }}</td>
-                                <td>{{ 'Entrada' if m.movement_type=='in' else 'Salida' }}</td>
-                                <td>{{ m.quantity }}</td>
-                                <td>{{ m.reference_number or '-' }}</td>
-                                <td>{{ m.performed_by.username if m.performed_by else 'Sistema' }}</td>
-                            </tr>
-                            {% else %}
-                            <tr><td colspan="5">Sin movimientos</td></tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
+
+                <!-- ============================================ -->
+                <!-- DATOS TÉCNICOS (FORMATO TABLA BONITA) -->
+                <!-- ============================================ -->
+                {% if part.technical_data %}
+                <div class="card mt-3">
+                    <div class="card-header bg-secondary text-white">
+                        <h5><i class="fas fa-microchip"></i> Datos técnicos</h5>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="table-responsive">
+                            <table class="table table-sm table-bordered mb-0">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th style="width: 40%">Parámetro</th>
+                                        <th style="width: 40%">Valor</th>
+                                        <th style="width: 20%">Unidad</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% if part.technical_data is string %}
+                                        {% set tech_data = part.technical_data|from_json %}
+                                    {% else %}
+                                        {% set tech_data = part.technical_data %}
+                                    {% endif %}
+
+                                    {% for key, value in tech_data.items() %}
+                                    <tr>
+                                        <td><strong>{{ key }}</strong></td>
+                                        <td>{{ value.value if value.value is defined else value }}</td>
+                                        <td>{{ value.unit if value.unit is defined else '—' }}</td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
                 </div>
-                <div class="mt-3">
-                    <a href="{{ url_for('spare_parts.edit', id=part.id) }}" class="btn btn-warning">Editar</a>
-                    <a href="{{ url_for('spare_parts.inventory') }}" class="btn btn-secondary">Ver inventario</a>
+                {% endif %}
+
+                <!-- ============================================ -->
+                <!-- DESCRIPCIÓN -->
+                <!-- ============================================ -->
+                {% if part.description %}
+                <div class="card mt-3">
+                    <div class="card-header bg-light">
+                        <h5><i class="fas fa-align-left"></i> Descripción</h5>
+                    </div>
+                    <div class="card-body">
+                        <p class="mb-0">{{ part.description }}</p>
+                    </div>
+                </div>
+                {% endif %}
+
+                <!-- ============================================ -->
+                <!-- MOVIMIENTOS RECIENTES -->
+                <!-- ============================================ -->
+                <div class="card mt-3">
+                    <div class="card-header bg-light">
+                        <h5><i class="fas fa-exchange-alt"></i> Movimientos recientes</h5>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="table-responsive">
+                            <table class="table table-sm mb-0">
+                                <thead class="table-dark">
+                                    <tr>
+                                        <th>Fecha</th>
+                                        <th>Tipo</th>
+                                        <th>Cantidad</th>
+                                        <th>Referencia</th>
+                                        <th>Descripción</th>
+                                        <th>Realizado por</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for m in movements %}
+                                    <tr class="{% if m.movement_type == 'in' %}table-success{% else %}table-warning{% endif %}">
+                                        <td>{{ m.created_at.strftime('%d/%m/%Y %H:%M') }}</td>
+                                        <td>{{ '📥 Entrada' if m.movement_type == 'in' else '📤 Salida' }}</td>
+                                        <td><strong>{{ m.quantity }}</strong> {{ part.unit }}</td>
+                                        <td>{{ m.reference_number or '-' }}</td>
+                                        <td>{{ m.description or '-' }}</td>
+                                        <td>{{ m.performed_by.username if m.performed_by else 'Sistema' }}</td>
+                                    </tr>
+                                    {% else %}
+                                    <tr><td colspan="6" class="text-center py-3">No hay movimientos registrados</td></tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ============================================ -->
+                <!-- BOTONES DE ACCIÓN -->
+                <!-- ============================================ -->
+                <div class="mt-4">
+                    <a href="{{ url_for('spare_parts.edit', id=part.id) }}" class="btn btn-warning">
+                        <i class="fas fa-edit"></i> Editar
+                    </a>
+                    <a href="{{ url_for('spare_parts.add_movement', part_id=part.id) }}" class="btn btn-success">
+                        <i class="fas fa-exchange-alt"></i> Registrar movimiento
+                    </a>
+                    <a href="{{ url_for('spare_parts.inventory') }}" class="btn btn-secondary">
+                        <i class="fas fa-boxes"></i> Ver inventario
+                    </a>
+                    <a href="{{ url_for('spare_parts.index') }}" class="btn btn-outline-secondary">
+                        <i class="fas fa-arrow-left"></i> Volver
+                    </a>
                 </div>
             </div>
         </div>
