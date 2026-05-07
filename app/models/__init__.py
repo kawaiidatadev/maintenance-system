@@ -7,3 +7,7 @@ from app.models.equipment_reading import EquipmentReading
 from app.models.notification_rule import NotificationRule
 from app.models.user_notification_preference import UserNotificationPreference
 from app.models.notification import Notification
+from app.models.report_config import ReportConfig
+from app.models.work_order_report import WorkOrderReport
+from app.models.standard_activity import StandardActivity
+from app.models.preventive_execution_log import PreventiveExecutionLog

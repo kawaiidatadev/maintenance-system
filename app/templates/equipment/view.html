@@ -249,15 +249,19 @@
                 </div>
 
                 <!-- Botones de acción -->
+                <!-- Botones de acción -->
                 <div class="mt-4">
                     {% if current_user.role in ['admin', 'supervisor'] %}
                     <a href="{{ url_for('equipment.edit_equipment', id=equipment.id) }}" class="btn btn-warning">
                         <i class="fas fa-edit"></i> Editar equipo
                     </a>
+
                     {% endif %}
                     <a href="{{ url_for('equipment.list_equipment') }}" class="btn btn-secondary">
                         <i class="fas fa-arrow-left"></i> Volver
                     </a>
+
+
                 </div>
             </div>
         </div>

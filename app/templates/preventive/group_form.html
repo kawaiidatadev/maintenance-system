@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-6 mx-auto">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h4>{{ 'Editar' if group else 'Nuevo' }} Grupo de Mantenimiento</h4>
+            </div>
+            <div class="card-body">
+                <form method="POST">
+                    <!-- SELECTOR DE EQUIPOS (SIEMPRE visible) -->
+                    <div class="mb-3">
+                        <label class="form-label">Equipos asignados *</label>
+                        <select name="equipment_ids" multiple class="form-control" size="5" required>
+                            {% for eq in equipments %}
+                            <option value="{{ eq.id }}"
+                                {% if group and eq in group.equipments %}selected{% endif %}>
+                                {{ eq.name }} ({{ eq.code }})
+                            </option>
+                            {% endfor %}
+                        </select>
+                        <small class="text-muted">Puede seleccionar varios equipos (Ctrl+clic).</small>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Nombre del grupo *</label>
+                        <input type="text" name="name" class="form-control" value="{{ group.name if group else '' }}" required>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Descripción</label>
+                        <textarea name="description" rows="3" class="form-control">{{ group.description if group else '' }}</textarea>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6">
+                            <label class="form-label">Tipo de frecuencia</label>
+                            <select name="freq_type" class="form-control">
+                                {% for val, label in freq_types %}
+                                <option value="{{ val }}" {% if group and group.freq_type == val %}selected{% endif %}>{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Cada</label>
+                            <input type="number" name="freq_value" class="form-control" value="{{ group.freq_value if group else 1 }}" min="1">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Días tolerancia</label>
+                            <input type="number" name="tolerance_days" class="form-control" value="{{ group.tolerance_days if group else 2 }}" min="0">
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Responsable *</label>
+                        <select name="responsible_role" id="responsible_role" class="form-control">
+                            <option value="specialized" {% if group and group.responsible_role == 'specialized' %}selected{% endif %}>Especializado (Técnico)</option>
+                            <option value="external" {% if group and group.responsible_role == 'external' %}selected{% endif %}>Externo</option>
+                        </select>
+                    </div>
+
+                    <!-- Selector de técnico asignado (solo visible si responsable = specialized) -->
+                    <div class="mb-3" id="assigned_to_div" style="display: none;">
+                        <label class="form-label">Técnico asignado</label>
+                        <select name="assigned_to_id" class="form-control">
+                            <option value="">-- Sin asignar (cualquier técnico puede ejecutar) --</option>
+                            {% for user in technicians %}
+                            <option value="{{ user.id }}" {% if group and group.assigned_to_id == user.id %}selected{% endif %}>{{ user.username }}</option>
+                            {% endfor %}
+                        </select>
+                        <small class="text-muted">Si se asigna un técnico específico, solo él podrá ejecutar este grupo.</small>
+                    </div>
+
+                    <div class="mb-3 form-check">
+                        <input type="checkbox" name="requires_shutdown" class="form-check-input" id="shutdown" {% if group and group.requires_shutdown %}checked{% endif %}>
+                        <label class="form-check-label" for="shutdown">Requiere parada de equipo</label>
+                    </div>
+
+                    <div class="mb-3 form-check">
+                        <input type="checkbox" name="is_legal_requirement" class="form-check-input" id="legal" {% if group and group.is_legal_requirement %}checked{% endif %}>
+                        <label class="form-check-label" for="legal">Requerimiento legal</label>
+                    </div>
+
+                    <div id="legalRefDiv" style="display: {% if group and group.is_legal_requirement %}block{% else %}none{% endif %};">
+                        <div class="mb-3">
+                            <label class="form-label">Referencia legal</label>
+                            <input type="text" name="legal_reference" class="form-control" value="{{ group.legal_reference if group else '' }}">
+                        </div>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary">Guardar</button>
+                    <a href="{{ url_for('preventive.groups_list') }}" class="btn btn-secondary">Cancelar</a>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Mostrar/ocultar referencia legal
+    const legalCheck = document.getElementById('legal');
+    const legalDiv = document.getElementById('legalRefDiv');
+    if (legalCheck) {
+        legalCheck.addEventListener('change', function() {
+            legalDiv.style.display = this.checked ? 'block' : 'none';
+        });
+    }
+
+    // Mostrar/ocultar selector de técnico según responsable
+    const responsibleSelect = document.getElementById('responsible_role');
+    const assignedDiv = document.getElementById('assigned_to_div');
+
+    function toggleAssignedTo() {
+        if (responsibleSelect && assignedDiv) {
+            assignedDiv.style.display = (responsibleSelect.value === 'specialized') ? 'block' : 'none';
+        }
+    }
+
+    if (responsibleSelect) {
+        responsibleSelect.addEventListener('change', toggleAssignedTo);
+        toggleAssignedTo(); // ejecutar al cargar
+    }
+</script>
+{% endblock %}

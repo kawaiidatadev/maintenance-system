@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card">
+    <div class="card-header bg-primary text-white">
+        <h4>Historial de movimientos: {{ part.name }} ({{ part.code }})</h4>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-sm table-hover">
+                <thead class="table-light">
+                    <tr>
+                        <th>Fecha</th>
+                        <th>Tipo</th>
+                        <th>Cantidad</th>
+                        <th>Referencia</th>
+                        <th>Descripción</th>
+                        <th>Realizado por</th>
+                        <th>Asociado a</th>
+                    <tr>
+                </thead>
+                <tbody>
+                    {% for m in movements %}
+                    <tr class="{% if m.movement_type == 'in' %}table-success{% else %}table-warning{% endif %}">
+                        <td>{{ m.created_at.strftime('%d/%m/%Y %H:%M') }}</td>
+                        <td>{{ '📥 Entrada' if m.movement_type == 'in' else '📤 Salida' }}</td>
+                        <td><strong>{{ m.quantity }}</strong> {{ part.unit }}</td>
+                        <td>{{ m.reference_number or '-' }}</td>
+                        <td>{{ m.description or '-' }}</td>
+                        <td>{{ m.performed_by.username if m.performed_by else 'Sistema' }}</td>
+                        <td>
+                            {% if m.work_order_id %}
+                                <a href="{{ url_for('work_orders.view_order', id=m.work_order_id) }}" target="_blank">
+                                    OT #{{ m.work_order_id }}
+                                </a>
+                            {% elif m.preventive_execution_log_id %}
+                                <span class="badge bg-info">Preventivo</span>
+                            {% else %}
+                                —
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="7" class="text-center text-muted">No hay movimientos registrados para esta refacción.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <div class="mt-3">
+            <a href="{{ url_for('spare_parts.view', id=part.id) }}" class="btn btn-secondary">
+                <i class="fas fa-arrow-left"></i> Volver al detalle
+            </a>
+            <a href="{{ url_for('spare_parts.add_movement', part_id=part.id) }}" class="btn btn-primary">
+                <i class="fas fa-plus"></i> Nuevo movimiento
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}

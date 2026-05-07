@@ -1,0 +1,122 @@
+<!-- ========================================== -->
+<!-- ENCABEZADO - 3 COLUMNAS ORIGINAL -->
+<!-- ========================================== -->
+<div class="mb-5">
+    <div class="d-flex align-items-center mb-3">
+        <i class="fas fa-heading fa-2x text-primary me-3"></i>
+        <h3 class="mb-0">Encabezado</h3>
+        <hr class="flex-grow-1 ms-3">
+    </div>
+    <div class="row">
+        {% for col, label in [('left', 'Izquierda'), ('center', 'Centro'), ('right', 'Derecha')] %}
+        <div class="col-md-4 mb-4">
+            <div class="card h-100 border-0 shadow-sm">
+                <div class="card-header bg-light fw-bold">{{ label }}</div>
+                <div class="card-body">
+                    <!-- Campo de texto -->
+                    <div class="mb-3">
+                        <label class="form-label small text-muted">Contenido textual</label>
+                        <textarea name="header_{{ col }}" rows="3" class="form-control font-monospace" style="font-size: 12px;">{{ config['header_' + col] or '' }}</textarea>
+                        <small class="text-muted">Usa HTML básico si lo deseas.</small>
+                    </div>
+
+                    <!-- Imagen actual -->
+                    {% set img_field = 'header_' + col + '_img' %}
+                    {% if config[img_field] %}
+                    <div class="mb-3">
+                        <div class="alert alert-secondary py-2">
+                            <i class="fas fa-image me-2"></i> Imagen actual:
+                            <img src="{{ url_for('static', filename=config[img_field]) }}" style="max-height: 50px; max-width: 100%;" class="d-block mt-1">
+                            <small class="text-muted d-block">{{ config[img_field].split('/')[-1] }}</small>
+                            <button type="button" class="btn btn-sm btn-outline-danger mt-2 remove-image" data-target="header_{{ col }}">Eliminar imagen</button>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    <!-- Subida de nueva imagen -->
+                    <div class="mb-3">
+                        <label class="form-label small text-muted">Nueva imagen (opcional)</label>
+                        <input type="file" class="form-control" name="header_{{ col }}_img" accept="image/*" data-column="header_{{ col }}">
+                        <small class="text-muted">Formato: PNG, JPG, GIF, SVG. Si subes una imagen, se vaciará el texto.</small>
+                    </div>
+
+                    <!-- Ancho de la imagen -->
+                    <div class="mb-1">
+                        <label class="form-label small text-muted">Ancho de imagen (mm)</label>
+                        <input type="number" step="5" class="form-control form-control-sm" name="header_{{ col }}_img_width"
+                               value="{{ config['header_' + col + '_img_width'] or 30 }}" min="5" max="80" style="width: 100px;">
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<!-- ========================================== -->
+<!-- PIE DE PÁGINA - 3 COLUMNAS ORIGINAL -->
+<!-- ========================================== -->
+<div class="mb-5">
+    <div class="d-flex align-items-center mb-3">
+        <i class="fas fa-italic fa-2x text-primary me-3"></i>
+        <h3 class="mb-0">Pie de página</h3>
+        <hr class="flex-grow-1 ms-3">
+    </div>
+    <div class="row">
+        {% for col, label in [('left', 'Izquierda'), ('center', 'Centro'), ('right', 'Derecha')] %}
+        <div class="col-md-4 mb-4">
+            <div class="card h-100 border-0 shadow-sm">
+                <div class="card-header bg-light fw-bold">{{ label }}</div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label class="form-label small text-muted">Contenido textual</label>
+                        <textarea name="footer_{{ col }}" rows="3" class="form-control font-monospace" style="font-size: 12px;">{{ config['footer_' + col] or '' }}</textarea>
+                    </div>
+
+                    {% set img_field = 'footer_' + col + '_img' %}
+                    {% if config[img_field] %}
+                    <div class="mb-3">
+                        <div class="alert alert-secondary py-2">
+                            <i class="fas fa-image me-2"></i> Imagen actual:
+                            <img src="{{ url_for('static', filename=config[img_field]) }}" style="max-height: 50px; max-width: 100%;" class="d-block mt-1">
+                            <small class="text-muted">{{ config[img_field].split('/')[-1] }}</small>
+                            <button type="button" class="btn btn-sm btn-outline-danger mt-2 remove-image" data-target="footer_{{ col }}">Eliminar imagen</button>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    <div class="mb-3">
+                        <label class="form-label small text-muted">Nueva imagen</label>
+                        <input type="file" class="form-control" name="footer_{{ col }}_img" accept="image/*" data-column="footer_{{ col }}">
+                    </div>
+
+                    <div class="mb-1">
+                        <label class="form-label small text-muted">Ancho de imagen (mm)</label>
+                        <input type="number" step="5" class="form-control form-control-sm" name="footer_{{ col }}_img_width"
+                               value="{{ config['footer_' + col + '_img_width'] or 25 }}" min="5" max="80" style="width: 100px;">
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<!-- ========================================== -->
+<!-- OPCIONES DE EMPRESA -->
+<!-- ========================================== -->
+<div class="mb-4 p-3 bg-light rounded d-flex justify-content-between align-items-center">
+    <div>
+        <div class="form-check form-check-inline">
+            <input class="form-check-input" type="checkbox" name="use_company_logo" id="use_company_logo" {% if config.use_company_logo %}checked{% endif %}>
+            <label class="form-check-label" for="use_company_logo">Incluir logo de empresa (como marca de agua)</label>
+        </div>
+        <div class="form-check form-check-inline">
+            <input class="form-check-input" type="checkbox" name="use_company_name" id="use_company_name" {% if config.use_company_name %}checked{% endif %}>
+            <label class="form-check-label" for="use_company_name">Incluir nombre de empresa (como marca de agua)</label>
+        </div>
+    </div>
+    <button type="submit" class="btn btn-primary px-4">
+        <i class="fas fa-save me-2"></i> Guardar configuración
+    </button>
+</div>

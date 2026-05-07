@@ -1,0 +1,373 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="row">
+    <div class="col-md-8 mx-auto">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h4>{{ title }}</h4>
+            </div>
+            <div class="card-body">
+                <!-- IMPORTANTE: Agregar enctype para subir archivos -->
+                <form method="POST" enctype="multipart/form-data">
+                    {{ form.hidden_tag() }}
+                    {{ form.id() }}
+
+                    <div class="row">
+                        <div class="col-md-6 mb-2">
+                            {{ form.code.label }}
+                            <div class="input-group">
+                                {{ form.code(class="form-control", id="code_field", **{'readonly': part is defined}) }}
+                                {% if part is not defined %}
+                                <button type="button" class="btn btn-secondary" id="suggestCodeBtn">
+                                    <i class="fas fa-robot"></i>
+                                </button>
+                                {% endif %}
+                            </div>
+                            <div id="code_feedback" class="form-text"></div>
+                        </div>
+
+                        <div class="col-md-6 mb-2">
+                            {{ form.name.label }} {{ form.name(class="form-control") }}
+                        </div>
+                    </div>
+
+                    <div class="mb-2">
+                        {{ form.description.label }} {{ form.description(class="form-control", rows=2) }}
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-4 mb-2">
+                            {{ form.item_type.label }}
+                            {{ form.item_type(class="form-select", id="item_type_field") }}
+                        </div>
+
+                        <div class="col-md-4 mb-2">
+                            {{ form.brand.label }} {{ form.brand(class="form-control") }}
+                        </div>
+
+                        <div class="col-md-4 mb-2">
+                            {{ form.model.label }} {{ form.model(class="form-control") }}
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6 mb-2">
+                            {{ form.supplier.label }} {{ form.supplier(class="form-control") }}
+                        </div>
+
+                        <div class="col-md-6 mb-2">
+                            {{ form.supplier_part_number.label }} {{ form.supplier_part_number(class="form-control") }}
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-4 mb-2">
+                            {{ form.category.label }} {{ form.category(class="form-control") }}
+                        </div>
+
+                        <div class="col-md-4 mb-2">
+                            {{ form.unit.label }} {{ form.unit(class="form-control") }}
+                        </div>
+
+                        <div class="col-md-4 mb-2">
+                            {{ form.criticality.label }} {{ form.criticality(class="form-select") }}
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6 mb-2">
+                            {{ form.unit_price.label }} {{ form.unit_price(class="form-control") }}
+                        </div>
+
+                        <div class="col-md-6 mb-2">
+                            {{ form.shipping_cost.label }} {{ form.shipping_cost(class="form-control") }}
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6 mb-2">
+                            {{ form.estimated_life_hours.label }} {{ form.estimated_life_hours(class="form-control") }}
+                        </div>
+
+                        <div class="col-md-6 mb-2">
+                            {{ form.estimated_life_years.label }} {{ form.estimated_life_years(class="form-control") }}
+                        </div>
+                    </div>
+
+                    <div class="mb-2">
+                        {{ form.purchase_url.label }} {{ form.purchase_url(class="form-control") }}
+                    </div>
+
+                    <!-- ============================================ -->
+                    <!-- DATOS TÉCNICOS EN TABLA -->
+                    <!-- ============================================ -->
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Datos técnicos</label>
+                        <div class="table-responsive">
+                            <table class="table table-sm table-bordered" id="tech-table">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th style="width: 40%">Parámetro</th>
+                                        <th style="width: 35%">Valor</th>
+                                        <th style="width: 20%">Unidad</th>
+                                        <th style="width: 5%"></th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tech-table-body">
+                                    <!-- Las filas se agregarán dinámicamente aquí -->
+                                </tbody>
+                                <tfoot>
+                                    <tr>
+                                        <td colspan="4">
+                                            <button type="button" class="btn btn-sm btn-outline-primary" id="add-tech-field">
+                                                <i class="fas fa-plus"></i> Agregar parámetro
+                                            </button>
+                                         </td>
+                                    </tr>
+                                </tfoot>
+                            </table>
+                        </div>
+                        <input type="hidden" name="technical_data" id="technical_data_json">
+                    </div>
+
+                    <!-- ============================================ -->
+                    <!-- CAMPO DE IMAGEN (subida de archivo) -->
+                    <!-- ============================================ -->
+                    <div class="mb-2">
+                        {{ form.image.label }}
+                        {{ form.image(class="form-control") }}
+                        {% if part and part.image_path %}
+                            <div class="mt-2">
+                                <img src="{{ url_for('static', filename=part.image_path) }}" alt="Imagen actual" style="max-height: 100px; border: 1px solid #ddd; border-radius: 4px; padding: 2px;">
+                                <small class="text-muted d-block mt-1">Imagen actual</small>
+                            </div>
+                        {% endif %}
+                    </div>
+
+                    <hr>
+                    <h5>Parámetros de inventario</h5>
+
+                    <div class="row">
+                        <div class="col-md-4 mb-2">
+                            {{ form.minimum_stock.label }} {{ form.minimum_stock(class="form-control") }}
+                        </div>
+
+                        <div class="col-md-4 mb-2">
+                            {{ form.maximum_stock.label }} {{ form.maximum_stock(class="form-control") }}
+                        </div>
+
+                        <div class="col-md-4 mb-2">
+                            {{ form.reorder_point.label }} {{ form.reorder_point(class="form-control") }}
+                        </div>
+
+                        <div class="col-md-12 mb-2">
+                            {{ form.location_shelf.label }} {{ form.location_shelf(class="form-control") }}
+                        </div>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary" id="submitBtn">Guardar</button>
+                    <a href="{{ url_for('spare_parts.index') }}" class="btn btn-secondary">Cancelar</a>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.shake {
+    animation: shake 0.3s;
+}
+@keyframes shake {
+    0% { transform: translateX(0px); }
+    25% { transform: translateX(-5px); }
+    50% { transform: translateX(5px); }
+    75% { transform: translateX(-5px); }
+    100% { transform: translateX(0px); }
+}
+</style>
+
+<script>
+// ============================================
+// DATOS TÉCNICOS DINÁMICOS (TABLA)
+// ============================================
+document.addEventListener('DOMContentLoaded', function() {
+    const container = document.getElementById('tech-table-body');
+    const hiddenJsonField = document.getElementById('technical_data_json');
+    let fieldIndex = 0;
+
+    function loadExistingTechData(data) {
+        if (!data) return;
+        let parsedData = data;
+        if (typeof data === 'string') {
+            try {
+                parsedData = JSON.parse(data);
+            } catch(e) {
+                console.error('Error parsing technical_data:', e);
+                return;
+            }
+        }
+        for (const [name, valueObj] of Object.entries(parsedData)) {
+            const value = valueObj.value || valueObj;
+            const unit = valueObj.unit || '';
+            addRow(name, value, unit);
+        }
+    }
+
+    function addRow(name = '', value = '', unit = '') {
+        const rowId = `tech-row-${fieldIndex++}`;
+        const html = `
+            <tr id="${rowId}">
+                <td>
+                    <input type="text" class="form-control form-control-sm" placeholder="Ej. Voltaje, Potencia..." value="${escapeHtml(name)}" data-field="name">
+                </td>
+                <td>
+                    <input type="text" class="form-control form-control-sm" placeholder="Valor" value="${escapeHtml(value)}" data-field="value">
+                </td>
+                <td>
+                    <input type="text" class="form-control form-control-sm" placeholder="Unidad (ej. V, A, °C)" value="${escapeHtml(unit)}" data-field="unit">
+                </td>
+                <td class="text-center">
+                    <button type="button" class="btn btn-sm btn-outline-danger remove-row" data-row="${rowId}">
+                        <i class="fas fa-trash-alt"></i>
+                    </button>
+                 </td>
+             </tr>
+        `;
+        container.insertAdjacentHTML('beforeend', html);
+
+        document.getElementById(rowId).querySelector('.remove-row').addEventListener('click', function() {
+            document.getElementById(rowId).remove();
+            updateJsonField();
+        });
+
+        const inputs = document.querySelectorAll(`#${rowId} input`);
+        inputs.forEach(input => input.addEventListener('input', updateJsonField));
+        updateJsonField();
+    }
+
+    function updateJsonField() {
+        const rows = container.querySelectorAll('tr');
+        const techData = {};
+        rows.forEach(row => {
+            const nameInput = row.querySelector('input[data-field="name"]');
+            const valueInput = row.querySelector('input[data-field="value"]');
+            const unitInput = row.querySelector('input[data-field="unit"]');
+
+            if (nameInput && valueInput) {
+                const name = nameInput.value.trim();
+                const value = valueInput.value.trim();
+                const unit = unitInput ? unitInput.value.trim() : '';
+
+                if (name && value) {
+                    techData[name] = { value: value, unit: unit };
+                }
+            }
+        });
+        hiddenJsonField.value = JSON.stringify(techData);
+    }
+
+    function escapeHtml(str) {
+        if (!str) return '';
+        return str.replace(/[&<>]/g, function(m) {
+            if (m === '&') return '&amp;';
+            if (m === '<') return '&lt;';
+            if (m === '>') return '&gt;';
+            return m;
+        });
+    }
+
+    const addBtn = document.getElementById('add-tech-field');
+    if (addBtn) {
+        addBtn.addEventListener('click', function() {
+            addRow();
+        });
+    }
+
+    {% if part and part.technical_data %}
+        const existingData = {{ part.technical_data|tojson|safe }};
+        loadExistingTechData(existingData);
+    {% endif %}
+});
+
+// ============================================
+// GENERADOR DE CÓDIGO Y VALIDACIÓN (solo para nuevas refacciones)
+// ============================================
+{% if part is not defined %}
+document.addEventListener('DOMContentLoaded', function() {
+    const suggestBtn = document.getElementById('suggestCodeBtn');
+    const codeField = document.getElementById('code_field');
+    const itemTypeField = document.getElementById('item_type_field');
+    const feedback = document.getElementById('code_feedback');
+    const submitBtn = document.getElementById('submitBtn');
+
+    let autoGenerated = false;
+    let timeout = null;
+    let isValid = false;
+
+    function generateCode() {
+        const itemType = itemTypeField.value;
+        fetch(`{{ url_for("spare_parts.suggest_code") }}?item_type=${encodeURIComponent(itemType)}`)
+            .then(res => res.json())
+            .then(data => {
+                if (data.code) {
+                    codeField.value = data.code;
+                    autoGenerated = true;
+                    validateCode();
+                }
+            });
+    }
+
+    function validateCode() {
+        const code = codeField.value.trim();
+        if (!code) {
+            feedback.innerHTML = '';
+            codeField.classList.remove('is-valid', 'is-invalid');
+            if (submitBtn) submitBtn.disabled = true;
+            return;
+        }
+        fetch(`{{ url_for("spare_parts.validate_code") }}?code=${encodeURIComponent(code)}`)
+            .then(res => res.json())
+            .then(data => {
+                if (data.valid) {
+                    codeField.classList.remove('is-invalid');
+                    codeField.classList.add('is-valid');
+                    feedback.innerHTML = '✅ Código disponible';
+                    feedback.style.color = 'green';
+                    isValid = true;
+                    if (submitBtn) submitBtn.disabled = false;
+                } else {
+                    codeField.classList.remove('is-valid');
+                    codeField.classList.add('is-invalid');
+                    feedback.innerHTML = '❌ ' + data.message;
+                    feedback.style.color = 'red';
+                    codeField.classList.add('shake');
+                    setTimeout(() => codeField.classList.remove('shake'), 300);
+                    isValid = false;
+                    if (submitBtn) submitBtn.disabled = true;
+                }
+            });
+    }
+
+    codeField.addEventListener('input', function() {
+        autoGenerated = false;
+        clearTimeout(timeout);
+        timeout = setTimeout(validateCode, 400);
+    });
+
+    itemTypeField.addEventListener('change', function() {
+        if (codeField.value.trim() === '' || autoGenerated) {
+            generateCode();
+        }
+    });
+
+    if (suggestBtn) {
+        suggestBtn.addEventListener('click', generateCode);
+    }
+
+    if (codeField.value.trim() === '') {
+        generateCode();
+    }
+});
+{% endif %}
+</script>
+{% endblock %}

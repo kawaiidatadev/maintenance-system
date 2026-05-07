@@ -1,33 +1,28 @@
 {% extends "email/base_email.html" %}
 
 {% block content %}
-<h2>🔧 Mantenimiento Preventivo Próximo</h2>
+<h2 style="color: #ed6c02;">⏰ Mantenimiento Preventivo Próximo</h2>
 <p>Hola <strong>{{ user_name }}</strong>,</p>
-<p>El mantenimiento preventivo del siguiente equipo está próximo a realizarse.</p>
+<p>El siguiente mantenimiento preventivo está programado próximamente:</p>
 
-<div class="info-box">
+<div class="info-box" style="background-color: #fff3e0; border-left: 4px solid #ed6c02;">
+    <div class="info-item">
+        <span class="info-label">📋 Grupo:</span>
+        {{ group_name }}
+    </div>
     <div class="info-item">
         <span class="info-label">🔧 Equipo:</span>
-        <strong>{{ equipment_code }} - {{ equipment_name }}</strong>
+        {{ equipment_name }}
     </div>
     <div class="info-item">
         <span class="info-label">📅 Fecha programada:</span>
-        {{ scheduled_date }}
+        {{ due_date }}
     </div>
     <div class="info-item">
-        <span class="info-label">📝 Actividades:</span>
-        {{ activities or 'Mantenimiento preventivo estándar' }}
-    </div>
-    <div class="info-item">
-        <span class="info-label">⏰ Días restantes:</span>
+        <span class="info-label">⏳ Días restantes:</span>
         {{ days_left }} días
     </div>
 </div>
 
-<a href="{{ link }}" class="button">🔍 Ver Equipo</a>
-
-<hr>
-<p style="font-size: 12px; color: #666;">
-    Por favor, programa la actividad en el plan de trabajo.
-</p>
+<a href="{{ link }}" class="button" style="background-color: #ed6c02;">📋 Ver tareas preventivas</a>
 {% endblock %}

@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card">
+    <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+        <h4><i class="fas fa-boxes"></i> Inventario de Refacciones</h4>
+        <a href="{{ url_for('spare_parts.index') }}" class="btn btn-light btn-sm">
+            <i class="fas fa-list"></i> Catálogo
+        </a>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-bordered table-hover">
+                <thead class="table-dark">
+                    <tr>
+                        <th>Código</th>
+                        <th>Nombre</th>
+                        <th>Tipo</th>
+                        <th>Almacén</th>
+                        <th>Stock actual</th>
+                        <th>Mínimo</th>
+                        <th>Máximo</th>
+                        <th>Punto pedido</th>
+                        <th>Estado</th>
+                        <th>Ubicación</th>
+                        <th>Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for stock in stocks %}
+                    {% set row_status = 'danger' if stock.current_stock <= stock.minimum_stock else 'warning' if stock.current_stock <= stock.reorder_point else 'success' %}
+                    <tr class="table-{{ row_status }}">
+                        <td><a href="{{ url_for('spare_parts.view', id=stock.spare_part.id) }}">{{ stock.spare_part.code }}</a></td>
+                        <td>{{ stock.spare_part.name }}</td>
+                        <td>{{ 'Refacción' if stock.spare_part.item_type == 'spare' else 'Consumible' }}</td>
+                        <td>{{ stock.warehouse }}</td>
+                        <td><strong>{{ stock.current_stock }}</strong> {{ stock.spare_part.unit }}</td>
+                        <td>{{ stock.minimum_stock }}</td>
+                        <td>{{ stock.maximum_stock or '-' }}</td>
+                        <td>{{ stock.reorder_point or '-' }}</td>
+                        <td>
+                            {% if stock.current_stock <= stock.minimum_stock %}
+                                <span class="badge bg-danger">⚠️ Stock crítico</span>
+                            {% elif stock.current_stock <= stock.reorder_point %}
+                                <span class="badge bg-warning text-dark">🔔 Punto de pedido</span>
+                            {% else %}
+                                <span class="badge bg-success">✔️ Normal</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ stock.location_shelf or '-' }}</td>
+                        <td>
+                            <div class="btn-group btn-group-sm">
+                                <a href="{{ url_for('spare_parts.add_movement', part_id=stock.spare_part.id) }}" class="btn btn-primary" title="Registrar movimiento">
+                                    <i class="fas fa-exchange-alt"></i>
+                                </a>
+                                <a href="{{ url_for('spare_parts.movements', part_id=stock.spare_part.id) }}" class="btn btn-info" title="Historial">
+                                    <i class="fas fa-history"></i>
+                                </a>
+                            </div>
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="11" class="text-center py-4">
+                            <i class="fas fa-box-open fa-3x text-muted d-block mb-2"></i>
+                            No hay refacciones con inventario registrado.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}
