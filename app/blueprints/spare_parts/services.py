@@ -20,31 +20,43 @@ def get_or_create_stock(spare_part_id, warehouse='General'):
 
 
 def update_stock_after_movement(spare_part_id, quantity, movement_type, warehouse='General'):
-    """Actualiza el stock actual después de un movimiento."""
+    """
+    Actualiza el stock actual después de un movimiento.
+    Retorna True si se pudo actualizar, False si hay stock insuficiente.
+    """
     if quantity <= 0:
-        return None
+        return True
 
     stock = get_or_create_stock(spare_part_id, warehouse)
 
     if movement_type == 'in':
         stock.current_stock += quantity
+        db.session.commit()
+        return True
     else:  # 'out'
         if stock.current_stock < quantity:
-            print(f"⚠️ Stock insuficiente para {spare_part_id}: requiere {quantity}, disponible {stock.current_stock}")
-            # Opcional: podrías lanzar una excepción o retornar False
+            print(f"❌ Stock insuficiente para {spare_part_id}: requiere {quantity}, disponible {stock.current_stock}")
+            return False
         stock.current_stock -= quantity
-
-    db.session.commit()
-    return stock
+        db.session.commit()
+        return True
 
 
 def register_movement(spare_part_id, quantity, movement_type, warehouse, reference, description,
                       performed_by_id, work_order_id=None, preventive_execution_log_id=None):
     """
     Registra un movimiento (entrada o salida) y actualiza el stock.
+    Retorna True si se registró correctamente, False si falla (stock insuficiente).
     """
     if quantity <= 0:
         return True
+
+    # Para salidas, validar stock disponible ANTES de crear el movimiento
+    if movement_type == 'out':
+        stock = get_or_create_stock(spare_part_id, warehouse)
+        if stock.current_stock < quantity:
+            print(f"❌ Movimiento NO registrado: stock insuficiente para {spare_part_id}")
+            return False
 
     # Crear movimiento
     movement = SparePartMovement(
@@ -61,14 +73,19 @@ def register_movement(spare_part_id, quantity, movement_type, warehouse, referen
     db.session.add(movement)
 
     # Actualizar stock
-    update_stock_after_movement(spare_part_id, quantity, movement_type, warehouse)
+    success = update_stock_after_movement(spare_part_id, quantity, movement_type, warehouse)
+    if not success:
+        db.session.rollback()
+        return False
 
     return True
 
 
-def consume_spare_part(spare_part_id, quantity, warehouse, reference, preventive_execution_log_id=None, work_order_id=None, performed_by_id=None):
+def consume_spare_part(spare_part_id, quantity, warehouse, reference, preventive_execution_log_id=None,
+                       work_order_id=None, performed_by_id=None):
     """
     Registra un consumo (movimiento 'out') para mantenimiento preventivo o correctivo.
+    Retorna True si se registró correctamente, False si hay stock insuficiente.
     """
     return register_movement(
         spare_part_id=spare_part_id,
@@ -96,6 +113,7 @@ def add_stock(spare_part_id, quantity, warehouse, reference, description, perfor
         description=description,
         performed_by_id=performed_by_id
     )
+
 
 def check_stock_availability(spare_part_id, quantity, warehouse='General'):
     """

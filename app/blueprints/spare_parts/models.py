@@ -31,6 +31,9 @@ class SparePart(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, onupdate=datetime.utcnow)
 
+    barcode_image = db.Column(db.String(255), nullable=True)   # ruta de la imagen del código de barras
+    qr_image = db.Column(db.String(255), nullable=True)        # ruta de la imagen del QR
+
     # Relaciones (activity_links eliminada)
     stocks = db.relationship('InventoryStock', backref='spare_part', lazy='dynamic')
     movements = db.relationship('SparePartMovement', backref='spare_part', lazy='dynamic')

@@ -41,7 +41,7 @@ class SparePartForm(FlaskForm):
 
     # image_path se mantiene pero ahora se llena automáticamente al subir una imagen
     image_path = StringField('Ruta de imagen', validators=[Optional(), Length(max=255)])
-    barcode = StringField('Código de barras', validators=[Optional(), Length(max=100)])
+    # barcode = StringField('Código de barras', validators=[Optional(), Length(max=100)])
 
     # ============================================
     # PARÁMETROS DE INVENTARIO

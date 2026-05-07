@@ -103,24 +103,9 @@ def execute_group_for_equipment(group_id, equipment_id):
     total_duration_seconds = int(request.form.get('total_duration', 0))
 
     # =========================
-    # Obtener schedule ANTES
-    # =========================
-    schedule = PreventiveSchedule.query.filter_by(group_id=group.id).first()
-    if not schedule:
-        schedule = PreventiveSchedule(
-            group_id=group.id,
-            equipment_id=None,
-            next_due_date=datetime.utcnow(),
-            status='pending'
-        )
-        db.session.add(schedule)
-        db.session.commit()
-
-    # =========================
-    # Construcción de measurements
+    # Construcción de measurements (sin guardar nada aún)
     # =========================
     measurements = {}
-
     for act in group.activities:
         act_id = str(act.id)
         completed = act_id in completed_ids
@@ -142,7 +127,59 @@ def execute_group_for_equipment(group_id, equipment_id):
         }
 
     # =========================
-    # Metadata (FUERA del loop)
+    # Acumular cantidades requeridas de refacciones (solo actividades completadas)
+    # =========================
+    from app.blueprints.spare_parts.services import check_stock_availability
+    from app.blueprints.spare_parts.models import SparePart
+
+    required_parts = {}
+    for act in group.activities:
+        if str(act.id) in completed_ids:
+            # Si la actividad tiene refacciones asignadas
+            if hasattr(act, 'spare_parts_links') and act.spare_parts_links.count() > 0:
+                for asp in act.spare_parts_links:
+                    part_id = asp.spare_part_id
+                    # Obtener cantidad del formulario (por si el usuario la modificó)
+                    qty_key = f'consumed_qty_{part_id}'
+                    if qty_key in request.form:
+                        try:
+                            qty = int(request.form.get(qty_key, 0))
+                            if qty > 0:
+                                required_parts[part_id] = required_parts.get(part_id, 0) + qty
+                        except ValueError:
+                            flash(f'Cantidad inválida para la refacción', 'danger')
+                            return redirect(request.url)
+
+    # =========================
+    # VALIDAR STOCK INSUFICIENTE (antes de crear cualquier cosa)
+    # =========================
+    insufficient = []
+    for part_id, total_qty in required_parts.items():
+        available, current = check_stock_availability(part_id, total_qty)
+        if not available:
+            part = SparePart.query.get(part_id)
+            insufficient.append(f"{part.code} - requiere {total_qty}, disponible {current}")
+
+    if insufficient:
+        flash(f"No hay suficiente stock para completar el mantenimiento: {', '.join(insufficient)}", 'danger')
+        return redirect(request.url)
+
+    # =========================
+    # Obtener o crear schedule (DESPUÉS de validar stock)
+    # =========================
+    schedule = PreventiveSchedule.query.filter_by(group_id=group.id).first()
+    if not schedule:
+        schedule = PreventiveSchedule(
+            group_id=group.id,
+            equipment_id=None,
+            next_due_date=datetime.utcnow(),
+            status='pending'
+        )
+        db.session.add(schedule)
+        db.session.commit()
+
+    # =========================
+    # Metadata del measurements
     # =========================
     measurements['_metadata'] = {
         'group_name': group.name,
@@ -175,11 +212,11 @@ def execute_group_for_equipment(group_id, equipment_id):
         f"Tiempo total: {total_duration_seconds // 60} minutos"
     )
 
-    # =========================
-    # Crear OT (completada, no cerrada)
-    # =========================
     now = datetime.utcnow()
 
+    # =========================
+    # Crear OT
+    # =========================
     work_order = WorkOrder(
         number=order_number,
         equipment_id=equipment.id,
@@ -196,7 +233,6 @@ def execute_group_for_equipment(group_id, equipment_id):
         closed_at=now,
         resolution_summary=general_notes
     )
-
     db.session.add(work_order)
     db.session.commit()
 
@@ -204,7 +240,6 @@ def execute_group_for_equipment(group_id, equipment_id):
     # Log de ejecución
     # =========================
     from app.models.preventive_execution_log import PreventiveExecutionLog
-
     log = PreventiveExecutionLog(
         group_id=group.id,
         equipment_id=equipment.id,
@@ -216,37 +251,25 @@ def execute_group_for_equipment(group_id, equipment_id):
         completed_activities=len(completed_ids),
         total_activities=len([act for act in group.activities if act.is_active])
     )
-
     db.session.add(log)
+    db.session.commit()
 
     # =========================
-    # Procesar consumos de refacciones/consumibles
+    # CONSUMIR REFACCIONES (un solo movimiento por refacción, no por actividad)
     # =========================
     from app.blueprints.spare_parts.services import consume_spare_part
-
-    # Procesar consumos por actividad completada
-    for act in group.activities:
-        if str(act.id) in completed_ids:
-            # Verificar si la actividad tiene refacciones asignadas
-            if hasattr(act, 'spare_parts_links') and act.spare_parts_links.count() > 0:
-                for asp in act.spare_parts_links:
-                    # Obtener cantidad consumida del formulario
-                    qty_key = f'consumed_qty_{asp.spare_part_id}'
-                    if qty_key in request.form:
-                        try:
-                            qty = int(request.form.get(qty_key, 0))
-                            if qty > 0:
-                                consume_spare_part(
-                                    spare_part_id=asp.spare_part_id,
-                                    quantity=qty,
-                                    warehouse='General',
-                                    reference=f'Preventivo {group.name} - Actividad {act.name}',
-                                    preventive_execution_log_id=log.id,
-                                    performed_by_id=current_user.id
-                                )
-                                print(f"✅ Consumido {qty} de {asp.spare_part.name}")
-                        except ValueError:
-                            print(f"⚠️ Cantidad inválida para refacción {asp.spare_part_id}")
+    for part_id, total_qty in required_parts.items():
+        part = SparePart.query.get(part_id)
+        reference = f"Preventivo {group.name}"
+        consume_spare_part(
+            spare_part_id=part_id,
+            quantity=total_qty,
+            warehouse='General',
+            reference=reference,
+            preventive_execution_log_id=log.id,
+            performed_by_id=current_user.id
+        )
+        print(f"✅ Consumido {total_qty} de {part.name} ({part.code})")
 
     # =========================
     # Actualizar schedule
@@ -254,66 +277,33 @@ def execute_group_for_equipment(group_id, equipment_id):
     schedule.last_completion_date = now
     schedule.next_due_date = schedule.compute_next_due(schedule.last_completion_date)
     schedule.status = 'done'
-
-    db.session.add(schedule)
     db.session.commit()
-
-    # ============================================
-    # PROCESAR CONSUMOS DE REFACCIONES (NUEVO)
-    # ============================================
-    from app.blueprints.spare_parts.services import consume_spare_part
-
-    for act in group.activities:
-        if str(act.id) in completed_ids:
-            if hasattr(act, 'spare_parts_links') and act.spare_parts_links.count() > 0:
-                for asp in act.spare_parts_links:
-                    qty_key = f'consumed_qty_{asp.spare_part_id}'
-                    if qty_key in request.form:
-                        try:
-                            qty = int(request.form.get(qty_key, 0))
-                            if qty > 0:
-                                consume_spare_part(
-                                    spare_part_id=asp.spare_part_id,
-                                    quantity=qty,
-                                    warehouse='General',
-                                    reference=f'Preventivo {group.name} - Actividad {act.name}',
-                                    preventive_execution_log_id=log.id,
-                                    performed_by_id=current_user.id
-                                )
-                        except ValueError:
-                            pass
 
     # =========================
     # Generar PDF
     # =========================
     from app.services.pdf_generator import generate_work_order_pdf
     from app.models.work_order_report import WorkOrderReport
-
     try:
         pdf_info = generate_work_order_pdf(work_order)
-
         report = WorkOrderReport(
             work_order_id=work_order.id,
             file_path=pdf_info['file_path'],
             filename=pdf_info['filename'],
             file_size=pdf_info['file_size']
         )
-
         db.session.add(report)
         db.session.commit()
         flash('Mantenimiento preventivo completado y PDF generado correctamente.', 'success')
-
     except Exception as e:
         flash(f'Mantenimiento completado pero hubo un error al generar el PDF: {str(e)}', 'warning')
         print(f"ERROR generando PDF para OT {work_order.id}: {e}")
 
     # =========================
-    # NOTIFICACIÓN EN TIEMPO REAL (ejecución completada)
+    # NOTIFICACIONES (campanario y correo)
     # =========================
     from app.models.notification_rule import NotificationRule
     from app.notifications_helper import create_notification
-    from app.email_dispatcher import send_preventive_completed_email  # nueva función
-
     rule = NotificationRule.query.filter_by(event_type='preventive_executed', is_active=True).first()
     if rule and rule.target_roles:
         roles = rule.target_roles.split(',')
@@ -327,15 +317,14 @@ def execute_group_for_equipment(group_id, equipment_id):
                 related_id=work_order.id,
                 link=url_for('work_orders.view_order', id=work_order.id, _external=True)
             )
-    # Envío de correo con adjunto (si Brevo está activado y la regla tiene email habilitado)
+
     if Setting.get('brevo_enabled') == 'true':
         from app.email_dispatcher import send_preventive_completed_email
         try:
             send_preventive_completed_email(work_order, pdf_info['absolute_path'])
             print("✅ Correo preventivo enviado")
         except Exception as e:
-            # Solo registro en log, no mostramos error al usuario
-            print(f"❌ Error enviando correo preventivo (no crítico): {e}")
+            print(f"❌ Error enviando correo preventivo: {e}")
 
     return redirect(url_for('work_orders.view_order', id=work_order.id))
 
@@ -355,9 +344,7 @@ def postpone(schedule_id):
         db.session.commit()
         flash(f'Actividad reprogramada para {schedule.next_due_date.strftime("%d/%m/%Y")}', 'info')
 
-    # =========================
     # NOTIFICACIÓN EN TIEMPO REAL (reprogramación)
-    # =========================
     from app.models.notification_rule import NotificationRule
     from app.notifications_helper import create_notification
 
@@ -399,6 +386,7 @@ def calendar():
     equipments = Equipment.query.order_by(Equipment.name).all()
     return render_template('preventive/calendar.html', groups=groups, equipments=equipments)
 
+
 @preventive_bp.route('/calendar/events')
 @login_required
 def calendar_events():
@@ -410,25 +398,20 @@ def calendar_events():
     start_date = datetime.fromisoformat(start_str)
     end_date = datetime.fromisoformat(end_str)
 
-    # Obtener filtros
     equipment_id = request.args.get('equipment_id', type=int)
     responsible = request.args.get('responsible')
     freq_type = request.args.get('freq_type')
-    status_filter = request.args.get('status')  # 'overdue', 'due_soon', 'ok'
+    status_filter = request.args.get('status')
 
-    # Consultar grupos activos
     groups_query = FrequencyGroup.query.filter_by(is_active=True)
 
-    # Filtrar por responsable (specialized/external) si viene
     if responsible:
         groups_query = groups_query.filter_by(responsible_role=responsible)
 
-    # Filtrar por frecuencia si viene
     if freq_type:
         groups_query = groups_query.filter_by(freq_type=freq_type)
 
     groups = groups_query.all()
-
     events = []
 
     for group in groups:
@@ -440,15 +423,12 @@ def calendar_events():
         if next_date.date() < start_date.date() or next_date.date() > end_date.date():
             continue
 
-        # Para cada equipo asociado al grupo
         for equipment in group.equipments:
-            # Filtro por equipo específico
             if equipment_id and equipment.id != equipment_id:
                 continue
 
             days_left = (next_date.date() - datetime.utcnow().date()).days
 
-            # Filtro por estado (vencida, próxima, en plazo)
             if status_filter:
                 if status_filter == 'overdue' and days_left >= 0:
                     continue
@@ -457,7 +437,6 @@ def calendar_events():
                 elif status_filter == 'ok' and (days_left < 0 or days_left <= group.tolerance_days):
                     continue
 
-            # Determinar color
             if days_left < 0:
                 color = '#dc3545'
                 text_color = 'white'
@@ -489,6 +468,8 @@ def calendar_events():
             })
 
     return jsonify(events)
+
+
 @preventive_bp.route('/get-schedule-id')
 @login_required
 def get_schedule_id():

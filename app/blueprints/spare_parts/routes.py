@@ -15,6 +15,7 @@ from app.blueprints.spare_parts.services import get_or_create_stock, register_mo
 from app.blueprints.spare_parts.forms import SparePartForm
 from functools import wraps
 from . import spare_parts_bp
+from app.blueprints.spare_parts.barcode_utils import generate_barcode_and_qr
 
 
 def admin_required(func):
@@ -92,11 +93,23 @@ def create():
             currency=form.currency.data,
             estimated_life_hours=form.estimated_life_hours.data,
             estimated_life_years=form.estimated_life_years.data,
-            image_path=None,  # Se asignará después si hay imagen
+            image_path=None,
             barcode=form.barcode.data
         )
         db.session.add(part)
-        db.session.commit()
+        db.session.commit()  # Commit para obtener el ID
+
+        # ============================================
+        # GENERAR CÓDIGOS DE BARRAS Y QR
+        # ============================================
+        from app.blueprints.spare_parts.barcode_utils import generate_barcode_and_qr
+        try:
+            barcode_path, qr_path = generate_barcode_and_qr(part)
+            part.barcode_image = barcode_path
+            part.qr_image = qr_path
+            db.session.commit()
+        except Exception as e:
+            print(f"Error generando códigos: {e}")
 
         # Guardar imagen si se subió
         if form.image.data:
@@ -169,6 +182,23 @@ def edit(id):
             part.estimated_life_years = form.estimated_life_years.data
             part.barcode = form.barcode.data
             db.session.commit()
+
+            # ============================================
+            # REGENERAR CÓDIGOS DE BARRAS Y QR (si cambió el código)
+            # ============================================
+            # ... crear part y db.session.commit() inicial ...
+
+            # Generar códigos de barras y QR
+            from app.blueprints.spare_parts.barcode_utils import generate_barcode_and_qr
+            try:
+                barcode_path, qr_path = generate_barcode_and_qr(part, force=True)
+                part.barcode_image = barcode_path
+                part.qr_image = qr_path
+                db.session.commit()
+            except Exception as e:
+                print(f"Error generando códigos: {e}")
+
+
 
             # Manejo de imagen
             if form.image.data:

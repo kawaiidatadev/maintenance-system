@@ -27,7 +27,7 @@
                                     <tr><th>Proveedor</th><td>{{ part.supplier or '-' }}</td></tr>
                                     <tr><th>N° pieza proveedor</th><td>{{ part.supplier_part_number or '-' }}</td></tr>
                                     <tr><th>Categoría</th><td>{{ part.category or '-' }}</td></tr>
-                                    <tr><th>Unidad</th><td>{{ part.unit }}</td></tr>
+                                    <tr><th>Unidad</th><td>{{ part.unit }}</td><tr>
                                     <tr><th>Criticidad</th><td>
                                         <span class="badge {% if part.criticality == 'critical' %}bg-danger{% elif part.criticality == 'high' %}bg-warning{% elif part.criticality == 'medium' %}bg-info{% else %}bg-secondary{% endif %}">
                                             {{ part.criticality }}
@@ -69,7 +69,7 @@
                         </div>
 
                         <!-- ============================================ -->
-                        <!-- IMAGEN DE LA REFACCIÓN (NUEVO BLOQUE) -->
+                        <!-- IMAGEN DE LA REFACCIÓN -->
                         <!-- ============================================ -->
                         <div class="card mt-3">
                             <div class="card-header bg-secondary text-white">
@@ -87,6 +87,50 @@
                                         <p>No hay imagen disponible</p>
                                     </div>
                                 {% endif %}
+                            </div>
+                        </div>
+
+                        <!-- ============================================ -->
+                        <!-- CÓDIGOS DE BARRAS Y QR (CORREGIDO) -->
+                        <!-- ============================================ -->
+                        <div class="card mt-3">
+                            <div class="card-header bg-secondary text-white">
+                                <h5><i class="fas fa-barcode"></i> Códigos de identificación</h5>
+                            </div>
+                            <div class="card-body text-center">
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <strong>Código de barras (Code128):</strong><br>
+                                        {% if part.barcode_image %}
+                                            {% set barcode_url = part.barcode_image.replace('static/', '') %}
+                                            <img src="{{ url_for('static', filename=barcode_url) }}" class="img-fluid mt-2" style="max-height: 100px;">
+                                            <div class="mt-2">
+                                                <a href="{{ url_for('static', filename=barcode_url) }}" download class="btn btn-sm btn-outline-primary">
+                                                    <i class="fas fa-download"></i> Descargar
+                                                </a>
+                                            </div>
+                                        {% else %}
+                                            <p class="text-muted">No generado</p>
+                                        {% endif %}
+                                    </div>
+                                    <div class="col-md-6">
+                                        <strong>Código QR:</strong><br>
+                                        {% if part.qr_image %}
+                                            {% set qr_url = part.qr_image.replace('static/', '') %}
+                                            <img src="{{ url_for('static', filename=qr_url) }}" class="img-fluid mt-2" style="max-height: 150px;">
+                                            <div class="mt-2">
+                                                <a href="{{ url_for('static', filename=qr_url) }}" download class="btn btn-sm btn-outline-primary">
+                                                    <i class="fas fa-download"></i> Descargar
+                                                </a>
+                                            </div>
+                                        {% else %}
+                                            <p class="text-muted">No generado</p>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                <div class="mt-3 small text-muted">
+                                    El código QR contiene: código, nombre, marca, modelo, proveedor, ubicación y enlace a esta página.
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -176,7 +220,7 @@
                                         <td>{{ m.performed_by.username if m.performed_by else 'Sistema' }}</td>
                                     </tr>
                                     {% else %}
-                                    <table><td colspan="6" class="text-center py-3">No hay movimientos registrados</td></tr>
+                                    <tr><td colspan="6" class="text-center py-3">No hay movimientos registrados</td></tr>
                                     {% endfor %}
                                 </tbody>
                             </table>
