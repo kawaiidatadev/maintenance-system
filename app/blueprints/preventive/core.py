@@ -321,10 +321,14 @@ def execute_group_for_equipment(group_id, equipment_id):
     if Setting.get('brevo_enabled') == 'true':
         from app.email_dispatcher import send_preventive_completed_email
         try:
-            send_preventive_completed_email(work_order, pdf_info['absolute_path'])
-            print("✅ Correo preventivo enviado")
+            success = send_preventive_completed_email(work_order, pdf_info['absolute_path'])
+            if success:
+                print("✅ Correo preventivo enviado")
+            else:
+                flash('Mantenimiento completado, pero no se pudo enviar el correo (error de conexión o límite diario).',
+                      'warning')
         except Exception as e:
-            print(f"❌ Error enviando correo preventivo: {e}")
+            flash(f'Mantenimiento completado pero hubo un error al enviar el correo: {str(e)}', 'warning')
 
     return redirect(url_for('work_orders.view_order', id=work_order.id))
 

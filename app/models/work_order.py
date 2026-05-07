@@ -44,6 +44,10 @@ class WorkOrder(db.Model):
     # Estado
     status = db.Column(db.String(20), default='open')
 
+    # manejo de correos sin internet
+    email_sent = db.Column(db.Boolean, default=False)
+    email_failed_at = db.Column(db.DateTime, nullable=True)
+
     # ============================================
     # NUEVOS CAMPOS PARA MANTENIMIENTO PREVENTIVO
     # ============================================

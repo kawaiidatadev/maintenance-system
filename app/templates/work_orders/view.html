@@ -62,12 +62,33 @@
                         {% endif %}
 
                         <!-- ============================================ -->
-                        <!-- BOTÓN PDF: Ahora aparece si existe el reporte, sin importar el estado -->
+                        <!-- BOTÓN PDF -->
                         <!-- ============================================ -->
                         {% if order.report %}
                             <a href="{{ url_for('reports.download', report_id=order.report.id) }}" class="btn btn-sm btn-success ms-2">
                                 <i class="fas fa-file-pdf"></i> Ver Reporte PDF
                             </a>
+                        {% endif %}
+
+                        <!-- ============================================ -->
+                        <!-- BOTÓN REINTENTAR CORREO (solo correctivos cerrados con correo fallido) -->
+                        <!-- ============================================ -->
+                        {% if order.work_type == 'corrective' and order.status == 'closed' %}
+                            {% if order.email_sent == False and order.email_failed_at %}
+                                <form method="POST" action="{{ url_for('work_orders.resend_email', id=order.id) }}" style="display: inline;">
+                                    <button type="submit" class="btn btn-sm btn-warning ms-2" title="Reintentar envío de correo">
+                                        <i class="fas fa-envelope"></i> Reintentar correo
+                                    </button>
+                                </form>
+                            {% elif order.email_sent == True %}
+                                <span class="badge bg-info ms-2">
+                                    <i class="fas fa-check-circle"></i> Correo enviado
+                                </span>
+                            {% elif order.email_failed_at %}
+                                <span class="badge bg-danger ms-2">
+                                    <i class="fas fa-exclamation-triangle"></i> Correo falló
+                                </span>
+                            {% endif %}
                         {% endif %}
                     </div>
                 </div>
@@ -116,7 +137,8 @@
                 <!-- ============================================ -->
                 <!-- SECCIÓN DE INFORMACIÓN TÉCNICA (SOLO CORRECTIVO) -->
                 <!-- ============================================ -->
-                {% if order.work_type != 'preventive' and (order.failure_type or order.root_cause or order.work_performed) %}
+               <!-- SECCIÓN DE INFORMACIÓN TÉCNICA (SOLO CORRECTIVO) -->
+                {% if order.work_type != 'preventive' and (order.failure_type or order.root_cause or order.work_performed or order.parts_used) %}
                 <div class="alert alert-info mt-3">
                     <strong><i class="fas fa-wrench"></i> Información técnica</strong><br>
                     {% if order.failure_type %}<strong>Tipo de falla:</strong> {{ order.failure_type }}<br>{% endif %}
@@ -135,11 +157,11 @@
                     <div class="table-responsive mt-2">
                         <table class="table table-sm table-bordered">
                             <thead class="table-light">
-                                <tr>
+                                <td>
                                     <th>Actividad</th>
                                     <th>Valor medido</th>
                                     <th>Unidad</th>
-                                </tr>
+                                </table>
                             </thead>
                             <tbody>
                                 {% for key, data in order.measurements.items() %}
@@ -196,7 +218,7 @@
                         <div class="table-responsive">
                             <table class="table table-sm">
                                 <thead>
-                                    <tr>
+                                    <table>
                                         <th>Archivo</th>
                                         <th>Descripción</th>
                                         <th>Subido por</th>

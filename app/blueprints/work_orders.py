@@ -1,4 +1,5 @@
-from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify
+import os
+from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, current_app
 from flask_login import login_required, current_user
 from app import db
 from app.models.work_order import WorkOrder
@@ -10,10 +11,11 @@ from flask import url_for
 from app.models.work_order_report import WorkOrderReport
 from app.services.pdf_generator import generate_work_order_pdf
 from app.models.setting import Setting
-from app.email_dispatcher import send_work_order_closed_email
+from app.email_dispatcher import send_work_order_closed_email, send_preventive_completed_email
 from app.models.preventive_schedule import PreventiveSchedule
 from app.models.preventive_execution_log import PreventiveExecutionLog
 from sqlalchemy import asc, desc
+
 
 work_orders_bp = Blueprint('work_orders', __name__, url_prefix='/work-orders')
 
@@ -380,31 +382,123 @@ def close_order(id):
     # ============================================
     # GENERAR PDF Y REGISTRAR EN BD
     # ============================================
+    pdf_generated = False
     try:
-        pdf_info = generate_work_order_pdf(order)
-        report = WorkOrderReport(
-            work_order_id=order.id,
-            file_path=pdf_info['file_path'],
-            filename=pdf_info['filename'],
-            file_size=pdf_info['file_size']
-        )
-        db.session.add(report)
-        db.session.commit()
-        flash(f'OT {order.number} cerrada. Reporte PDF generado.', 'success')
+        existing_report = WorkOrderReport.query.filter_by(work_order_id=order.id).first()
+        if existing_report:
+            pdf_info = {
+                'file_path': existing_report.file_path,
+                'filename': existing_report.filename,
+                'file_size': existing_report.file_size,
+                'absolute_path': os.path.join(current_app.root_path, 'static', existing_report.file_path)
+            }
+            flash(f'OT {order.number} cerrada. Reporte PDF ya existente.', 'info')
+            pdf_generated = True
+        else:
+            pdf_info = generate_work_order_pdf(order)
+            report = WorkOrderReport(
+                work_order_id=order.id,
+                file_path=pdf_info['file_path'],
+                filename=pdf_info['filename'],
+                file_size=pdf_info['file_size']
+            )
+            db.session.add(report)
+            db.session.commit()
+            flash(f'OT {order.number} cerrada. Reporte PDF generado.', 'success')
+            pdf_generated = True
     except Exception as e:
-        flash(f'OT cerrada pero no se pudo generar el PDF: {str(e)}', 'warning')
-        db.session.rollback()
+        # Log interno (solo para desarrolladores)
+        print(f"ERROR generando PDF para OT {order.id}: {e}")
+        # Mensaje amigable para el usuario
+        flash('No se pudo generar el reporte PDF. Por favor, contacte al administrador.', 'danger')
         return redirect(url_for('work_orders.view_order', id=order.id))
 
     # ============================================
-    # ENVIAR CORREO CON ADJUNTO (SOLO PARA CORRECTIVAS)
+    # ENVIAR CORREO CON ADJUNTO (CORRECTIVAS)
     # ============================================
-    if Setting.get('brevo_enabled') == 'true':
-        if order.work_type == 'corrective':
-            try:
-                send_work_order_closed_email(order, pdf_info['absolute_path'])
+    if Setting.get('brevo_enabled') == 'true' and order.work_type == 'corrective' and pdf_generated:
+        try:
+            success = send_work_order_closed_email(order, pdf_info['absolute_path'])
+            if success:
                 flash('Correo con reporte enviado al técnico/supervisor', 'info')
-            except Exception as e:
-                flash(f'OT cerrada pero no se pudo enviar el correo: {str(e)}', 'warning')
+                order.email_sent = True
+                order.email_failed_at = None
+            else:
+                flash('OT cerrada, pero no se pudo enviar el correo (error de conexión o límite diario).', 'warning')
+                order.email_sent = False
+                order.email_failed_at = datetime.utcnow()
+            db.session.commit()
+        except Exception as e:
+            flash(f'OT cerrada pero no se pudo enviar el correo: {str(e)}', 'warning')
+            order.email_sent = False
+            order.email_failed_at = datetime.utcnow()
+            db.session.commit()
+
+    # ============================================
+    # ENVIAR CORREO CON ADJUNTO (PREVENTIVAS)
+    # ============================================
+    elif Setting.get('brevo_enabled') == 'true' and order.work_type == 'preventive' and pdf_generated:
+        try:
+            success = send_preventive_completed_email(order, pdf_info['absolute_path'])
+            if success:
+                flash('Correo preventivo enviado', 'info')
+                order.email_sent = True
+                order.email_failed_at = None
+            else:
+                flash('Mantenimiento completado, pero no se pudo enviar el correo (error de conexión o límite diario).',
+                      'warning')
+                order.email_sent = False
+                order.email_failed_at = datetime.utcnow()
+            db.session.commit()
+        except Exception as e:
+            flash(f'Mantenimiento completado pero no se pudo enviar el correo: {str(e)}', 'warning')
+            order.email_sent = False
+            order.email_failed_at = datetime.utcnow()
+            db.session.commit()
+
+    return redirect(url_for('work_orders.view_order', id=order.id))
+
+
+@work_orders_bp.route('/<int:id>/resend-email', methods=['POST'])
+@login_required
+def resend_email(id):
+    from flask import current_app  # importación local por si acaso
+    order = WorkOrder.query.get_or_404(id)
+
+    if order.status != 'closed':
+        flash('Esta orden no está cerrada, no se puede reenviar el correo.', 'danger')
+        return redirect(url_for('work_orders.view_order', id=order.id))
+
+    report = WorkOrderReport.query.filter_by(work_order_id=order.id).first()
+    if not report:
+        flash('No se encontró el reporte PDF asociado a esta orden.', 'danger')
+        return redirect(url_for('work_orders.view_order', id=order.id))
+
+    pdf_path = os.path.join(current_app.root_path, 'static', report.file_path)
+    if not os.path.exists(pdf_path):
+        flash('El archivo PDF no existe en el servidor.', 'danger')
+        return redirect(url_for('work_orders.view_order', id=order.id))
+
+    try:
+        if order.work_type == 'corrective':
+            success = send_work_order_closed_email(order, pdf_path)
+        else:
+            success = send_preventive_completed_email(order, pdf_path)
+
+        if success:
+            order.email_sent = True
+            order.email_failed_at = None
+            db.session.commit()
+            flash('✅ Correo reenviado exitosamente', 'success')
+        else:
+            order.email_failed_at = datetime.utcnow()
+            db.session.commit()
+            flash('❌ No se pudo enviar el correo (error de conexión o límite diario). Intente más tarde.', 'warning')
+    except Exception as e:
+        order.email_failed_at = datetime.utcnow()
+        db.session.commit()
+        # No mostrar el error técnico al usuario
+        print(f"Error reenviando correo para OT {order.id}: {e}")
+        flash('❌ Error al reenviar el correo. Por favor, intente más tarde.', 'danger')
 
     return redirect(url_for('work_orders.view_order', id=order.id))
