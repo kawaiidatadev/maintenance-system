@@ -2,11 +2,18 @@ import os
 
 # Lista de archivos a buscar
 TARGET_FILES = [
-    "app/blueprints/preventive/core.py",
-    "app/models/preventive_activity.py",
-    "app/templates/preventive/checklist.html",
-    "app/blueprints/spare_parts/services.py",
+    # Modelos
     "app/blueprints/spare_parts/models.py",
+    "app/models/preventive_activity.py",
+
+    # Rutas y lógica de negocio
+    "app/blueprints/spare_parts/routes.py",
+    "app/blueprints/spare_parts/services.py",
+    "app/blueprints/preventive/core.py",
+
+    # Templates
+    "app/templates/preventive/checklist.html",
+    "app/templates/spare_parts/view.html",
 ]
 
 # Convertir a nombres base para búsqueda flexible
