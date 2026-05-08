@@ -7,9 +7,6 @@
         <h6>{{ equipment.name }} ({{ equipment.code }})</h6>
     </div>
     <div class="card-body">
-        <!-- ============================================ -->
-        <!-- FORMULARIO CON CLASE block-on-submit -->
-        <!-- ============================================ -->
         <form method="POST" id="checklistForm" class="block-on-submit">
             <!-- Documentos del grupo -->
             {% if group.documents.count() > 0 %}
@@ -38,7 +35,7 @@
                     <div class="mt-1 small text-muted">Instrucciones: {{ act.instructions }}</div>
                     {% endif %}
 
-                    <!-- Cronómetro de la actividad -->
+                    <!-- Cronómetro -->
                     <div class="row mt-2">
                         <div class="col-md-6">
                             <div class="input-group">
@@ -58,9 +55,7 @@
                         </div>
                     </div>
 
-                    <!-- ============================================ -->
-                    <!-- REFACCIONES Y CONSUMIBLES ASOCIADOS A LA ACTIVIDAD -->
-                    <!-- ============================================ -->
+                    <!-- Refacciones / Consumibles asociadas -->
                     {% if act.spare_parts_links.count() > 0 %}
                     <div class="row mt-3">
                         <div class="col-12">
@@ -79,17 +74,17 @@
                                         </thead>
                                         <tbody>
                                             {% for link in act.spare_parts_links %}
-                                            <tr>
+                                            <tr data-part-id="{{ link.spare_part_id }}">
                                                 <td>
                                                     {{ link.spare_part.name }}
-                                                    <br>
-                                                    <small class="text-muted">({{ link.spare_part.code }})</small>
+                                                    <br><small class="text-muted">({{ link.spare_part.code }})</small>
                                                 </td>
                                                 <td>
                                                     <input type="number"
                                                            name="consumed_qty_{{ link.spare_part_id }}"
                                                            value="{{ link.quantity_required }}"
-                                                           class="form-control form-control-sm"
+                                                           class="form-control form-control-sm part-quantity"
+                                                           data-part-id="{{ link.spare_part_id }}"
                                                            min="0"
                                                            step="1"
                                                            style="width: 100px;">
@@ -123,7 +118,137 @@
 </div>
 
 <script>
-    // Almacenar timers y estados
+    // ============================================
+    // DATOS DE STOCK (inyectados desde el backend)
+    // ============================================
+    const stockData = {{ stock_data|tojson|safe }};
+
+    // ============================================
+    // FUNCIONES AUXILIARES
+    // ============================================
+    function getRequiredPartsFromCompleted() {
+        const required = {}; // { partId: totalQuantity }
+        const checkboxes = document.querySelectorAll('.activity-checkbox:checked');
+        for (let cb of checkboxes) {
+            const activityDiv = cb.closest('[data-activity-id]');
+            const quantityInputs = activityDiv.querySelectorAll('.part-quantity');
+            quantityInputs.forEach(input => {
+                const partId = parseInt(input.dataset.partId);
+                const qty = parseInt(input.value) || 0;
+                if (qty > 0) {
+                    required[partId] = (required[partId] || 0) + qty;
+                }
+            });
+        }
+        return required;
+    }
+
+    // Verifica si hay stock suficiente para las cantidades requeridas
+    function checkStockAvailability(requiredParts) {
+        const insufficient = [];
+        for (const [partId, needed] of Object.entries(requiredParts)) {
+            const stockInfo = stockData[partId];
+            if (!stockInfo) {
+                insufficient.push(`Refacción ID ${partId} no encontrada`);
+            } else if (!stockInfo.is_active) {
+                insufficient.push(`Refacción ${stockInfo.name} (${stockInfo.code}) está inactiva`);
+            } else if (stockInfo.current_stock < needed) {
+                insufficient.push(`${stockInfo.name}: requiere ${needed}, disponible ${stockInfo.current_stock} ${stockInfo.unit}`);
+            }
+        }
+        return insufficient;
+    }
+
+    // ============================================
+    // VALIDACIÓN AL MARCAR/DESMARCAR CHECKBOX
+    // ============================================
+    async function handleCheckboxChange(event) {
+        const checkbox = event.target;
+        const activityDiv = checkbox.closest('[data-activity-id]');
+        const newChecked = checkbox.checked;
+
+        // Si se desmarca, no hay restricción
+        if (!newChecked) return;
+
+        // Cantidades actuales de esta actividad (antes de ninguna modificación)
+        const quantityInputs = activityDiv.querySelectorAll('.part-quantity');
+        const partsNeeded = {};
+        quantityInputs.forEach(input => {
+            const partId = parseInt(input.dataset.partId);
+            const qty = parseInt(input.value) || 0;
+            if (qty > 0) {
+                partsNeeded[partId] = (partsNeeded[partId] || 0) + qty;
+            }
+        });
+
+        // Si la actividad no consume refacciones, permitir directamente
+        if (Object.keys(partsNeeded).length === 0) return;
+
+        // Calcular total requerido incluyendo esta actividad y las ya marcadas
+        const otherRequired = getRequiredPartsFromCompleted(); // ya incluye las demás marcadas
+        // Sumar los de esta actividad (pero aún no está incluida en otherRequired porque el checkbox aún no se considera "checked" en el DOM mientras se ejecuta el evento)
+        // Para obtener el estado actual de otras actividades, usamos una función que lea los checkboxes excluyendo el actual
+        const otherCheckboxes = document.querySelectorAll('.activity-checkbox:checked');
+        let requiredTotal = {};
+        for (let cb of otherCheckboxes) {
+            if (cb === checkbox) continue; // excluir el actual
+            const div = cb.closest('[data-activity-id]');
+            const inputs = div.querySelectorAll('.part-quantity');
+            inputs.forEach(inp => {
+                const pid = parseInt(inp.dataset.partId);
+                const q = parseInt(inp.value) || 0;
+                if (q > 0) requiredTotal[pid] = (requiredTotal[pid] || 0) + q;
+            });
+        }
+        // Agregar los de esta actividad
+        for (let [pid, qty] of Object.entries(partsNeeded)) {
+            requiredTotal[pid] = (requiredTotal[pid] || 0) + qty;
+        }
+
+        const insufficient = checkStockAvailability(requiredTotal);
+        if (insufficient.length > 0) {
+            const message = `⚠️ No hay suficiente stock para completar las actividades seleccionadas:\n\n${insufficient.join('\n')}\n\n¿Deseas marcar esta actividad pero SIN consumir las refacciones (se pondrá la cantidad en 0)?\n\n"Continuar" → Cantidad a 0 y se marca.\n"Cancelar" → Se desmarca la actividad.`;
+            const confirm = window.confirm(message);
+            if (confirm) {
+                // Poner cantidades a 0 para esta actividad
+                quantityInputs.forEach(input => {
+                    input.value = 0;
+                });
+                // Forzar actualización de cualquier otra lógica (por ejemplo, si se quiere recalcular después)
+                // También se podría llamar a una función para re-evaluar el estado global
+            } else {
+                checkbox.checked = false;
+                event.preventDefault();
+                return;
+            }
+        }
+    }
+
+    // ============================================
+    // VALIDACIÓN AL CAMBIAR CANTIDADES (si la actividad ya está marcada)
+    // ============================================
+    function handleQuantityChange(event) {
+        const input = event.target;
+        const partId = parseInt(input.dataset.partId);
+        const newQty = parseInt(input.value) || 0;
+        const activityDiv = input.closest('[data-activity-id]');
+        const checkbox = activityDiv.querySelector('.activity-checkbox');
+        if (!checkbox.checked) return; // solo validar si la actividad ya está completada
+
+        // Recalcular totales incluyendo todas las actividades marcadas
+        const requiredTotal = getRequiredPartsFromCompleted();
+        const insufficient = checkStockAvailability(requiredTotal);
+        if (insufficient.length > 0) {
+            // Mostrar mensaje de advertencia sin bloquear el cambio (el usuario podría revertir)
+            alert(`⚠️ Atención: Con esta cantidad, el stock sería insuficiente:\n${insufficient.join('\n')}\n\nRecomendamos reducir la cantidad o ajustar la actividad.`);
+            // Opcional: revertir al valor anterior
+            // No se revierte automáticamente para dar libertad al usuario, pero se advierte.
+        }
+    }
+
+    // ============================================
+    // PERSISTENCIA DE CRONÓMETROS (sessionStorage)
+    // ============================================
     const timers = {};
 
     function formatTime(seconds) {
@@ -133,74 +258,126 @@
         return `${hrs.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
     }
 
-    // Inicializar cronómetros para cada actividad
-    document.querySelectorAll('[data-activity-id]').forEach(activityDiv => {
-        const actId = activityDiv.dataset.activityId;
-        const checkbox = activityDiv.querySelector('.activity-checkbox');
-        const display = activityDiv.querySelector('.timer-display');
-        const hiddenInput = activityDiv.querySelector(`#duration_${actId}`);
-
-        let startTime = null;
-        let elapsed = 0;      // segundos acumulados (solo una vez que se detiene)
-        let interval = null;
-
-        // Función para detener el timer y guardar el tiempo transcurrido
-        function stopTimer() {
-            if (interval) {
-                clearInterval(interval);
-                interval = null;
+    function saveTimerState() {
+        const state = {};
+        for (let actId in timers) {
+            const hidden = document.getElementById(`duration_${actId}`);
+            const checkbox = document.getElementById(`act${actId}`);
+            if (hidden) {
+                state[actId] = {
+                    elapsed: parseInt(hidden.value) || 0,
+                    completed: checkbox ? checkbox.checked : false
+                };
             }
-            if (startTime) {
-                elapsed += (Date.now() - startTime) / 1000;
-                startTime = null;
-            }
-            hiddenInput.value = Math.floor(elapsed);
-            display.value = formatTime(Math.floor(elapsed));
         }
+        sessionStorage.setItem('checklist_timers', JSON.stringify(state));
+    }
 
-        // Función para iniciar el timer (si no está completado)
-        function startTimer() {
-            if (checkbox.checked) return; // ya completado
-            if (interval) return; // ya corriendo
-            startTime = Date.now();
-            interval = setInterval(() => {
-                if (checkbox.checked) {
-                    stopTimer();
-                    return;
+    function initTimers() {
+        document.querySelectorAll('[data-activity-id]').forEach(activityDiv => {
+            const actId = activityDiv.dataset.activityId;
+            const checkbox = activityDiv.querySelector('.activity-checkbox');
+            const display = activityDiv.querySelector('.timer-display');
+            const hiddenInput = activityDiv.querySelector(`#duration_${actId}`);
+
+            let startTime = null;
+            let elapsed = 0;
+            let interval = null;
+
+            function stopTimer() {
+                if (interval) {
+                    clearInterval(interval);
+                    interval = null;
                 }
-                const totalElapsed = elapsed + (Date.now() - startTime) / 1000;
-                display.value = formatTime(Math.floor(totalElapsed));
-            }, 1000);
-        }
+                if (startTime) {
+                    elapsed += (Date.now() - startTime) / 1000;
+                    startTime = null;
+                }
+                hiddenInput.value = Math.floor(elapsed);
+                display.value = formatTime(Math.floor(elapsed));
+                saveTimerState();
+            }
 
-        // Cuando se marca el checkbox, detener el timer y guardar
-        checkbox.addEventListener('change', function() {
-            if (this.checked) {
-                stopTimer();
+            function startTimer() {
+                if (checkbox.checked) return;
+                if (interval) return;
+                startTime = Date.now();
+                interval = setInterval(() => {
+                    if (checkbox.checked) {
+                        stopTimer();
+                        return;
+                    }
+                    const totalElapsed = elapsed + (Date.now() - startTime) / 1000;
+                    display.value = formatTime(Math.floor(totalElapsed));
+                    hiddenInput.value = Math.floor(totalElapsed);
+                    saveTimerState();
+                }, 1000);
+            }
+
+            checkbox.addEventListener('change', function() {
+                if (this.checked) {
+                    stopTimer();
+                } else {
+                    elapsed = 0;
+                    startTimer();
+                }
+                saveTimerState();
+            });
+
+            // Recuperar estado guardado
+            const saved = sessionStorage.getItem('checklist_timers');
+            if (saved) {
+                const data = JSON.parse(saved);
+                if (data[actId]) {
+                    elapsed = data[actId].elapsed;
+                    hiddenInput.value = elapsed;
+                    display.value = formatTime(elapsed);
+                    if (data[actId].completed) {
+                        checkbox.checked = true;
+                    } else {
+                        startTimer();
+                    }
+                } else {
+                    startTimer();
+                }
             } else {
-                // Si por alguna razón se desmarca, reiniciar timer (pero no debería pasar)
-                elapsed = 0;
                 startTimer();
             }
+
+            timers[actId] = { stopTimer, hiddenInput, checkbox };
         });
+    }
 
-        // Iniciar el timer automáticamente al cargar la página para todas las actividades
-        startTimer();
-
-        // Guardar referencia para detener al enviar
-        timers[actId] = { stopTimer, hiddenInput };
-    });
-
-    // Antes de enviar el formulario, detener todos los timers activos y calcular tiempo total
+    // Antes de enviar el formulario, detener todos los timers y calcular total
     const form = document.getElementById('checklistForm');
     form.addEventListener('submit', function(e) {
         let totalSeconds = 0;
         for (let id in timers) {
-            timers[id].stopTimer();
-            const seconds = parseInt(timers[id].hiddenInput.value) || 0;
-            totalSeconds += seconds;
+            const timer = timers[id];
+            if (timer.checkbox.checked) {
+                timer.stopTimer();
+                const seconds = parseInt(timer.hiddenInput.value) || 0;
+                totalSeconds += seconds;
+            }
         }
         document.getElementById('total_duration').value = totalSeconds;
+        sessionStorage.removeItem('checklist_timers');
+    });
+
+    // ============================================
+    // INICIALIZACIÓN GENERAL
+    // ============================================
+    document.addEventListener('DOMContentLoaded', function() {
+        initTimers();
+        // Asignar eventos a los checkboxes
+        document.querySelectorAll('.activity-checkbox').forEach(cb => {
+            cb.addEventListener('change', handleCheckboxChange);
+        });
+        // Asignar eventos a los inputs de cantidad
+        document.querySelectorAll('.part-quantity').forEach(input => {
+            input.addEventListener('change', handleQuantityChange);
+        });
+        console.log('Validación de stock activa con datos precargados:', stockData);
     });
 </script>
 {% endblock %}

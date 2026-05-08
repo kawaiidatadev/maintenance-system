@@ -7,8 +7,8 @@ from app.models.preventive_schedule import PreventiveSchedule
 from app.models.work_order import WorkOrder
 from app.models.equipment import Equipment
 from app.models.user import User
-from datetime import datetime, timedelta
 from app.models.setting import Setting
+from datetime import datetime, timedelta
 
 # ============================================================
 # DASHBOARD Y TAREAS
@@ -93,7 +93,35 @@ def execute_group_for_equipment(group_id, equipment_id):
 
     if request.method == 'GET':
         activities = [act for act in group.activities if act.is_active]
-        return render_template('preventive/checklist.html', group=group, equipment=equipment, activities=activities)
+
+        # ============================================
+        # PRECARGAR DATOS DE STOCK DE REFACCIONES
+        # ============================================
+        from app.blueprints.spare_parts.models import InventoryStock, SparePart
+
+        # Recopilar todos los spare_part_ids involucrados en las actividades del grupo
+        spare_part_ids = set()
+        for act in activities:
+            for link in act.spare_parts_links:
+                spare_part_ids.add(link.spare_part_id)
+
+        stock_data = {}
+        for sp_id in spare_part_ids:
+            part = SparePart.query.get(sp_id)
+            stock = InventoryStock.query.filter_by(spare_part_id=sp_id).first()
+            stock_data[sp_id] = {
+                'current_stock': stock.current_stock if stock else 0,
+                'is_active': part.is_active if part else False,
+                'unit': part.unit if part else 'pieza',
+                'name': part.name if part else 'Desconocido',
+                'code': part.code if part else ''
+            }
+
+        return render_template('preventive/checklist.html',
+                               group=group,
+                               equipment=equipment,
+                               activities=activities,
+                               stock_data=stock_data)   # ← datos inyectados
 
     # =========================
     # POST: procesar checklist
@@ -135,11 +163,9 @@ def execute_group_for_equipment(group_id, equipment_id):
     required_parts = {}
     for act in group.activities:
         if str(act.id) in completed_ids:
-            # Si la actividad tiene refacciones asignadas
             if hasattr(act, 'spare_parts_links') and act.spare_parts_links.count() > 0:
                 for asp in act.spare_parts_links:
                     part_id = asp.spare_part_id
-                    # Obtener cantidad del formulario (por si el usuario la modificó)
                     qty_key = f'consumed_qty_{part_id}'
                     if qty_key in request.form:
                         try:
@@ -151,17 +177,20 @@ def execute_group_for_equipment(group_id, equipment_id):
                             return redirect(request.url)
 
     # =========================
-    # VALIDAR STOCK INSUFICIENTE (antes de crear cualquier cosa)
+    # VALIDAR STOCK (solo si hay refacciones requeridas)
     # =========================
     insufficient = []
     for part_id, total_qty in required_parts.items():
-        available, current = check_stock_availability(part_id, total_qty)
-        if not available:
-            part = SparePart.query.get(part_id)
-            insufficient.append(f"{part.code} - requiere {total_qty}, disponible {current}")
+        part = SparePart.query.get(part_id)
+        if not part or not part.is_active:
+            insufficient.append(f"Refacción {part.code if part else 'ID ' + str(part_id)} está inactiva o no existe")
+        else:
+            available, current = check_stock_availability(part_id, total_qty)
+            if not available:
+                insufficient.append(f"{part.code} - requiere {total_qty}, disponible {current}")
 
     if insufficient:
-        flash(f"No hay suficiente stock para completar el mantenimiento: {', '.join(insufficient)}", 'danger')
+        flash(f"No se puede completar el mantenimiento: {', '.join(insufficient)}", 'danger')
         return redirect(request.url)
 
     # =========================
@@ -255,7 +284,7 @@ def execute_group_for_equipment(group_id, equipment_id):
     db.session.commit()
 
     # =========================
-    # CONSUMIR REFACCIONES (un solo movimiento por refacción, no por actividad)
+    # CONSUMIR REFACCIONES (un solo movimiento por refacción)
     # =========================
     from app.blueprints.spare_parts.services import consume_spare_part
     for part_id, total_qty in required_parts.items():

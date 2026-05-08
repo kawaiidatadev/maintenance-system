@@ -2,20 +2,24 @@
 
 {% block content %}
 <div class="row">
-    <div class="col-md-8 mx-auto">
+    <div class="col-md-12">
+        <!-- FORMULARIO DE ASIGNACIÓN -->
         <div class="card">
-            <div class="card-header bg-primary text-white">
-                <h4><i class="fas fa-link"></i> Asignar Refacción a Actividad Preventiva</h4>
+            <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                <h4><i class="fas fa-link me-2"></i> Asignar Refacción a Actividad Preventiva</h4>
+                <i class="fas fa-boxes fa-2x"></i>
             </div>
             <div class="card-body">
                 <form method="POST" class="block-on-submit">
-                    <div class="row g-3">
+                    <div class="row g-3 align-items-end">
                         <div class="col-md-5">
                             <label class="form-label">Actividad Preventiva *</label>
                             <select name="activity_id" class="form-select" required>
                                 <option value="">-- Seleccione actividad --</option>
                                 {% for act in activities %}
-                                <option value="{{ act.id }}">{{ act.name }} (Grupo: {{ act.group.name if act.group else 'N/A' }})</option>
+                                <option value="{{ act.id }}" data-group="{{ act.group.name if act.group else 'Sin grupo' }}">
+                                    {{ act.name }} (Grupo: {{ act.group.name if act.group else 'N/A' }})
+                                </option>
                                 {% endfor %}
                             </select>
                         </div>
@@ -24,7 +28,10 @@
                             <select name="spare_part_id" class="form-select" required>
                                 <option value="">-- Seleccione refacción --</option>
                                 {% for sp in spare_parts %}
-                                <option value="{{ sp.id }}">{{ sp.code }} - {{ sp.name }} (Stock: {{ sp.stocks[0].current_stock if sp.stocks else 0 }})</option>
+                                <option value="{{ sp.id }}" data-stock="{{ sp.stocks[0].current_stock if sp.stocks else 0 }}">
+                                    {{ sp.code }} - {{ sp.name }}
+                                    (Stock: {{ sp.stocks[0].current_stock if sp.stocks else 0 }})
+                                </option>
                                 {% endfor %}
                             </select>
                         </div>
@@ -32,30 +39,46 @@
                             <label class="form-label">Cantidad requerida</label>
                             <input type="number" name="quantity_required" class="form-control" value="1" min="1" step="1">
                         </div>
-                        <div class="col-md-1 d-flex align-items-end">
+                        <div class="col-md-1">
                             <button type="submit" class="btn btn-success w-100">
-                                <i class="fas fa-plus"></i>
+                                <i class="fas fa-plus"></i> Agregar
                             </button>
                         </div>
                     </div>
                 </form>
             </div>
         </div>
-    </div>
-</div>
 
-<div class="row mt-4">
-    <div class="col-md-12">
-        <div class="card">
-            <div class="card-header bg-info text-white">
-                <h4><i class="fas fa-list"></i> Refacciones asignadas</h4>
+        <!-- TABLA DE ASIGNACIONES EXISTENTES CON FILTROS -->
+        <div class="card mt-4">
+            <div class="card-header bg-info text-white d-flex justify-content-between align-items-center flex-wrap">
+                <h4><i class="fas fa-list me-2"></i> Refacciones asignadas</h4>
+                <div class="d-flex gap-2 flex-wrap">
+                    <!-- Filtro por grupo -->
+                    <div class="btn-group" role="group" id="groupFilter">
+                        <button type="button" class="btn btn-sm btn-outline-light active" data-group="all">Todos</button>
+                        {% set groups = [] %}
+                        {% for act in activities %}
+                            {% if act.group and act.group.name not in groups %}
+                                {% set _ = groups.append(act.group.name) %}
+                                <button type="button" class="btn btn-sm btn-outline-light" data-group="{{ act.group.name }}">{{ act.group.name }}</button>
+                            {% endif %}
+                        {% endfor %}
+                    </div>
+                    <!-- Buscador por texto -->
+                    <div class="input-group input-group-sm" style="width: 250px;">
+                        <span class="input-group-text"><i class="fas fa-search"></i></span>
+                        <input type="text" id="tableSearch" class="form-control" placeholder="Buscar actividad o refacción...">
+                    </div>
+                </div>
             </div>
-            <div class="card-body">
+            <div class="card-body p-0">
                 <div class="table-responsive">
-                    <table class="table table-bordered">
+                    <table class="table table-hover table-striped mb-0" id="assignmentsTable">
                         <thead class="table-dark">
                             <tr>
                                 <th>Actividad</th>
+                                <th>Grupo</th>
                                 <th>Refacción</th>
                                 <th>Cantidad</th>
                                 <th>Unidad</th>
@@ -66,25 +89,50 @@
                         <tbody>
                             {% for act in activities %}
                                 {% for assignment in act.spare_parts_links %}
-                                <tr>
-                                    <td>{{ act.name }} ({{ act.group.name if act.group else 'N/A' }})</td>
-                                    <td>{{ assignment.spare_part.code }} - {{ assignment.spare_part.name }}</td>
+                                <tr data-group="{{ act.group.name if act.group else 'Sin grupo' }}">
+                                    <td>{{ act.name }}</td>
+                                    <td>
+                                        {% if act.group %}
+                                            <span class="badge bg-secondary">{{ act.group.name }}</span>
+                                        {% else %}
+                                            <span class="badge bg-dark">Sin grupo</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <strong>{{ assignment.spare_part.code }}</strong><br>
+                                        <small>{{ assignment.spare_part.name }}</small>
+                                    </td>
                                     <td>{{ assignment.quantity_required }}</td>
                                     <td>{{ assignment.spare_part.unit or 'pieza' }}</td>
-                                    <td>{{ assignment.spare_part.stocks[0].current_stock if assignment.spare_part.stocks else 0 }}</td>
+                                    <td>
+                                        {% set stock = assignment.spare_part.stocks[0].current_stock if assignment.spare_part.stocks else 0 %}
+                                        <span class="badge {% if stock <= 0 %}bg-danger{% elif stock <= assignment.quantity_required %}bg-warning text-dark{% else %}bg-success{% endif %}">
+                                            {{ stock }}
+                                        </span>
+                                     </td>
                                     <td>
                                         <a href="{{ url_for('spare_parts.delete_activity_assignment', assignment_id=assignment.id) }}"
-                                           class="btn btn-sm btn-danger"
+                                           class="btn btn-sm btn-outline-danger"
                                            onclick="return confirm('¿Eliminar esta asignación?')">
-                                            <i class="fas fa-trash"></i>
+                                            <i class="fas fa-trash-alt"></i> Eliminar
                                         </a>
+                                     </td>
+                                </tr>
+                                {% else %}
+                                <tr id="noAssignmentsRow">
+                                    <td colspan="7" class="text-center py-4 text-muted">
+                                        <i class="fas fa-inbox fa-2x mb-2 d-block"></i>
+                                        No hay asignaciones registradas.
                                     </td>
                                 </tr>
                                 {% endfor %}
                             {% else %}
-                                <tr>
-                                    <td colspan="6" class="text-center">No hay asignaciones registradas</td>
-                                </tr>
+                            <tr id="noAssignmentsRow">
+                                <td colspan="7" class="text-center py-4 text-muted">
+                                    <i class="fas fa-inbox fa-2x mb-2 d-block"></i>
+                                    No hay asignaciones registradas.
+                                </td>
+                            </tr>
                             {% endfor %}
                         </tbody>
                     </table>
@@ -95,18 +143,86 @@
 </div>
 
 <script>
-    // Opcional: Autocompletar o información dinámica
-    document.querySelector('select[name="activity_id"]').addEventListener('change', function() {
-        const activityId = this.value;
-        if (activityId) {
-            fetch(`/spare-parts/api/activity-spare-parts/${activityId}`)
-                .then(response => response.json())
-                .then(data => {
-                    const table = document.querySelector('.table tbody');
-                    // Podrías actualizar algo aquí si lo deseas
-                })
-                .catch(error => console.error('Error:', error));
+    document.addEventListener('DOMContentLoaded', function() {
+        const groupButtons = document.querySelectorAll('#groupFilter button');
+        const searchInput = document.getElementById('tableSearch');
+        const tableRows = document.querySelectorAll('#assignmentsTable tbody tr');
+        const noAssignmentsRow = document.getElementById('noAssignmentsRow');
+
+        function filterTable() {
+            const activeGroup = document.querySelector('#groupFilter button.active')?.dataset.group || 'all';
+            const searchTerm = searchInput.value.toLowerCase();
+
+            let hasVisibleRows = false;
+
+            tableRows.forEach(row => {
+                if (row.id === 'noAssignmentsRow') return;
+
+                const rowGroup = row.dataset.group;
+                const activityName = row.cells[0]?.innerText.toLowerCase() || '';
+                const sparePartText = row.cells[2]?.innerText.toLowerCase() || '';
+                const spareCode = row.cells[2]?.querySelector('strong')?.innerText.toLowerCase() || '';
+
+                const matchesGroup = (activeGroup === 'all' || rowGroup === activeGroup);
+                const matchesSearch = (searchTerm === '' ||
+                                       activityName.includes(searchTerm) ||
+                                       sparePartText.includes(searchTerm) ||
+                                       spareCode.includes(searchTerm));
+
+                if (matchesGroup && matchesSearch) {
+                    row.style.display = '';
+                    hasVisibleRows = true;
+                } else {
+                    row.style.display = 'none';
+                }
+            });
+
+            // Mostrar mensaje si no hay filas visibles y no existe la fila de "sin resultados"
+            if (!hasVisibleRows && !noAssignmentsRow) {
+                let noResultsRow = document.getElementById('noResultsRow');
+                if (!noResultsRow) {
+                    const tbody = document.querySelector('#assignmentsTable tbody');
+                    noResultsRow = document.createElement('tr');
+                    noResultsRow.id = 'noResultsRow';
+                    noResultsRow.innerHTML = `<td colspan="7" class="text-center py-4 text-muted">
+                                                <i class="fas fa-filter fa-2x mb-2 d-block"></i>
+                                                No se encontraron asignaciones con los filtros actuales.
+                                               </td>`;
+                    tbody.appendChild(noResultsRow);
+                }
+            } else {
+                const noResultsRow = document.getElementById('noResultsRow');
+                if (noResultsRow) noResultsRow.remove();
+            }
         }
+
+        // Eventos
+        groupButtons.forEach(btn => {
+            btn.addEventListener('click', function() {
+                groupButtons.forEach(b => b.classList.remove('active'));
+                this.classList.add('active');
+                filterTable();
+            });
+        });
+        searchInput.addEventListener('input', filterTable);
     });
 </script>
+
+<style>
+    .btn-outline-light.active {
+        background-color: #0d6efd;
+        color: white;
+        border-color: #0d6efd;
+    }
+    .btn-outline-light:hover {
+        background-color: #6c757d;
+        color: white;
+    }
+    .table-hover tbody tr:hover {
+        background-color: rgba(13, 110, 253, 0.1);
+    }
+    .badge.bg-warning {
+        color: #000;
+    }
+</style>
 {% endblock %}

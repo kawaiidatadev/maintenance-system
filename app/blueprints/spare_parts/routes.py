@@ -186,9 +186,6 @@ def edit(id):
             # ============================================
             # REGENERAR CÓDIGOS DE BARRAS Y QR (si cambió el código)
             # ============================================
-            # ... crear part y db.session.commit() inicial ...
-
-            # Generar códigos de barras y QR
             from app.blueprints.spare_parts.barcode_utils import generate_barcode_and_qr
             try:
                 barcode_path, qr_path = generate_barcode_and_qr(part, force=True)
@@ -197,8 +194,6 @@ def edit(id):
                 db.session.commit()
             except Exception as e:
                 print(f"Error generando códigos: {e}")
-
-
 
             # Manejo de imagen
             if form.image.data:
@@ -234,9 +229,20 @@ def edit(id):
 @admin_required
 def delete(id):
     part = SparePart.query.get_or_404(id)
+
+    # Contar asignaciones
+    activity_count = ActivitySparePart.query.filter_by(spare_part_id=part.id).count()
+    equipment_count = EquipmentSparePart.query.filter_by(spare_part_id=part.id).count()
+
+    if activity_count > 0 or equipment_count > 0:
+        flash(f'⚠️ La refacción está asignada a {activity_count} actividad(es) preventiva(s) y {equipment_count} equipo(s). Se eliminarán estas asignaciones.', 'warning')
+        ActivitySparePart.query.filter_by(spare_part_id=part.id).delete()
+        EquipmentSparePart.query.filter_by(spare_part_id=part.id).delete()
+        db.session.commit()
+
     part.is_active = False
     db.session.commit()
-    flash(f'Refacción {part.code} desactivada', 'success')
+    flash(f'Refacción {part.code} desactivada correctamente.', 'success')
     return redirect(url_for('spare_parts.index'))
 
 
@@ -348,7 +354,8 @@ def assign_activity_post():
 @admin_required
 def delete_activity_assignment(assignment_id):
     assignment = ActivitySparePart.query.get_or_404(assignment_id)
-    activity_name = assignment.activity.name if assignment.activity else 'N/A'
+    # Usar la relación correcta (preventive_activity)
+    activity_name = assignment.preventive_activity.name if assignment.preventive_activity else 'N/A'
     spare_code = assignment.spare_part.code if assignment.spare_part else 'N/A'
 
     db.session.delete(assignment)
