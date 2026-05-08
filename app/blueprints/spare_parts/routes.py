@@ -461,3 +461,4 @@ def validate_code():
         return jsonify({'valid': False, 'message': 'Código ya existe'})
     else:
         return jsonify({'valid': True, 'message': 'Código disponible'})
+    # commit
