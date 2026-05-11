@@ -119,6 +119,12 @@
 
 <script>
     // ============================================
+    // LIMPIAR SESIÓN ANTERIOR AL CARGAR LA PÁGINA
+    // (para que los cronómetros comiencen desde cero cada vez)
+    // ============================================
+    sessionStorage.removeItem('checklist_timers');
+
+    // ============================================
     // DATOS DE STOCK (inyectados desde el backend)
     // ============================================
     const stockData = {{ stock_data|tojson|safe }};
@@ -185,9 +191,6 @@
         if (Object.keys(partsNeeded).length === 0) return;
 
         // Calcular total requerido incluyendo esta actividad y las ya marcadas
-        const otherRequired = getRequiredPartsFromCompleted(); // ya incluye las demás marcadas
-        // Sumar los de esta actividad (pero aún no está incluida en otherRequired porque el checkbox aún no se considera "checked" en el DOM mientras se ejecuta el evento)
-        // Para obtener el estado actual de otras actividades, usamos una función que lea los checkboxes excluyendo el actual
         const otherCheckboxes = document.querySelectorAll('.activity-checkbox:checked');
         let requiredTotal = {};
         for (let cb of otherCheckboxes) {
@@ -214,8 +217,6 @@
                 quantityInputs.forEach(input => {
                     input.value = 0;
                 });
-                // Forzar actualización de cualquier otra lógica (por ejemplo, si se quiere recalcular después)
-                // También se podría llamar a una función para re-evaluar el estado global
             } else {
                 checkbox.checked = false;
                 event.preventDefault();
@@ -239,15 +240,12 @@
         const requiredTotal = getRequiredPartsFromCompleted();
         const insufficient = checkStockAvailability(requiredTotal);
         if (insufficient.length > 0) {
-            // Mostrar mensaje de advertencia sin bloquear el cambio (el usuario podría revertir)
             alert(`⚠️ Atención: Con esta cantidad, el stock sería insuficiente:\n${insufficient.join('\n')}\n\nRecomendamos reducir la cantidad o ajustar la actividad.`);
-            // Opcional: revertir al valor anterior
-            // No se revierte automáticamente para dar libertad al usuario, pero se advierte.
         }
     }
 
     // ============================================
-    // PERSISTENCIA DE CRONÓMETROS (sessionStorage)
+    // CRONÓMETROS (sin persistencia entre visitas)
     // ============================================
     const timers = {};
 
@@ -324,25 +322,11 @@
                 saveTimerState();
             });
 
-            // Recuperar estado guardado
-            const saved = sessionStorage.getItem('checklist_timers');
-            if (saved) {
-                const data = JSON.parse(saved);
-                if (data[actId]) {
-                    elapsed = data[actId].elapsed;
-                    hiddenInput.value = elapsed;
-                    display.value = formatTime(elapsed);
-                    if (data[actId].completed) {
-                        checkbox.checked = true;
-                    } else {
-                        startTimer();
-                    }
-                } else {
-                    startTimer();
-                }
-            } else {
-                startTimer();
-            }
+            // Siempre partir de cero, sin restaurar nada
+            elapsed = 0;
+            hiddenInput.value = 0;
+            display.value = formatTime(0);
+            startTimer();
 
             timers[actId] = { stopTimer, hiddenInput, checkbox };
         });
