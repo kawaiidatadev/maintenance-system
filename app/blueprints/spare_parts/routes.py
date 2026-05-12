@@ -11,6 +11,7 @@ from app.blueprints.spare_parts.models import SparePart, InventoryStock, SparePa
     ActivitySparePart
 from app.models.user import User
 from app.models.preventive_activity import PreventiveActivity
+from app.models.equipment import Equipment  # ← IMPORTANTE: Agregar esta línea
 from app.blueprints.spare_parts.services import get_or_create_stock, register_movement
 from app.blueprints.spare_parts.forms import SparePartForm
 from functools import wraps
@@ -25,6 +26,7 @@ def admin_required(func):
             flash('Acceso denegado. Se requieren permisos de administrador.', 'danger')
             return redirect(url_for('dashboard.index'))
         return func(*args, **kwargs)
+
     return decorated_view
 
 
@@ -54,7 +56,8 @@ def index():
 def view(id):
     part = SparePart.query.get_or_404(id)
     stock = InventoryStock.query.filter_by(spare_part_id=id).first()
-    movements = SparePartMovement.query.filter_by(spare_part_id=id).order_by(SparePartMovement.created_at.desc()).limit(20).all()
+    movements = SparePartMovement.query.filter_by(spare_part_id=id).order_by(SparePartMovement.created_at.desc()).limit(
+        20).all()
     return render_template('spare_parts/view.html', part=part, stock=stock, movements=movements)
 
 
@@ -235,7 +238,9 @@ def delete(id):
     equipment_count = EquipmentSparePart.query.filter_by(spare_part_id=part.id).count()
 
     if activity_count > 0 or equipment_count > 0:
-        flash(f'⚠️ La refacción está asignada a {activity_count} actividad(es) preventiva(s) y {equipment_count} equipo(s). Se eliminarán estas asignaciones.', 'warning')
+        flash(
+            f'⚠️ La refacción está asignada a {activity_count} actividad(es) preventiva(s) y {equipment_count} equipo(s). Se eliminarán estas asignaciones.',
+            'warning')
         ActivitySparePart.query.filter_by(spare_part_id=part.id).delete()
         EquipmentSparePart.query.filter_by(spare_part_id=part.id).delete()
         db.session.commit()
@@ -308,9 +313,12 @@ def add_movement(part_id):
 def assign_activity():
     activities = PreventiveActivity.query.filter_by(is_active=True).all()
     spare_parts = SparePart.query.filter_by(is_active=True).all()
+    equipments = Equipment.query.filter_by(status='Operativo').order_by(Equipment.name).all()
+
     return render_template('spare_parts/assign_activity.html',
                            activities=activities,
-                           spare_parts=spare_parts)
+                           spare_parts=spare_parts,
+                           equipments=equipments)  # ← PASAR LA VARIABLE
 
 
 @spare_parts_bp.route('/assign-activity', methods=['POST'])
@@ -461,4 +469,3 @@ def validate_code():
         return jsonify({'valid': False, 'message': 'Código ya existe'})
     else:
         return jsonify({'valid': True, 'message': 'Código disponible'})
-    # commit

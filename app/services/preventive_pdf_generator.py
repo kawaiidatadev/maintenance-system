@@ -30,28 +30,28 @@ class PreventiveWorkOrderPDF(WorkOrderPDF):
         if preview_mode:
             table_rows = [
                 ('Equipo', 'Compresor de Aire'),
-                ('Código', 'COM-001'),
-                ('Técnico asignado', 'Juan Pérez'),
+                ('Codigo', 'COM-001'),
+                ('Tecnico asignado', 'Juan Perez'),
                 ('Creado por', 'Admin'),
-                ('Fecha creación', format_datetime(datetime.utcnow())),
+                ('Fecha creacion', format_datetime(datetime.utcnow())),
                 ('Fecha programada', '15/05/2026'),
                 ('Frecuencia', 'Cada 6 meses'),
-                ('Fecha ejecución', format_datetime(datetime.utcnow())),
-                ('Cerrado por', 'Juan Pérez'),
+                ('Fecha ejecucion', format_datetime(datetime.utcnow())),
+                ('Cerrado por', 'Juan Perez'),
                 ('Fecha cierre', format_datetime(datetime.utcnow())),
-                ('Duración total', '45 minutos'),
+                ('Duracion total', '45 minutos'),
             ]
             activities_data = [
-                ('Lubricación', '12 min', 'Sí', 'N/A'),
-                ('Inspección visual', '8 min', 'Sí', 'N/A'),
-                ('Limpieza de filtros', '25 min', 'Sí', 'N/A'),
+                ('Lubricacion', '12 min', 'Si', 'N/A'),
+                ('Inspeccion visual', '8 min', 'Si', 'N/A'),
+                ('Limpieza de filtros', '25 min', 'Si', 'N/A'),
             ]
-            comments = 'Se realizaron todas las actividades según lo planificado.'
+            comments = 'Se realizaron todas las actividades segun lo planificado.'
             docs = []
         else:
             wo = work_order
 
-            # Obtener log de ejecución (ahora sí existe la relación)
+            # Obtener log de ejecución
             exec_log = wo.preventive_execution_log
             total_min = exec_log.duration_minutes if exec_log else 0
             comments = exec_log.notes if exec_log else ''
@@ -75,18 +75,27 @@ class PreventiveWorkOrderPDF(WorkOrderPDF):
             if group and frequency_display == 'N/A':
                 frequency_display = group.frequency_suggested
 
+            # Normalizar todos los textos de la tabla
+            equipment_name = normalize(wo.equipment.name if wo.equipment else 'N/A')
+            equipment_code = normalize(wo.equipment.code if wo.equipment else 'N/A')
+            assigned_to = normalize(wo.assigned_to.username if wo.assigned_to else 'No asignado')
+            created_by = normalize(wo.created_by.username if wo.created_by else 'Sistema')
+            created_at = format_datetime(wo.created_at) if wo.created_at else 'N/A'
+            closed_by = normalize(wo.closed_by.username if wo.closed_by else 'No registrado')
+            closed_at = format_datetime(wo.closed_at) if wo.closed_at else 'N/A'
+
             table_rows = [
-                ('Equipo', wo.equipment.name if wo.equipment else 'N/A'),
-                ('Código', wo.equipment.code if wo.equipment else 'N/A'),
-                ('Técnico asignado', wo.assigned_to.username if wo.assigned_to else 'No asignado'),
-                ('Creado por', wo.created_by.username if wo.created_by else 'Sistema'),
-                ('Fecha creación', format_datetime(wo.created_at) if wo.created_at else 'N/A'),
+                ('Equipo', equipment_name),
+                ('Codigo', equipment_code),
+                ('Tecnico asignado', assigned_to),
+                ('Creado por', created_by),
+                ('Fecha creacion', created_at),
                 ('Fecha programada', scheduled_date),
                 ('Frecuencia', frequency_display),
-                ('Fecha ejecución', format_datetime(wo.start_date) if wo.start_date else 'N/A'),
-                ('Cerrado por', wo.closed_by.username if wo.closed_by else 'No registrado'),
-                ('Fecha cierre', format_datetime(wo.closed_at) if wo.closed_at else 'N/A'),
-                ('Duración total', f'{total_min} minutos' if total_min else 'N/A'),
+                ('Fecha ejecucion', format_datetime(wo.start_date) if wo.start_date else 'N/A'),
+                ('Cerrado por', closed_by),
+                ('Fecha cierre', closed_at),
+                ('Duracion total', f'{total_min} minutos' if total_min else 'N/A'),
             ]
 
             # Actividades desde measurements
@@ -95,13 +104,18 @@ class PreventiveWorkOrderPDF(WorkOrderPDF):
                 for act_id, act_data in wo.measurements.items():
                     if act_id == '_metadata':
                         continue
-                    act_name = act_data.get('name', f'Actividad {act_id}')
-                    completed = 'Sí' if act_data.get('completed') else 'No'
+                    act_name = normalize(act_data.get('name', f'Actividad {act_id}'))
+                    completed = 'Si' if act_data.get('completed') else 'No'
                     duration_sec = act_data.get('duration_seconds', 0)
                     duration_min = round(duration_sec / 60, 1) if duration_sec else 0
-                    measured_value = act_data.get('measured_value', '')
-                    unit = act_data.get('unit', '')
-                    measured = f'{measured_value} {unit}'.strip() if measured_value or unit else '—'
+                    measured_value = normalize(act_data.get('measured_value', ''))
+                    unit = normalize(act_data.get('unit', ''))
+                    if measured_value and unit:
+                        measured = f'{measured_value} {unit}'
+                    elif measured_value:
+                        measured = measured_value
+                    else:
+                        measured = '-'
                     activities_data.append((act_name, f'{duration_min} min', completed, measured))
 
             # Documentos adjuntos del grupo
@@ -122,14 +136,13 @@ class PreventiveWorkOrderPDF(WorkOrderPDF):
         # Comentarios / Notas de cierre
         if comments:
             self.section_title('Notas de cierre')
-            self._draw_wrapped_paragraph(comments, width=self.epw)
+            self._draw_wrapped_paragraph(normalize(comments), width=self.epw)
 
         # Adjuntos (documentos del grupo)
         if not preview_mode and docs:
             self.section_title('Documentos adjuntos')
             for doc in docs:
-                # ✅ CORREGIDO: se reemplaza el bullet '•' por un guión simple '-'
-                self._draw_wrapped_paragraph(f'- {doc.original_filename}', width=self.epw)
+                self._draw_wrapped_paragraph(f'- {normalize(doc.original_filename)}', width=self.epw)
 
     def _draw_activities_table(self, activities):
         col_widths = [80, 25, 25, 50]  # mm
@@ -139,7 +152,7 @@ class PreventiveWorkOrderPDF(WorkOrderPDF):
 
         x_start = self.l_margin
         y = self.get_y()
-        headers = ['Actividad', 'Tiempo', 'Completado', 'Medición']
+        headers = ['Actividad', 'Tiempo', 'Completado', 'Medicion']
         for i, header in enumerate(headers):
             self.set_xy(x_start, y)
             self.cell(col_widths[i], 8, normalize(header), 1, 0, 'C', 1)

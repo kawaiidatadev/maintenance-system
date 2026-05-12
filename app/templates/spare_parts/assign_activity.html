@@ -1,228 +1,722 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="row">
-    <div class="col-md-12">
-        <!-- FORMULARIO DE ASIGNACIÓN -->
-        <div class="card">
-            <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
-                <h4><i class="fas fa-link me-2"></i> Asignar Refacción a Actividad Preventiva</h4>
-                <i class="fas fa-boxes fa-2x"></i>
-            </div>
-            <div class="card-body">
-                <form method="POST" class="block-on-submit">
-                    <div class="row g-3 align-items-end">
-                        <div class="col-md-5">
-                            <label class="form-label">Actividad Preventiva *</label>
-                            <select name="activity_id" class="form-select" required>
-                                <option value="">-- Seleccione actividad --</option>
-                                {% for act in activities %}
-                                <option value="{{ act.id }}" data-group="{{ act.group.name if act.group else 'Sin grupo' }}">
-                                    {{ act.name }} (Grupo: {{ act.group.name if act.group else 'N/A' }})
-                                </option>
-                                {% endfor %}
-                            </select>
-                        </div>
-                        <div class="col-md-4">
-                            <label class="form-label">Refacción/Consumible *</label>
-                            <select name="spare_part_id" class="form-select" required>
-                                <option value="">-- Seleccione refacción --</option>
-                                {% for sp in spare_parts %}
-                                <option value="{{ sp.id }}" data-stock="{{ sp.stocks[0].current_stock if sp.stocks else 0 }}">
-                                    {{ sp.code }} - {{ sp.name }}
-                                    (Stock: {{ sp.stocks[0].current_stock if sp.stocks else 0 }})
-                                </option>
-                                {% endfor %}
-                            </select>
-                        </div>
-                        <div class="col-md-2">
-                            <label class="form-label">Cantidad requerida</label>
-                            <input type="number" name="quantity_required" class="form-control" value="1" min="1" step="1">
-                        </div>
-                        <div class="col-md-1">
-                            <button type="submit" class="btn btn-success w-100">
-                                <i class="fas fa-plus"></i> Agregar
-                            </button>
-                        </div>
-                    </div>
-                </form>
-            </div>
-        </div>
-
-        <!-- TABLA DE ASIGNACIONES EXISTENTES CON FILTROS -->
-        <div class="card mt-4">
-            <div class="card-header bg-info text-white d-flex justify-content-between align-items-center flex-wrap">
-                <h4><i class="fas fa-list me-2"></i> Refacciones asignadas</h4>
-                <div class="d-flex gap-2 flex-wrap">
-                    <!-- Filtro por grupo -->
-                    <div class="btn-group" role="group" id="groupFilter">
-                        <button type="button" class="btn btn-sm btn-outline-light active" data-group="all">Todos</button>
-                        {% set groups = [] %}
-                        {% for act in activities %}
-                            {% if act.group and act.group.name not in groups %}
-                                {% set _ = groups.append(act.group.name) %}
-                                <button type="button" class="btn btn-sm btn-outline-light" data-group="{{ act.group.name }}">{{ act.group.name }}</button>
-                            {% endif %}
-                        {% endfor %}
-                    </div>
-                    <!-- Buscador por texto -->
-                    <div class="input-group input-group-sm" style="width: 250px;">
-                        <span class="input-group-text"><i class="fas fa-search"></i></span>
-                        <input type="text" id="tableSearch" class="form-control" placeholder="Buscar actividad o refacción...">
+<div class="container-fluid px-4">
+    <div class="row">
+        <div class="col-12">
+            <!-- FORMULARIO DE ASIGNACIÓN MEJORADO -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-gradient-primary text-white d-flex justify-content-between align-items-center py-3">
+                    <h4 class="mb-0"><i class="fas fa-link me-2"></i> Asignar Refacción a Actividad Preventiva</h4>
+                    <div>
+                        <span class="badge bg-light text-dark">
+                            <i class="fas fa-boxes me-1"></i> Gestión de inventario
+                        </span>
                     </div>
                 </div>
+                <div class="card-body">
+                    <form method="POST" class="block-on-submit" id="assignmentForm">
+                        <div class="row g-4">
+                            <!-- 1. Equipo -->
+                            <div class="col-md-3">
+                                <label class="form-label fw-semibold">
+                                    <i class="fas fa-microchip text-primary me-1"></i> Equipo / Máquina
+                                </label>
+                                <select id="equipmentSelect" class="form-select shadow-sm">
+                                    <option value="">-- Seleccione equipo --</option>
+                                    {% for eq in equipments %}
+                                    <option value="{{ eq.id }}">{{ eq.name }} ({{ eq.code }})</option>
+                                    {% endfor %}
+                                </select>
+                                <small class="text-muted">Filtra actividades por equipo</small>
+                            </div>
+
+                            <!-- 2. Grupo (depende del equipo) -->
+                            <div class="col-md-3">
+                                <label class="form-label fw-semibold">
+                                    <i class="fas fa-layer-group text-info me-1"></i> Grupo de actividades
+                                </label>
+                                <select id="groupSelect" class="form-select shadow-sm" disabled>
+                                    <option value="">-- Primero seleccione equipo --</option>
+                                </select>
+                                <small class="text-muted">Seleccione el grupo de mantenimiento</small>
+                            </div>
+
+                            <!-- 3. Actividad (buscable) -->
+                            <div class="col-md-4">
+                                <label class="form-label fw-semibold">
+                                    <i class="fas fa-tasks text-success me-1"></i> Actividad Preventiva <span class="text-danger">*</span>
+                                </label>
+                                <div class="input-group">
+                                    <input type="text" id="activityInput" class="form-control shadow-sm" list="activityList"
+                                           placeholder="Escriba o seleccione..." autocomplete="off">
+                                    <span class="input-group-text bg-light" id="activityStatus">
+                                        <i class="fas fa-search text-muted"></i>
+                                    </span>
+                                </div>
+                                <datalist id="activityList"></datalist>
+                                <input type="hidden" id="selectedActivityId" name="activity_id" required>
+                                <div id="selectedActivityInfo" class="small mt-1"></div>
+                            </div>
+
+                            <!-- 4. Refacción (buscable) -->
+                            <div class="col-md-4">
+                                <label class="form-label fw-semibold">
+                                    <i class="fas fa-boxes text-warning me-1"></i> Refacción / Consumible <span class="text-danger">*</span>
+                                </label>
+                                <div class="input-group">
+                                    <input type="text" id="spareInput" class="form-control shadow-sm" list="spareList"
+                                           placeholder="Escriba código, nombre o marca..." autocomplete="off">
+                                    <span class="input-group-text bg-light" id="spareStatus">
+                                        <i class="fas fa-search text-muted"></i>
+                                    </span>
+                                </div>
+                                <datalist id="spareList">
+                                    {% for sp in spare_parts %}
+                                    {% set stock = sp.stocks[0].current_stock if sp.stocks else 0 %}
+                                    <option value="{{ sp.code }} - {{ sp.name }} (Stock: {{ stock }})"
+                                            data-id="{{ sp.id }}"
+                                            data-stock="{{ stock }}"
+                                            data-unit="{{ sp.unit or 'pieza' }}">
+                                    {% endfor %}
+                                </datalist>
+                                <input type="hidden" id="selectedSpareId" name="spare_part_id" required>
+                                <div id="selectedSpareInfo" class="small mt-1"></div>
+                            </div>
+
+                            <div class="col-md-2">
+                                <label class="form-label fw-semibold">
+                                    <i class="fas fa-calculator text-danger me-1"></i> Cantidad requerida
+                                </label>
+                                <input type="number" name="quantity_required" class="form-control shadow-sm"
+                                       value="1" min="1" step="1" id="quantityRequired">
+                                <small class="text-muted" id="stockWarning"></small>
+                            </div>
+
+                            <div class="col-md-2 align-self-end">
+                                <button type="submit" class="btn btn-success w-100 py-2 shadow-sm" id="submitBtn">
+                                    <i class="fas fa-plus me-2"></i> Agregar asignación
+                                </button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
             </div>
-            <div class="card-body p-0">
-                <div class="table-responsive">
-                    <table class="table table-hover table-striped mb-0" id="assignmentsTable">
-                        <thead class="table-dark">
-                            <tr>
-                                <th>Actividad</th>
-                                <th>Grupo</th>
-                                <th>Refacción</th>
-                                <th>Cantidad</th>
-                                <th>Unidad</th>
-                                <th>Stock actual</th>
-                                <th>Acciones</th>
-                            </tr>
-                        </thead>
-                        <tbody>
+
+            <!-- TABLA DE ASIGNACIONES EXISTENTES -->
+            <div class="card shadow-sm">
+                <div class="card-header bg-gradient-info text-white d-flex justify-content-between align-items-center flex-wrap py-3">
+                    <h4 class="mb-0"><i class="fas fa-list me-2"></i> Refacciones asignadas</h4>
+                    <div class="d-flex gap-2 flex-wrap mt-2 mt-sm-0">
+                        <div class="btn-group btn-group-sm" role="group" id="groupFilter">
+                            <button type="button" class="btn btn-outline-light active" data-group="all">Todos</button>
+                            {% set groups = [] %}
                             {% for act in activities %}
-                                {% for assignment in act.spare_parts_links %}
-                                <tr data-group="{{ act.group.name if act.group else 'Sin grupo' }}">
-                                    <td>{{ act.name }}</td>
-                                    <td>
-                                        {% if act.group %}
-                                            <span class="badge bg-secondary">{{ act.group.name }}</span>
-                                        {% else %}
-                                            <span class="badge bg-dark">Sin grupo</span>
-                                        {% endif %}
-                                    </td>
-                                    <td>
-                                        <strong>{{ assignment.spare_part.code }}</strong><br>
-                                        <small>{{ assignment.spare_part.name }}</small>
-                                    </td>
-                                    <td>{{ assignment.quantity_required }}</td>
-                                    <td>{{ assignment.spare_part.unit or 'pieza' }}</td>
-                                    <td>
-                                        {% set stock = assignment.spare_part.stocks[0].current_stock if assignment.spare_part.stocks else 0 %}
-                                        <span class="badge {% if stock <= 0 %}bg-danger{% elif stock <= assignment.quantity_required %}bg-warning text-dark{% else %}bg-success{% endif %}">
-                                            {{ stock }}
-                                        </span>
-                                     </td>
-                                    <td>
-                                        <a href="{{ url_for('spare_parts.delete_activity_assignment', assignment_id=assignment.id) }}"
-                                           class="btn btn-sm btn-outline-danger"
-                                           onclick="return confirm('¿Eliminar esta asignación?')">
-                                            <i class="fas fa-trash-alt"></i> Eliminar
-                                        </a>
-                                     </td>
-                                </tr>
-                                {% else %}
-                                <tr id="noAssignmentsRow">
-                                    <td colspan="7" class="text-center py-4 text-muted">
-                                        <i class="fas fa-inbox fa-2x mb-2 d-block"></i>
-                                        No hay asignaciones registradas.
-                                    </td>
-                                </tr>
-                                {% endfor %}
-                            {% else %}
-                            <tr id="noAssignmentsRow">
-                                <td colspan="7" class="text-center py-4 text-muted">
-                                    <i class="fas fa-inbox fa-2x mb-2 d-block"></i>
-                                    No hay asignaciones registradas.
-                                </td>
-                            </tr>
+                                {% if act.group and act.group.name not in groups %}
+                                    {% set _ = groups.append(act.group.name) %}
+                                    <button type="button" class="btn btn-outline-light" data-group="{{ act.group.name }}">{{ act.group.name }}</button>
+                                {% endif %}
                             {% endfor %}
-                        </tbody>
-                    </table>
+                        </div>
+                        <div class="input-group input-group-sm" style="width: 250px;">
+                            <span class="input-group-text bg-white"><i class="fas fa-search text-muted"></i></span>
+                            <input type="text" id="tableSearch" class="form-control" placeholder="Buscar actividad o refacción...">
+                        </div>
+                    </div>
+                </div>
+                <div class="card-body p-0">
+                    <div class="d-flex justify-content-between align-items-center p-3 border-bottom bg-light">
+                        <div>
+                            <select id="rowsPerPage" class="form-select form-select-sm w-auto shadow-sm">
+                                <option value="10">10 por página</option>
+                                <option value="25" selected>25 por página</option>
+                                <option value="50">50 por página</option>
+                                <option value="100">100 por página</option>
+                            </select>
+                        </div>
+                        <div>
+                            <span id="infoPaginacion" class="text-muted small">
+                                <i class="fas fa-info-circle me-1"></i> Cargando...
+                            </span>
+                        </div>
+                    </div>
+                    <div class="table-responsive">
+                        <table class="table table-hover table-striped mb-0" id="assignmentsTable">
+                            <thead class="table-dark">
+                                <tr>
+                                    <th data-sort="activity" class="sortable" style="cursor: pointer; min-width: 200px;">
+                                        Actividad <i class="fas fa-sort text-muted ms-1"></i>
+                                    </th>
+                                    <th data-sort="group" class="sortable" style="cursor: pointer; min-width: 120px;">
+                                        Grupo <i class="fas fa-sort text-muted ms-1"></i>
+                                    </th>
+                                    <th data-sort="spare" class="sortable" style="cursor: pointer; min-width: 180px;">
+                                        Refacción <i class="fas fa-sort text-muted ms-1"></i>
+                                    </th>
+                                    <th data-sort="quantity" class="sortable" style="cursor: pointer; width: 80px;">
+                                        Cantidad <i class="fas fa-sort text-muted ms-1"></i>
+                                    </th>
+                                    <th style="width: 80px;">Unidad</th>
+                                    <th style="width: 100px;">Stock actual</th>
+                                    <th style="width: 100px;">Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tablaBody">
+                                <tr>
+                                    <td colspan="7" class="text-center py-4">
+                                        <div class="spinner-border text-primary" role="status">
+                                            <span class="visually-hidden">Cargando...</span>
+                                        </div>
+                                        <p class="mt-2 text-muted">Cargando asignaciones...</p>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="d-flex justify-content-center p-3 border-top">
+                        <nav>
+                            <ul class="pagination pagination-sm mb-0" id="paginationControls"></ul>
+                        </nav>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
 </div>
 
+<!-- Datos ocultos para la tabla de asignaciones -->
+<div style="display:none;">
+    <table id="originalAssignmentsTable">
+        <tbody>
+            {% for act in activities %}
+                {% for assignment in act.spare_parts_links %}
+                <tr data-group="{{ act.group.name if act.group else 'Sin grupo' }}">
+                    <td>{{ act.name }}</td>
+                    <td class="group-cell">{{ act.group.name if act.group else 'Sin grupo' }}</td>
+                    <td class="spare-cell">
+                        <strong>{{ assignment.spare_part.code }}</strong><br>
+                        <small class="text-muted">{{ assignment.spare_part.name }}</small>
+                    </td>
+                    <td class="quantity-cell">{{ assignment.quantity_required }}</td>
+                    <td>{{ assignment.spare_part.unit or 'pieza' }}</td>
+                    <td class="stock-cell">
+                        {% set stock = assignment.spare_part.stocks[0].current_stock if assignment.spare_part.stocks else 0 %}
+                        <span class="badge {% if stock <= 0 %}bg-danger{% elif stock <= assignment.quantity_required %}bg-warning text-dark{% else %}bg-success{% endif %}">
+                            {{ stock }}
+                        </span>
+                    </td>
+                    <td>
+                        <a href="{{ url_for('spare_parts.delete_activity_assignment', assignment_id=assignment.id) }}"
+                           class="btn btn-sm btn-outline-danger"
+                           onclick="return confirm('¿Eliminar esta asignación?')"
+                           title="Eliminar asignación">
+                            <i class="fas fa-trash-alt"></i>
+                        </a>
+                    </td>
+                </tr>
+                {% endfor %}
+            {% else %}
+                <tr id="noDataRow">
+                    <td colspan="7" class="text-center py-4 text-muted">
+                        <i class="fas fa-inbox fa-3x mb-2 d-block"></i>
+                        No hay asignaciones registradas.
+                    </td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
 <script>
-    document.addEventListener('DOMContentLoaded', function() {
-        const groupButtons = document.querySelectorAll('#groupFilter button');
-        const searchInput = document.getElementById('tableSearch');
-        const tableRows = document.querySelectorAll('#assignmentsTable tbody tr');
-        const noAssignmentsRow = document.getElementById('noAssignmentsRow');
+    // ============================================
+    // DATOS DE EQUIPOS, GRUPOS Y ACTIVIDADES
+    // ============================================
+    const equipmentsData = [
+        {% for eq in equipments %}
+        { id: {{ eq.id }}, name: "{{ eq.name|e }}", code: "{{ eq.code|e }}" },
+        {% endfor %}
+    ];
 
-        function filterTable() {
-            const activeGroup = document.querySelector('#groupFilter button.active')?.dataset.group || 'all';
-            const searchTerm = searchInput.value.toLowerCase();
+    const groupsMap = new Map();
+    const activitiesMap = new Map();
 
-            let hasVisibleRows = false;
+    {% for act in activities %}
+    activitiesMap.set({{ act.id }}, {
+        id: {{ act.id }},
+        name: "{{ act.name|e }}",
+        groupId: {{ act.group.id if act.group else 0 }},
+        groupName: "{{ act.group.name if act.group else 'Sin grupo'|e }}"
+    });
+    {% if act.group %}
+    if (!groupsMap.has({{ act.group.id }})) {
+        groupsMap.set({{ act.group.id }}, {
+            id: {{ act.group.id }},
+            name: "{{ act.group.name|e }}",
+            equipmentIds: [{% for eq in act.group.equipments %}{{ eq.id }}{% if not loop.last %}, {% endif %}{% endfor %}]
+        });
+    }
+    {% endif %}
+    {% endfor %}
 
-            tableRows.forEach(row => {
-                if (row.id === 'noAssignmentsRow') return;
+    // ============================================
+    // ELEMENTOS DOM
+    // ============================================
+    const equipmentSelect = document.getElementById('equipmentSelect');
+    const groupSelect = document.getElementById('groupSelect');
+    const activityInput = document.getElementById('activityInput');
+    const activityList = document.getElementById('activityList');
+    const selectedActivityId = document.getElementById('selectedActivityId');
+    const selectedActivityInfo = document.getElementById('selectedActivityInfo');
+    const spareInput = document.getElementById('spareInput');
+    const spareList = document.getElementById('spareList');
+    const selectedSpareId = document.getElementById('selectedSpareId');
+    const selectedSpareInfo = document.getElementById('selectedSpareInfo');
+    const activityStatus = document.getElementById('activityStatus');
+    const spareStatus = document.getElementById('spareStatus');
+    const quantityRequired = document.getElementById('quantityRequired');
+    const stockWarning = document.getElementById('stockWarning');
+    const submitBtn = document.getElementById('submitBtn');
 
-                const rowGroup = row.dataset.group;
-                const activityName = row.cells[0]?.innerText.toLowerCase() || '';
-                const sparePartText = row.cells[2]?.innerText.toLowerCase() || '';
-                const spareCode = row.cells[2]?.querySelector('strong')?.innerText.toLowerCase() || '';
+    // ============================================
+    // FUNCIONES DE CASCADA
+    // ============================================
+    function updateGroups() {
+        const equipId = parseInt(equipmentSelect.value);
+        groupSelect.innerHTML = '<option value="">-- Seleccione grupo --</option>';
+        groupSelect.disabled = true;
+        activityInput.value = '';
+        activityList.innerHTML = '';
+        selectedActivityId.value = '';
+        selectedActivityInfo.innerHTML = '';
 
-                const matchesGroup = (activeGroup === 'all' || rowGroup === activeGroup);
-                const matchesSearch = (searchTerm === '' ||
-                                       activityName.includes(searchTerm) ||
-                                       sparePartText.includes(searchTerm) ||
-                                       spareCode.includes(searchTerm));
+        if (!equipId) return;
 
-                if (matchesGroup && matchesSearch) {
-                    row.style.display = '';
-                    hasVisibleRows = true;
-                } else {
-                    row.style.display = 'none';
-                }
-            });
+        const filtered = Array.from(groupsMap.values()).filter(g => g.equipmentIds.includes(equipId));
+        filtered.forEach(g => {
+            const opt = document.createElement('option');
+            opt.value = g.id;
+            opt.textContent = g.name;
+            groupSelect.appendChild(opt);
+        });
 
-            // Mostrar mensaje si no hay filas visibles y no existe la fila de "sin resultados"
-            if (!hasVisibleRows && !noAssignmentsRow) {
-                let noResultsRow = document.getElementById('noResultsRow');
-                if (!noResultsRow) {
-                    const tbody = document.querySelector('#assignmentsTable tbody');
-                    noResultsRow = document.createElement('tr');
-                    noResultsRow.id = 'noResultsRow';
-                    noResultsRow.innerHTML = `<td colspan="7" class="text-center py-4 text-muted">
-                                                <i class="fas fa-filter fa-2x mb-2 d-block"></i>
-                                                No se encontraron asignaciones con los filtros actuales.
-                                               </td>`;
-                    tbody.appendChild(noResultsRow);
-                }
-            } else {
-                const noResultsRow = document.getElementById('noResultsRow');
-                if (noResultsRow) noResultsRow.remove();
+        if (filtered.length) {
+            groupSelect.disabled = false;
+            groupSelect.classList.add('border-success');
+        } else {
+            groupSelect.classList.remove('border-success');
+        }
+    }
+
+    function updateActivities() {
+        const groupId = parseInt(groupSelect.value);
+        activityList.innerHTML = '';
+        activityInput.value = '';
+        selectedActivityId.value = '';
+        selectedActivityInfo.innerHTML = '';
+
+        if (!groupId) return;
+
+        const acts = Array.from(activitiesMap.values()).filter(a => a.groupId === groupId);
+        acts.forEach(a => {
+            const opt = document.createElement('option');
+            opt.value = a.name;
+            opt.setAttribute('data-id', a.id);
+            activityList.appendChild(opt);
+        });
+
+        if (acts.length) {
+            activityInput.classList.add('border-success');
+        } else {
+            activityInput.classList.remove('border-success');
+        }
+    }
+
+    // ============================================
+    // MANEJO DE SELECCIÓN DE ACTIVIDAD
+    // ============================================
+    activityInput.addEventListener('input', function() {
+        const val = this.value;
+        const matched = Array.from(activityList.options).find(opt => opt.value === val);
+
+        if (matched && matched.getAttribute('data-id')) {
+            const aid = parseInt(matched.getAttribute('data-id'));
+            const act = activitiesMap.get(aid);
+            if (act) {
+                selectedActivityId.value = aid;
+                selectedActivityInfo.innerHTML = `
+                    <span class="badge bg-success">
+                        <i class="fas fa-check-circle me-1"></i> Actividad seleccionada: ${act.name}
+                    </span>
+                    <small class="text-muted ms-2">(Grupo: ${act.groupName})</small>
+                `;
+                activityStatus.innerHTML = '<i class="fas fa-check-circle text-success"></i>';
+                activityInput.classList.add('border-success');
             }
+        } else {
+            selectedActivityId.value = '';
+            selectedActivityInfo.innerHTML = '';
+            activityStatus.innerHTML = '<i class="fas fa-search text-muted"></i>';
+            activityInput.classList.remove('border-success');
+        }
+    });
+
+    // ============================================
+    // MANEJO DE SELECCIÓN DE REFACCIÓN
+    // ============================================
+    spareInput.addEventListener('input', function() {
+        const val = this.value;
+        const matched = Array.from(spareList.options).find(opt => opt.value === val);
+
+        if (matched && matched.getAttribute('data-id')) {
+            const id = matched.getAttribute('data-id');
+            const stock = matched.getAttribute('data-stock');
+            const unit = matched.getAttribute('data-unit') || 'pieza';
+
+            selectedSpareId.value = id;
+            let stockIcon = '';
+            let stockClass = '';
+
+            if (parseInt(stock) <= 0) {
+                stockIcon = '<i class="fas fa-exclamation-triangle text-danger me-1"></i>';
+                stockClass = 'text-danger';
+            } else if (parseInt(stock) < parseInt(quantityRequired.value)) {
+                stockIcon = '<i class="fas fa-exclamation-triangle text-warning me-1"></i>';
+                stockClass = 'text-warning';
+            } else {
+                stockIcon = '<i class="fas fa-check-circle text-success me-1"></i>';
+                stockClass = 'text-success';
+            }
+
+            selectedSpareInfo.innerHTML = `
+                <span class="badge bg-info">
+                    <i class="fas fa-box me-1"></i> Refacción seleccionada: ${matched.value}
+                </span>
+                <span class="ms-2 ${stockClass}">${stockIcon} Stock disponible: ${stock} ${unit}</span>
+            `;
+            spareStatus.innerHTML = '<i class="fas fa-check-circle text-success"></i>';
+            spareInput.classList.add('border-success');
+            checkStockAvailability();
+        } else {
+            selectedSpareId.value = '';
+            selectedSpareInfo.innerHTML = '';
+            spareStatus.innerHTML = '<i class="fas fa-search text-muted"></i>';
+            spareInput.classList.remove('border-success');
+            stockWarning.innerHTML = '';
+        }
+    });
+
+    function checkStockAvailability() {
+        if (selectedSpareId.value) {
+            const spareOption = Array.from(spareList.options).find(opt => opt.getAttribute('data-id') === selectedSpareId.value);
+            if (spareOption) {
+                const stock = parseInt(spareOption.getAttribute('data-stock') || 0);
+                const quantity = parseInt(quantityRequired.value);
+                const unit = spareOption.getAttribute('data-unit') || 'pieza';
+
+                if (quantity > stock) {
+                    stockWarning.innerHTML = `<span class="text-warning"><i class="fas fa-exclamation-triangle me-1"></i>⚠️ La cantidad (${quantity}) supera el stock disponible (${stock} ${unit})</span>`;
+                    submitBtn.disabled = true;
+                    submitBtn.title = "Stock insuficiente para esta cantidad";
+                } else if (stock - quantity <= 5 && stock > 0) {
+                    stockWarning.innerHTML = `<span class="text-info"><i class="fas fa-info-circle me-1"></i>ℹ️ Después de esta asignación quedarán ${stock - quantity} ${unit} en stock</span>`;
+                    submitBtn.disabled = false;
+                    submitBtn.title = "";
+                } else {
+                    stockWarning.innerHTML = '';
+                    submitBtn.disabled = false;
+                    submitBtn.title = "";
+                }
+            }
+        } else {
+            stockWarning.innerHTML = '';
+            submitBtn.disabled = false;
+            submitBtn.title = "";
+        }
+    }
+
+    quantityRequired.addEventListener('change', checkStockAvailability);
+    quantityRequired.addEventListener('input', checkStockAvailability);
+
+    // ============================================
+    // EVENTOS PRINCIPALES
+    // ============================================
+    equipmentSelect.addEventListener('change', updateGroups);
+    groupSelect.addEventListener('change', updateActivities);
+
+    if (equipmentSelect.value) updateGroups();
+
+    // ============================================
+    // TABLA DE ASIGNACIONES (con paginación)
+    // ============================================
+    let allRows = [], filteredRows = [], currentPage = 1, rowsPerPage = 25, currentSort = { column: null, direction: 'asc' };
+
+    function loadData() {
+        const rows = document.querySelectorAll('#originalAssignmentsTable tbody tr');
+        if (!rows.length || (rows.length === 1 && rows[0].id === 'noDataRow')) {
+            document.getElementById('tablaBody').innerHTML = '<tr><td colspan="7" class="text-center py-4 text-muted"><i class="fas fa-inbox fa-3x mb-2 d-block"></i>No hay asignaciones registradas</td></tr>';
+            document.getElementById('infoPaginacion').innerText = '0 registros';
+            return;
         }
 
-        // Eventos
-        groupButtons.forEach(btn => {
-            btn.addEventListener('click', function() {
-                groupButtons.forEach(b => b.classList.remove('active'));
-                this.classList.add('active');
-                filterTable();
+        allRows = [];
+        rows.forEach(row => {
+            const cells = row.cells;
+            if (cells.length >= 7 && row.id !== 'noDataRow') {
+                allRows.push({
+                    activity: cells[0].innerText.trim(),
+                    group: cells[1].innerText.trim(),
+                    spareHtml: cells[2].innerHTML,
+                    quantity: parseInt(cells[3].innerText),
+                    unit: cells[4].innerText.trim(),
+                    stockHtml: cells[5].innerHTML,
+                    actionsHtml: cells[6].innerHTML,
+                    activityRaw: cells[0].innerText.toLowerCase(),
+                    spareTextRaw: cells[2].innerText.toLowerCase(),
+                    groupRaw: cells[1].innerText.trim(),
+                    quantityRaw: parseInt(cells[3].innerText)
+                });
+            }
+        });
+        applyFiltersAndRender();
+    }
+
+    function getActiveGroup() {
+        const active = document.querySelector('#groupFilter button.active');
+        return active ? active.getAttribute('data-group') : 'all';
+    }
+
+    function getSearchTerm() {
+        return document.getElementById('tableSearch').value.toLowerCase();
+    }
+
+    function applyFiltersAndRender() {
+        const activeGroup = getActiveGroup();
+        const term = getSearchTerm();
+
+        filteredRows = allRows.filter(r =>
+            (activeGroup === 'all' || r.group === activeGroup) &&
+            (term === '' || r.activityRaw.includes(term) || r.spareTextRaw.includes(term))
+        );
+
+        currentPage = 1;
+        applySorting();
+        renderTable();
+        renderPagination();
+    }
+
+    function applySorting() {
+        if (!currentSort.column) return;
+
+        filteredRows.sort((a,b) => {
+            let va, vb;
+            switch(currentSort.column) {
+                case 'activity': va = a.activityRaw; vb = b.activityRaw; break;
+                case 'group': va = a.groupRaw; vb = b.groupRaw; break;
+                case 'spare': va = a.spareTextRaw; vb = b.spareTextRaw; break;
+                case 'quantity': va = a.quantityRaw; vb = b.quantityRaw; break;
+                default: return 0;
+            }
+            if (va < vb) return currentSort.direction === 'asc' ? -1 : 1;
+            if (va > vb) return currentSort.direction === 'asc' ? 1 : -1;
+            return 0;
+        });
+    }
+
+    function renderTable() {
+        const tbody = document.getElementById('tablaBody');
+        if (!tbody) return;
+
+        if (filteredRows.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="7" class="text-center py-4 text-muted"><i class="fas fa-filter fa-2x mb-2 d-block"></i>No se encontraron asignaciones con los filtros actuales</td></tr>';
+            document.getElementById('infoPaginacion').innerText = '0 registros';
+            return;
+        }
+
+        const start = (currentPage - 1) * rowsPerPage;
+        const end = Math.min(start + rowsPerPage, filteredRows.length);
+        let html = '';
+
+        for (let i = start; i < end; i++) {
+            const r = filteredRows[i];
+            html += `<tr>
+                        <td class="align-middle">${r.activity}</td>
+                        <td class="align-middle">${r.group === 'Sin grupo' ? '<span class="badge bg-dark">Sin grupo</span>' : '<span class="badge bg-secondary">' + r.group + '</span>'}</td>
+                        <td class="align-middle">${r.spareHtml}</td>
+                        <td class="align-middle text-center fw-bold">${r.quantity}</td>
+                        <td class="align-middle">${r.unit}</td>
+                        <td class="align-middle">${r.stockHtml}</td>
+                        <td class="align-middle">${r.actionsHtml}</td>
+                    </tr>`;
+        }
+
+        tbody.innerHTML = html;
+        document.getElementById('infoPaginacion').innerHTML = `<i class="fas fa-chart-line me-1"></i>Mostrando ${start+1} a ${end} de ${filteredRows.length} registros`;
+    }
+
+    function renderPagination() {
+        const total = Math.ceil(filteredRows.length / rowsPerPage);
+        const container = document.getElementById('paginationControls');
+        if (!container) return;
+
+        if (total <= 1) {
+            container.innerHTML = '';
+            return;
+        }
+
+        let html = `<li class="page-item ${currentPage === 1 ? 'disabled' : ''}">
+                        <a class="page-link" href="#" data-page="prev">« Anterior</a>
+                    </li>`;
+
+        let start = Math.max(1, currentPage - 2);
+        let end = Math.min(total, start + 4);
+        if (end - start < 4) start = Math.max(1, end - 4);
+
+        if (start > 1) {
+            html += `<li class="page-item"><a class="page-link" href="#" data-page="1">1</a></li>`;
+            if (start > 2) html += `<li class="page-item disabled"><span class="page-link">...</span></li>`;
+        }
+
+        for (let i = start; i <= end; i++) {
+            html += `<li class="page-item ${i === currentPage ? 'active' : ''}">
+                        <a class="page-link" href="#" data-page="${i}">${i}</a>
+                    </li>`;
+        }
+
+        if (end < total) {
+            if (end < total - 1) html += `<li class="page-item disabled"><span class="page-link">...</span></li>`;
+            html += `<li class="page-item"><a class="page-link" href="#" data-page="${total}">${total}</a></li>`;
+        }
+
+        html += `<li class="page-item ${currentPage === total ? 'disabled' : ''}">
+                    <a class="page-link" href="#" data-page="next">Siguiente »</a>
+                </li>`;
+
+        container.innerHTML = html;
+
+        container.querySelectorAll('.page-link').forEach(link => {
+            link.addEventListener('click', (e) => {
+                e.preventDefault();
+                const page = link.getAttribute('data-page');
+                if (page === 'prev' && currentPage > 1) changePage(currentPage - 1);
+                else if (page === 'next' && currentPage < total) changePage(currentPage + 1);
+                else if (!isNaN(page)) changePage(parseInt(page));
             });
         });
-        searchInput.addEventListener('input', filterTable);
+    }
+
+    function changePage(p) {
+        currentPage = p;
+        renderTable();
+        renderPagination();
+    }
+
+    function changeRowsPerPage() {
+        rowsPerPage = parseInt(document.getElementById('rowsPerPage').value);
+        currentPage = 1;
+        renderTable();
+        renderPagination();
+    }
+
+    function attachTableEvents() {
+        document.querySelectorAll('#groupFilter button').forEach(btn => {
+            btn.addEventListener('click', function() {
+                document.querySelectorAll('#groupFilter button').forEach(b => b.classList.remove('active'));
+                this.classList.add('active');
+                applyFiltersAndRender();
+            });
+        });
+
+        document.getElementById('tableSearch').addEventListener('input', () => applyFiltersAndRender());
+        document.getElementById('rowsPerPage').addEventListener('change', () => changeRowsPerPage());
+
+        document.querySelectorAll('.sortable').forEach(header => {
+            header.addEventListener('click', function() {
+                const col = this.getAttribute('data-sort');
+                if (currentSort.column === col) {
+                    currentSort.direction = currentSort.direction === 'asc' ? 'desc' : 'asc';
+                } else {
+                    currentSort.column = col;
+                    currentSort.direction = 'asc';
+                }
+                document.querySelectorAll('.sortable i').forEach(icon => {
+                    icon.className = 'fas fa-sort text-muted ms-1';
+                });
+                const icon = this.querySelector('i');
+                if (icon) icon.className = currentSort.direction === 'asc' ? 'fas fa-sort-up text-white ms-1' : 'fas fa-sort-down text-white ms-1';
+                applyFiltersAndRender();
+            });
+        });
+    }
+
+    // ============================================
+    // INICIALIZACIÓN
+    // ============================================
+    document.addEventListener('DOMContentLoaded', () => {
+        loadData();
+        attachTableEvents();
+
+        // Tooltips para Bootstrap (opcional)
+        if (typeof bootstrap !== 'undefined') {
+            var tooltipTriggerList = [].slice.call(document.querySelectorAll('[title]'));
+            tooltipTriggerList.map(function (tooltipTriggerEl) {
+                return new bootstrap.Tooltip(tooltipTriggerEl);
+            });
+        }
     });
 </script>
 
 <style>
-    .btn-outline-light.active {
-        background-color: #0d6efd;
-        color: white;
-        border-color: #0d6efd;
+    .bg-gradient-primary {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     }
-    .btn-outline-light:hover {
-        background-color: #6c757d;
-        color: white;
+    .bg-gradient-info {
+        background: linear-gradient(135deg, #36d1dc 0%, #5b86e5 100%);
+    }
+    .sortable {
+        cursor: pointer;
+        transition: background-color 0.2s;
+    }
+    .sortable:hover {
+        background-color: rgba(255,255,255,0.15);
     }
     .table-hover tbody tr:hover {
-        background-color: rgba(13, 110, 253, 0.1);
+        background-color: rgba(13, 110, 253, 0.08);
+        transition: background-color 0.2s;
     }
-    .badge.bg-warning {
-        color: #000;
+    .form-select, .form-control {
+        transition: all 0.2s;
+    }
+    .form-select:focus, .form-control:focus {
+        box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
+        border-color: #0d6efd;
+    }
+    .badge {
+        font-weight: 500;
+        padding: 0.35em 0.65em;
+    }
+    .card {
+        border: none;
+        border-radius: 12px;
+    }
+    .card-header {
+        border-radius: 12px 12px 0 0 !important;
+    }
+    .btn {
+        border-radius: 8px;
+        transition: all 0.2s;
+    }
+    .btn:hover {
+        transform: translateY(-1px);
+    }
+    .table {
+        margin-bottom: 0;
+    }
+    .page-link {
+        border-radius: 6px !important;
+        margin: 0 2px;
+    }
+    .pagination {
+        gap: 4px;
     }
 </style>
 {% endblock %}
