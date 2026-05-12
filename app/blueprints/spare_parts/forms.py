@@ -25,7 +25,16 @@ class SparePartForm(FlaskForm):
     purchase_url = URLField('URL de compra', validators=[Optional(), Length(max=500)])
     unit_price = DecimalField('Precio unitario', places=2, validators=[Optional()])
     shipping_cost = DecimalField('Costo de envío', places=2, default=0, validators=[Optional()])
-    currency = StringField('Moneda', default='USD', validators=[Optional(), Length(max=3)])
+    currency = SelectField('Moneda', choices=[
+        ('MXN', 'Pesos Mexicanos (MXN)'),
+        ('USD', 'Dólares Estadounidenses (USD)'),
+        ('EUR', 'Euros (EUR)'),
+        ('GBP', 'Libras Esterlinas (GBP)'),
+        ('COP', 'Pesos Colombianos (COP)'),
+        ('ARS', 'Pesos Argentinos (ARS)'),
+        ('CLP', 'Pesos Chilenos (CLP)'),
+        ('PEN', 'Soles Peruanos (PEN)')
+    ], validators=[DataRequired()])
     estimated_life_hours = IntegerField('Vida útil (horas)', validators=[Optional()])
     estimated_life_years = FloatField('Vida útil (años)', validators=[Optional()])
 

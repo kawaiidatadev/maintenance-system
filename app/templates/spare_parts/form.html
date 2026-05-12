@@ -18,7 +18,7 @@
                             <div class="input-group">
                                 {{ form.code(class="form-control", id="code_field", **{'readonly': part is defined}) }}
                                 {% if part is not defined %}
-                                <button type="button" class="btn btn-secondary" id="suggestCodeBtn">
+                                <button type="button" class="btn btn-secondary" id="suggestCodeBtn" title="Sugerir código automáticamente">
                                     <i class="fas fa-robot"></i>
                                 </button>
                                 {% endif %}
@@ -74,13 +74,43 @@
                         </div>
                     </div>
 
+                    <!-- ============================================ -->
+                    <!-- PRECIOS CON MONEDA SELECCIONABLE -->
+                    <!-- ============================================ -->
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-12">
+                            <div class="alert alert-info py-2">
+                                <i class="fas fa-info-circle me-2"></i>
+                                <small>Selecciona la moneda que corresponde a los precios ingresados.</small>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold">
+                                <i class="fas fa-coins text-warning me-1"></i> {{ form.currency.label }}
+                            </label>
+                            {{ form.currency(class="form-select", id="currency_select") }}
+                        </div>
+                    </div>
+
                     <div class="row">
                         <div class="col-md-6 mb-2">
-                            {{ form.unit_price.label }} {{ form.unit_price(class="form-control") }}
+                            <label class="form-label fw-semibold">
+                                <i class="fas fa-tag text-primary me-1"></i> {{ form.unit_price.label }}
+                            </label>
+                            <div class="input-group">
+                                <span class="input-group-text currency-symbol" id="unit_price_symbol">$</span>
+                                {{ form.unit_price(class="form-control", step="0.01", placeholder="0.00") }}
+                            </div>
                         </div>
 
                         <div class="col-md-6 mb-2">
-                            {{ form.shipping_cost.label }} {{ form.shipping_cost(class="form-control") }}
+                            <label class="form-label fw-semibold">
+                                <i class="fas fa-truck text-info me-1"></i> {{ form.shipping_cost.label }}
+                            </label>
+                            <div class="input-group">
+                                <span class="input-group-text currency-symbol" id="shipping_cost_symbol">$</span>
+                                {{ form.shipping_cost(class="form-control", step="0.01", placeholder="0.00") }}
+                            </div>
                         </div>
                     </div>
 
@@ -102,7 +132,9 @@
                     <!-- DATOS TÉCNICOS EN TABLA -->
                     <!-- ============================================ -->
                     <div class="mb-3">
-                        <label class="form-label fw-bold">Datos técnicos</label>
+                        <label class="form-label fw-bold">
+                            <i class="fas fa-microchip me-1"></i> Datos técnicos
+                        </label>
                         <div class="table-responsive">
                             <table class="table table-sm table-bordered" id="tech-table">
                                 <thead class="table-light">
@@ -122,7 +154,7 @@
                                             <button type="button" class="btn btn-sm btn-outline-primary" id="add-tech-field">
                                                 <i class="fas fa-plus"></i> Agregar parámetro
                                             </button>
-                                         </td>
+                                          </td>
                                     </tr>
                                 </tfoot>
                             </table>
@@ -133,8 +165,10 @@
                     <!-- ============================================ -->
                     <!-- CAMPO DE IMAGEN (subida de archivo) -->
                     <!-- ============================================ -->
-                    <div class="mb-2">
-                        {{ form.image.label }}
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">
+                            <i class="fas fa-image text-secondary me-1"></i> {{ form.image.label }}
+                        </label>
                         {{ form.image(class="form-control") }}
                         {% if part and part.image_path %}
                             <div class="mt-2">
@@ -145,28 +179,50 @@
                     </div>
 
                     <hr>
-                    <h5>Parámetros de inventario</h5>
+                    <h5><i class="fas fa-warehouse me-2"></i> Parámetros de inventario</h5>
 
                     <div class="row">
                         <div class="col-md-4 mb-2">
-                            {{ form.minimum_stock.label }} {{ form.minimum_stock(class="form-control") }}
+                            {{ form.minimum_stock.label }}
+                            <div class="input-group">
+                                {{ form.minimum_stock(class="form-control") }}
+                                <span class="input-group-text">piezas</span>
+                            </div>
                         </div>
 
                         <div class="col-md-4 mb-2">
-                            {{ form.maximum_stock.label }} {{ form.maximum_stock(class="form-control") }}
+                            {{ form.maximum_stock.label }}
+                            <div class="input-group">
+                                {{ form.maximum_stock(class="form-control") }}
+                                <span class="input-group-text">piezas</span>
+                            </div>
                         </div>
 
                         <div class="col-md-4 mb-2">
-                            {{ form.reorder_point.label }} {{ form.reorder_point(class="form-control") }}
+                            {{ form.reorder_point.label }}
+                            <div class="input-group">
+                                {{ form.reorder_point(class="form-control") }}
+                                <span class="input-group-text">piezas</span>
+                            </div>
                         </div>
 
                         <div class="col-md-12 mb-2">
-                            {{ form.location_shelf.label }} {{ form.location_shelf(class="form-control") }}
+                            {{ form.location_shelf.label }}
+                            <div class="input-group">
+                                <span class="input-group-text"><i class="fas fa-map-marker-alt"></i></span>
+                                {{ form.location_shelf(class="form-control", placeholder="Ej: Estante A1, Pasillo 3") }}
+                            </div>
                         </div>
                     </div>
 
-                    <button type="submit" class="btn btn-primary" id="submitBtn">Guardar</button>
-                    <a href="{{ url_for('spare_parts.index') }}" class="btn btn-secondary">Cancelar</a>
+                    <div class="mt-4 d-flex gap-2">
+                        <button type="submit" class="btn btn-primary" id="submitBtn">
+                            <i class="fas fa-save me-2"></i> Guardar
+                        </button>
+                        <a href="{{ url_for('spare_parts.index') }}" class="btn btn-secondary">
+                            <i class="fas fa-times me-2"></i> Cancelar
+                        </a>
+                    </div>
                 </form>
             </div>
         </div>
@@ -184,13 +240,49 @@
     75% { transform: translateX(-5px); }
     100% { transform: translateX(0px); }
 }
+.currency-symbol {
+    min-width: 45px;
+    background-color: #f8f9fa;
+}
 </style>
 
 <script>
 // ============================================
+// ACTUALIZAR SÍMBOLO DE MONEDA EN TIEMPO REAL
+// ============================================
+function updateCurrencySymbol() {
+    const currencySelect = document.getElementById('currency_select');
+    const symbols = {
+        'MXN': '$',
+        'USD': '$',
+        'EUR': '€',
+        'GBP': '£',
+        'COP': '$',
+        'ARS': '$',
+        'CLP': '$',
+        'PEN': 'S/'
+    };
+
+    if (currencySelect) {
+        const selectedCurrency = currencySelect.value;
+        const symbol = symbols[selectedCurrency] || '$';
+        document.querySelectorAll('.currency-symbol').forEach(el => {
+            el.textContent = symbol;
+        });
+    }
+}
+
+// ============================================
 // DATOS TÉCNICOS DINÁMICOS (TABLA)
 // ============================================
 document.addEventListener('DOMContentLoaded', function() {
+    // Configurar selector de moneda
+    const currencySelect = document.getElementById('currency_select');
+    if (currencySelect) {
+        currencySelect.addEventListener('change', updateCurrencySymbol);
+        updateCurrencySymbol();
+    }
+
     const container = document.getElementById('tech-table-body');
     const hiddenJsonField = document.getElementById('technical_data_json');
     let fieldIndex = 0;
@@ -230,8 +322,8 @@ document.addEventListener('DOMContentLoaded', function() {
                     <button type="button" class="btn btn-sm btn-outline-danger remove-row" data-row="${rowId}">
                         <i class="fas fa-trash-alt"></i>
                     </button>
-                 </td>
-             </tr>
+                  </td>
+              </tr>
         `;
         container.insertAdjacentHTML('beforeend', html);
 

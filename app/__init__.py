@@ -139,3 +139,4 @@ def create_app():
         return dict(pdf_templates=templates)
 
     return app
+
