@@ -252,6 +252,79 @@
                     </div>
                 </div>
 
+
+                <!-- ============================================ -->
+                <!-- SECCIÓN DE DOCUMENTOS ADJUNTOS -->
+                <!-- ============================================ -->
+                <hr>
+                <h5><i class="fas fa-paperclip"></i> Documentos adjuntos</h5>
+
+                <!-- Formulario de subida -->
+                <form method="POST" action="{{ url_for('spare_parts.upload_document', id=part.id) }}" enctype="multipart/form-data" class="mb-3">
+                    <div class="row g-2 align-items-end">
+                        <div class="col-md-6">
+                            <input type="file" name="file" class="form-control" required>
+                        </div>
+                        <div class="col-md-4">
+                            <input type="text" name="description" class="form-control" placeholder="Descripción (opcional)">
+                        </div>
+                        <div class="col-md-2">
+                            <button type="submit" class="btn btn-primary w-100">
+                                <i class="fas fa-upload"></i> Subir
+                            </button>
+                        </div>
+                    </div>
+                    <small class="text-muted">Formatos permitidos: PDF, Word, Excel, imágenes, ZIP, STL, 3DS, STEP. Máx 16MB.</small>
+                </form>
+
+                <!-- Listado de archivos -->
+                <div class="table-responsive">
+                    <table class="table table-sm table-bordered">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Nombre</th>
+                                <th>Descripción</th>
+                                <th>Tamaño</th>
+                                <th>Subido por</th>
+                                <th>Fecha</th>
+                                <th>Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for doc in part.documents|sort(attribute='uploaded_at', reverse=true) %}
+                            <tr>
+                                <td>
+                                    <i class="fas {% if doc.mime_type.startswith('image') %}fa-file-image{% elif doc.mime_type == 'application/pdf' %}fa-file-pdf{% elif 'word' in doc.mime_type %}fa-file-word{% elif 'excel' in doc.mime_type %}fa-file-excel{% else %}fa-file{% endif %}"></i>
+                                    <a href="{{ url_for('spare_parts.download_document', doc_id=doc.id) }}">{{ doc.filename }}</a>
+                                </td>
+                                <td>{{ doc.description or '-' }}</td>
+                                <td>{{ (doc.file_size / 1024)|round|int }} KB</td>
+                                <td>{{ doc.uploaded_by.username if doc.uploaded_by else '-' }}</td>
+                                <td>{{ doc.uploaded_at.strftime('%d/%m/%Y %H:%M') }}</td>
+                                <td>
+                                    <div class="btn-group btn-group-sm">
+                                        <a href="{{ url_for('spare_parts.download_document', doc_id=doc.id) }}" class="btn btn-sm btn-success" title="Descargar">
+                                            <i class="fas fa-download"></i>
+                                        </a>
+                                        {% if current_user.role == 'admin' %}
+                                        <form method="POST" action="{{ url_for('spare_parts.delete_document', doc_id=doc.id) }}" style="display:inline;" onsubmit="return confirm('¿Eliminar este documento?')">
+                                            <button class="btn btn-sm btn-danger" title="Eliminar">
+                                                <i class="fas fa-trash-alt"></i>
+                                            </button>
+                                        </form>
+                                        {% endif %}
+                                    </div>
+                                </td>
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="6" class="text-center text-muted">No hay documentos adjuntos</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+
                 <!-- ============================================ -->
                 <!-- BOTONES DE ACCIÓN -->
                 <!-- ============================================ -->

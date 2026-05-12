@@ -120,3 +120,21 @@ class StockAlert(db.Model):
     resolved_by_id = db.Column(db.Integer, db.ForeignKey('users.id'))
     spare_part = db.relationship('SparePart', backref='alerts')
     resolved_by = db.relationship('User', foreign_keys=[resolved_by_id])
+
+
+class SparePartDocument(db.Model):
+    __tablename__ = 'spare_part_documents'
+
+    id = db.Column(db.Integer, primary_key=True)
+    spare_part_id = db.Column(db.Integer, db.ForeignKey('spare_parts.id'), nullable=False)
+    filename = db.Column(db.String(255), nullable=False)  # nombre original
+    stored_filename = db.Column(db.String(255), nullable=False)  # nombre único en disco
+    file_path = db.Column(db.String(500), nullable=False)  # ruta relativa
+    file_size = db.Column(db.Integer)  # en bytes
+    mime_type = db.Column(db.String(100))
+    description = db.Column(db.Text)
+    uploaded_by_id = db.Column(db.Integer, db.ForeignKey('users.id'))
+    uploaded_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    spare_part = db.relationship('SparePart', backref='documents')
+    uploaded_by = db.relationship('User')

@@ -1,23 +1,36 @@
-import re
 import os
+import re
 from datetime import datetime
-from werkzeug.utils import secure_filename
-from flask import current_app
-
-from flask import render_template, request, redirect, url_for, flash, jsonify
-from flask_login import login_required, current_user
-from app import db
-from app.blueprints.spare_parts.models import SparePart, InventoryStock, SparePartMovement, EquipmentSparePart, \
-    ActivitySparePart
-from app.models.user import User
-from app.models.preventive_activity import PreventiveActivity
-from app.models.equipment import Equipment  # ← IMPORTANTE: Agregar esta línea
-from app.blueprints.spare_parts.services import get_or_create_stock, register_movement
-from app.blueprints.spare_parts.forms import SparePartForm
 from functools import wraps
-from . import spare_parts_bp
-from app.blueprints.spare_parts.barcode_utils import generate_barcode_and_qr
 
+from app import db
+from app.blueprints.spare_parts.forms import SparePartForm
+from app.blueprints.spare_parts.models import ActivitySparePart  # ← Agregar SparePartDocument
+from app.blueprints.spare_parts.models import EquipmentSparePart
+from app.blueprints.spare_parts.models import InventoryStock
+from app.blueprints.spare_parts.models import SparePart
+from app.blueprints.spare_parts.models import SparePartDocument
+from app.blueprints.spare_parts.models import SparePartMovement
+from app.blueprints.spare_parts.services import get_or_create_stock
+from app.blueprints.spare_parts.services import register_movement
+from app.models.equipment import Equipment  # ← IMPORTANTE: Agregar esta línea
+from app.models.preventive_activity import PreventiveActivity
+from flask import current_app
+from flask import flash
+from flask import jsonify
+from flask import redirect
+from flask import render_template
+from flask import request
+from flask import send_from_directory
+from flask import url_for
+from flask_login import current_user
+from flask_login import login_required
+from werkzeug.utils import secure_filename
+
+from . import spare_parts_bp
+
+# Configuración de extensiones permitidas
+ALLOWED_EXTENSIONS = {'pdf', 'jpg', 'jpeg', 'png', 'gif', 'doc', 'docx', 'xls', 'xlsx', 'zip', 'rar', 'stl', '3ds', 'step'}
 
 def admin_required(func):
     @wraps(func)
@@ -469,3 +482,80 @@ def validate_code():
         return jsonify({'valid': False, 'message': 'Código ya existe'})
     else:
         return jsonify({'valid': True, 'message': 'Código disponible'})
+
+
+def allowed_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+@spare_parts_bp.route('/<int:id>/upload-doc', methods=['POST'])
+@login_required
+def upload_document(id):
+    part = SparePart.query.get_or_404(id)
+
+    if 'file' not in request.files:
+        flash('No se seleccionó ningún archivo', 'danger')
+        return redirect(url_for('spare_parts.view', id=part.id))
+
+    file = request.files['file']
+    if file.filename == '':
+        flash('No se seleccionó ningún archivo', 'danger')
+        return redirect(url_for('spare_parts.view', id=part.id))
+
+    if not allowed_file(file.filename):
+        flash('Tipo de archivo no permitido. Formatos aceptados: PDF, Word, Excel, imágenes, ZIP, 3DS, STL, STEP',
+              'danger')
+        return redirect(url_for('spare_parts.view', id=part.id))
+
+    # Limpiar nombre y guardar
+    original_name = secure_filename(file.filename)
+    # Generar nombre único para evitar colisiones
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    stored_name = f"{part.id}_{timestamp}_{original_name}"
+
+    upload_folder = os.path.join(current_app.root_path, 'static', 'uploads', 'spare_part_docs')
+    os.makedirs(upload_folder, exist_ok=True)
+    filepath = os.path.join(upload_folder, stored_name)
+    file.save(filepath)
+
+    # Guardar registro en BD
+    doc = SparePartDocument(
+        spare_part_id=part.id,
+        filename=original_name,
+        stored_filename=stored_name,
+        file_path=f'uploads/spare_part_docs/{stored_name}',
+        file_size=os.path.getsize(filepath),
+        mime_type=file.mimetype,
+        description=request.form.get('description', ''),
+        uploaded_by_id=current_user.id
+    )
+    db.session.add(doc)
+    db.session.commit()
+
+    flash(f'Archivo "{original_name}" subido correctamente', 'success')
+    return redirect(url_for('spare_parts.view', id=part.id))
+
+@spare_parts_bp.route('/doc/<int:doc_id>')
+@login_required
+def download_document(doc_id):
+    doc = SparePartDocument.query.get_or_404(doc_id)
+    # Verificar que el usuario tenga acceso (opcional: admin o técnico)
+    # Por ahora, cualquier usuario autenticado puede descargar
+    full_path = os.path.join(current_app.root_path, 'static', doc.file_path)
+    directory = os.path.dirname(full_path)
+    filename = os.path.basename(full_path)
+    return send_from_directory(directory, filename, as_attachment=True, download_name=doc.filename)
+
+@spare_parts_bp.route('/doc/delete/<int:doc_id>', methods=['POST'])
+@login_required
+@admin_required
+def delete_document(doc_id):
+    doc = SparePartDocument.query.get_or_404(doc_id)
+    part_id = doc.spare_part_id
+    # Eliminar archivo físico
+    full_path = os.path.join(current_app.root_path, 'static', doc.file_path)
+    if os.path.exists(full_path):
+        os.remove(full_path)
+    db.session.delete(doc)
+    db.session.commit()
+    flash('Documento eliminado', 'success')
+    return redirect(url_for('spare_parts.view', id=part_id))
