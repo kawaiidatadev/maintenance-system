@@ -20,8 +20,8 @@ class SparePart(db.Model):
     unit = db.Column(db.String(20), default='pieza')
     criticality = db.Column(db.Enum('low', 'medium', 'high', 'critical'), default='medium')
     purchase_url = db.Column(db.String(500))
-    unit_price = db.Column(db.Numeric(12, 2))
-    shipping_cost = db.Column(db.Numeric(12, 2))
+    unit_price = db.Column(db.Numeric(20, 10))
+    shipping_cost = db.Column(db.Numeric(20, 10))
     currency = db.Column(db.String(3), nullable=False, default='MXN')  # Cambiamos a MXN como predeterminado, pero el usuario podrá cambiarlo
     estimated_life_hours = db.Column(db.Integer)
     estimated_life_years = db.Column(db.Numeric(5, 2))

@@ -23,8 +23,8 @@ class SparePartForm(FlaskForm):
                               choices=[('low', 'Baja'), ('medium', 'Media'), ('high', 'Alta'), ('critical', 'Crítica')],
                               default='medium')
     purchase_url = URLField('URL de compra', validators=[Optional(), Length(max=500)])
-    unit_price = DecimalField('Precio unitario', places=2, validators=[Optional()])
-    shipping_cost = DecimalField('Costo de envío', places=2, default=0, validators=[Optional()])
+    unit_price = DecimalField('Precio unitario', places=10, validators=[Optional()])
+    shipping_cost = DecimalField('Costo de envío', places=10, default=0, validators=[Optional()])
     currency = SelectField('Moneda', choices=[
         ('MXN', 'Pesos Mexicanos (MXN)'),
         ('USD', 'Dólares Estadounidenses (USD)'),

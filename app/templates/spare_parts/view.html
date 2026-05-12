@@ -6,6 +6,7 @@
             <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
                 <h4 class="mb-0">{{ part.name }} ({{ part.code }})</h4>
                 <span class="badge {% if part.item_type == 'spare' %}bg-warning{% else %}bg-info{% endif %}">
+                    <i class="fas {% if part.item_type == 'spare' %}fa-microchip{% else %}fa-tint{% endif %}"></i>
                     {{ 'Refacción' if part.item_type == 'spare' else 'Consumible' }}
                 </span>
             </div>
@@ -26,18 +27,22 @@
                                     <tr><th>Número de serie</th><td>{{ part.serial_number or '-' }}</td></tr>
                                     <tr><th>Proveedor</th><td>{{ part.supplier or '-' }}</td></tr>
                                     <tr><th>N° pieza proveedor</th><td>{{ part.supplier_part_number or '-' }}</td></tr>
-                                    <tr><th>Categoría</th><td>{{ part.category or '-' }}</td></tr>
-                                    <tr><th>Unidad</th><td>{{ part.unit }}</td><tr>
+                                    <tr><th>Categoría</th><td>{{ part.category or '-' }}</td><td>
+                                    <tr><th>Unidad</th><td>{{ part.unit }}</td></tr>
                                     <tr><th>Criticidad</th><td>
                                         <span class="badge {% if part.criticality == 'critical' %}bg-danger{% elif part.criticality == 'high' %}bg-warning{% elif part.criticality == 'medium' %}bg-info{% else %}bg-secondary{% endif %}">
-                                            {{ part.criticality }}
+                                            {% if part.criticality == 'critical' %}Crítica
+                                            {% elif part.criticality == 'high' %}Alta
+                                            {% elif part.criticality == 'medium' %}Media
+                                            {% else %}Baja{% endif %}
                                         </span>
                                     </td></tr>
-                                    <tr><th>Precio unitario</th><td>{{ part.unit_price }} {{ part.currency }}</td></tr>
-                                    <tr><th>Costo de envío</th><td>{{ part.shipping_cost }} {{ part.currency }}</td></tr>
+                                    <tr><th>Precio unitario</th><td class="fw-bold">{{ part.unit_price|float if part.unit_price else '0' }} {{ part.currency }}</td></tr>
+                                    <tr><th>Costo de envío</th><td>{{ part.shipping_cost|float if part.shipping_cost else '0' }} {{ part.currency }}</td></tr>
+                                    <tr><th>Costo total x unidad</th><td class="fw-bold text-success">{{ (part.unit_price|float + part.shipping_cost|float) if part.unit_price else '0' }} {{ part.currency }}</td></tr>
                                     <tr><th>Vida útil (horas)</th><td>{{ part.estimated_life_hours or '-' }}</td></tr>
                                     <tr><th>Vida útil (años)</th><td>{{ part.estimated_life_years or '-' }}</td></tr>
-                                    <tr><th>URL de compra</th><td>{% if part.purchase_url %}<a href="{{ part.purchase_url }}" target="_blank">Ver</a>{% else %}-{% endif %}</td></tr>
+                                    <tr><th>URL de compra</th><td>{% if part.purchase_url %}<a href="{{ part.purchase_url }}" target="_blank"><i class="fas fa-external-link-alt"></i> Ver</a>{% else %}-{% endif %}</td></tr>
                                     <tr><th>Código de barras</th><td>{{ part.barcode or '-' }}</td></tr>
                                 </table>
                             </div>
@@ -54,16 +59,23 @@
                             <div class="card-body">
                                 {% if stock %}
                                 <table class="table table-sm">
-                                    <tr><th>Almacén:</th><td>{{ stock.warehouse }}</td></tr>
-                                    <tr><th>Stock actual:</th><td class="{% if stock.current_stock <= stock.minimum_stock %}text-danger fw-bold{% endif %}">{{ stock.current_stock }} {{ part.unit }}</td></tr>
-                                    <tr><th>Stock mínimo:</th><td>{{ stock.minimum_stock }}</td></tr>
-                                    <tr><th>Stock máximo:</th><td>{{ stock.maximum_stock }}</td></tr>
-                                    <tr><th>Punto de reorden:</th><td>{{ stock.reorder_point }}</td></tr>
-                                    <tr><th>Ubicación:</th><td>{{ stock.location_shelf or '-' }}</td></tr>
-                                    <tr><th>Último conteo:</th><td>{{ stock.last_count_date or '-' }}</td></tr>
+                                    <tr><th style="width: 40%">Almacén:</th><td><strong>{{ stock.warehouse }}</strong></td></tr>
+                                    <tr><th>Stock actual:</th>
+                                        <td class="{% if stock.current_stock <= stock.minimum_stock and stock.current_stock > 0 %}text-danger fw-bold{% elif stock.current_stock == 0 %}text-danger fw-bold{% endif %}">
+                                            <span class="badge {% if stock.current_stock <= stock.minimum_stock %}bg-danger{% elif stock.current_stock <= stock.reorder_point %}bg-warning text-dark{% else %}bg-success{% endif %} fs-6">
+                                                {{ stock.current_stock }}
+                                            </span>
+                                            <small class="text-muted"> {{ part.unit }}</small>
+                                         </td>
+                                     </tr>
+                                    <tr><th>Stock mínimo:</th><td>{{ stock.minimum_stock }} {{ part.unit }}</td></tr>
+                                    <tr><th>Stock máximo:</th><td>{{ stock.maximum_stock }} {{ part.unit }}</td></tr>
+                                    <tr><th>Punto de reorden:</th><td>{{ stock.reorder_point }} {{ part.unit }}</td></td>
+                                    <tr><th>Ubicación:</th><td><i class="fas fa-map-marker-alt text-muted"></i> {{ stock.location_shelf or 'No especificada' }}</td></tr>
+                                    <tr><th>Último conteo:</th><td>{{ stock.last_count_date.strftime('%d/%m/%Y') if stock.last_count_date else 'No registrado' }}</td></td>
                                 </table>
                                 {% else %}
-                                <p class="text-muted">Sin inventario registrado.</p>
+                                <p class="text-muted text-center py-3">Sin inventario registrado.</p>
                                 {% endif %}
                             </div>
                         </div>
@@ -77,13 +89,13 @@
                             </div>
                             <div class="card-body text-center">
                                 {% if part.image_path %}
-                                    <img src="{{ url_for('static', filename=part.image_path) }}" alt="{{ part.name }}" style="max-width: 100%; max-height: 250px; border-radius: 8px;">
+                                    <img src="{{ url_for('static', filename=part.image_path) }}" alt="{{ part.name }}" style="max-width: 100%; max-height: 250px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">
                                     <div class="mt-2">
                                         <small class="text-muted">Imagen actual</small>
                                     </div>
                                 {% else %}
-                                    <div class="text-muted">
-                                        <i class="fas fa-camera fa-3x mb-2"></i>
+                                    <div class="text-muted py-3">
+                                        <i class="fas fa-camera fa-4x mb-2"></i>
                                         <p>No hay imagen disponible</p>
                                     </div>
                                 {% endif %}
@@ -91,7 +103,7 @@
                         </div>
 
                         <!-- ============================================ -->
-                        <!-- CÓDIGOS DE BARRAS Y QR (CORREGIDO) -->
+                        <!-- CÓDIGOS DE BARRAS Y QR -->
                         <!-- ============================================ -->
                         <div class="card mt-3">
                             <div class="card-header bg-secondary text-white">
@@ -110,26 +122,26 @@
                                                 </a>
                                             </div>
                                         {% else %}
-                                            <p class="text-muted">No generado</p>
+                                            <p class="text-muted mt-2">No generado</p>
                                         {% endif %}
                                     </div>
                                     <div class="col-md-6">
                                         <strong>Código QR:</strong><br>
                                         {% if part.qr_image %}
                                             {% set qr_url = part.qr_image.replace('static/', '') %}
-                                            <img src="{{ url_for('static', filename=qr_url) }}" class="img-fluid mt-2" style="max-height: 150px;">
+                                            <img src="{{ url_for('static', filename=qr_url) }}" class="img-fluid mt-2" style="max-height: 120px;">
                                             <div class="mt-2">
                                                 <a href="{{ url_for('static', filename=qr_url) }}" download class="btn btn-sm btn-outline-primary">
                                                     <i class="fas fa-download"></i> Descargar
                                                 </a>
                                             </div>
                                         {% else %}
-                                            <p class="text-muted">No generado</p>
+                                            <p class="text-muted mt-2">No generado</p>
                                         {% endif %}
                                     </div>
                                 </div>
-                                <div class="mt-3 small text-muted">
-                                    El código QR contiene: código, nombre, marca, modelo, proveedor, ubicación y enlace a esta página.
+                                <div class="mt-3 small text-muted border-top pt-2">
+                                    <i class="fas fa-info-circle"></i> El código QR contiene: código, nombre, marca, modelo, proveedor, ubicación y enlace a esta página.
                                 </div>
                             </div>
                         </div>
@@ -166,7 +178,7 @@
                                         <td><strong>{{ key }}</strong></td>
                                         <td>{{ value.value if value.value is defined else value }}</td>
                                         <td>{{ value.unit if value.unit is defined else '—' }}</td>
-                                    </tr>
+                                     </tr>
                                     {% endfor %}
                                 </tbody>
                             </table>
@@ -195,6 +207,7 @@
                 <div class="card mt-3">
                     <div class="card-header bg-light">
                         <h5><i class="fas fa-exchange-alt"></i> Movimientos recientes</h5>
+                        <small class="text-muted">Últimos 20 movimientos</small>
                     </div>
                     <div class="card-body p-0">
                         <div class="table-responsive">
@@ -213,14 +226,25 @@
                                     {% for m in movements %}
                                     <tr class="{% if m.movement_type == 'in' %}table-success{% else %}table-warning{% endif %}">
                                         <td>{{ m.created_at.strftime('%d/%m/%Y %H:%M') }}</td>
-                                        <td>{{ '📥 Entrada' if m.movement_type == 'in' else '📤 Salida' }}</td>
-                                        <td><strong>{{ m.quantity }}</strong> {{ part.unit }}</td>
+                                        <td>
+                                            {% if m.movement_type == 'in' %}
+                                                <i class="fas fa-arrow-down text-success"></i> Entrada
+                                            {% else %}
+                                                <i class="fas fa-arrow-up text-danger"></i> Salida
+                                            {% endif %}
+                                         </td>
+                                        <td class="fw-bold">{{ m.quantity }} {{ part.unit }}</td>
                                         <td>{{ m.reference_number or '-' }}</td>
                                         <td>{{ m.description or '-' }}</td>
                                         <td>{{ m.performed_by.username if m.performed_by else 'Sistema' }}</td>
-                                    </tr>
+                                     </tr>
                                     {% else %}
-                                    <tr><td colspan="6" class="text-center py-3">No hay movimientos registrados</td></tr>
+                                    <tr>
+                                        <td colspan="6" class="text-center py-4 text-muted">
+                                            <i class="fas fa-history fa-2x mb-2 d-block"></i>
+                                            No hay movimientos registrados
+                                         </td>
+                                    </tr>
                                     {% endfor %}
                                 </tbody>
                             </table>
@@ -231,18 +255,18 @@
                 <!-- ============================================ -->
                 <!-- BOTONES DE ACCIÓN -->
                 <!-- ============================================ -->
-                <div class="mt-4">
+                <div class="mt-4 d-flex gap-2 flex-wrap">
                     <a href="{{ url_for('spare_parts.edit', id=part.id) }}" class="btn btn-warning">
-                        <i class="fas fa-edit"></i> Editar
+                        <i class="fas fa-edit"></i> Editar refacción
                     </a>
                     <a href="{{ url_for('spare_parts.add_movement', part_id=part.id) }}" class="btn btn-success">
                         <i class="fas fa-exchange-alt"></i> Registrar movimiento
                     </a>
-                    <a href="{{ url_for('spare_parts.inventory') }}" class="btn btn-secondary">
+                    <a href="{{ url_for('spare_parts.inventory') }}" class="btn btn-info">
                         <i class="fas fa-boxes"></i> Ver inventario
                     </a>
-                    <a href="{{ url_for('spare_parts.index') }}" class="btn btn-outline-secondary">
-                        <i class="fas fa-arrow-left"></i> Volver
+                    <a href="{{ url_for('spare_parts.index') }}" class="btn btn-secondary">
+                        <i class="fas fa-arrow-left"></i> Volver al catálogo
                     </a>
                 </div>
             </div>
