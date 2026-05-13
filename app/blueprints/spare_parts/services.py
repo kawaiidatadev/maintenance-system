@@ -48,14 +48,23 @@ def register_movement(spare_part_id, quantity, movement_type, warehouse, referen
     Registra un movimiento (entrada o salida) y actualiza el stock.
     Retorna True si se registró correctamente, False si falla (stock insuficiente).
     """
+    print(f"\n🔧 DEBUG register_movement:")
+    print(f"   spare_part_id: {spare_part_id}")
+    print(f"   quantity: {quantity}")
+    print(f"   movement_type: {movement_type}")
+    print(f"   warehouse: {warehouse}")
+    print(f"   reference: {reference}")
+
     if quantity <= 0:
+        print(f"   ❌ Cantidad <= 0, ignorando")
         return True
 
     # Para salidas, validar stock disponible ANTES de crear el movimiento
     if movement_type == 'out':
         stock = get_or_create_stock(spare_part_id, warehouse)
+        print(f"   Stock actual en warehouse '{warehouse}': {stock.current_stock}")
         if stock.current_stock < quantity:
-            print(f"❌ Movimiento NO registrado: stock insuficiente para {spare_part_id}")
+            print(f"   ❌ Stock insuficiente: requiere {quantity}, disponible {stock.current_stock}")
             return False
 
     # Crear movimiento
@@ -76,8 +85,10 @@ def register_movement(spare_part_id, quantity, movement_type, warehouse, referen
     success = update_stock_after_movement(spare_part_id, quantity, movement_type, warehouse)
     if not success:
         db.session.rollback()
+        print(f"   ❌ Falló update_stock_after_movement")
         return False
 
+    print(f"   ✅ Movimiento registrado correctamente")
     return True
 
 
@@ -115,12 +126,17 @@ def add_stock(spare_part_id, quantity, warehouse, reference, description, perfor
     )
 
 
-def check_stock_availability(spare_part_id, quantity, warehouse='General'):
+def check_stock_availability(spare_part_id, quantity, warehouse=None):
     """
     Verifica si hay suficiente stock disponible.
+    Si no se especifica warehouse, busca cualquier almacén.
     Retorna (disponible, stock_actual)
     """
-    stock = InventoryStock.query.filter_by(spare_part_id=spare_part_id, warehouse=warehouse).first()
+    if warehouse:
+        stock = InventoryStock.query.filter_by(spare_part_id=spare_part_id, warehouse=warehouse).first()
+    else:
+        stock = InventoryStock.query.filter_by(spare_part_id=spare_part_id).first()
+
     if not stock:
         return False, 0
     return stock.current_stock >= quantity, stock.current_stock

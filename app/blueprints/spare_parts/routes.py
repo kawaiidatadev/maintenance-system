@@ -559,3 +559,34 @@ def delete_document(doc_id):
     db.session.commit()
     flash('Documento eliminado', 'success')
     return redirect(url_for('spare_parts.view', id=part_id))
+
+@spare_parts_bp.route('/api/spare-parts')
+@login_required
+def api_spare_parts():
+    """Devuelve lista de refacciones activas con stock actual para usar en selects"""
+    parts = SparePart.query.filter_by(is_active=True).all()
+    data = []
+    for part in parts:
+        stock = InventoryStock.query.filter_by(spare_part_id=part.id).first()
+        current_stock = stock.current_stock if stock else 0
+        data.append({
+            'id': part.id,
+            'code': part.code,
+            'name': part.name,
+            'current_stock': current_stock,
+            'unit': part.unit
+        })
+    return jsonify(data)
+
+@spare_parts_bp.route('/api/stock-locations/<int:spare_part_id>')
+@login_required
+def api_stock_locations(spare_part_id):
+    """Devuelve todas las ubicaciones de stock de una refacción"""
+    stocks = InventoryStock.query.filter_by(spare_part_id=spare_part_id).all()
+    data = [{
+        'id': s.id,
+        'warehouse': s.warehouse,
+        'location_shelf': s.location_shelf,
+        'current_stock': s.current_stock
+    } for s in stocks if s.current_stock > 0]  # solo mostrar con stock positivo
+    return jsonify(data)

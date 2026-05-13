@@ -15,7 +15,7 @@ from app.email_dispatcher import send_work_order_closed_email, send_preventive_c
 from app.models.preventive_schedule import PreventiveSchedule
 from app.models.preventive_execution_log import PreventiveExecutionLog
 from sqlalchemy import asc, desc
-
+from app.blueprints.spare_parts.models import SparePartMovement
 
 work_orders_bp = Blueprint('work_orders', __name__, url_prefix='/work-orders')
 
@@ -153,19 +153,26 @@ def view_order(id):
         flash('No tienes permiso para ver esta OT', 'danger')
         return redirect(url_for('work_orders.list_orders'))
 
-    # ============================================
-    # Obtener refacciones asociadas al equipo (para correctivos)
-    # ============================================
+    # Obtener movimientos de salida (consumos) relacionados con esta orden
+    from app.blueprints.spare_parts.models import SparePartMovement, EquipmentSparePart, SparePart, InventoryStock
+
+    spare_part_movements = SparePartMovement.query.filter_by(work_order_id=id, movement_type='out').all()
+
     equipment_spare_parts = []
     if order.equipment_id and order.work_type == 'corrective':
-        from app.blueprints.spare_parts.models import EquipmentSparePart, SparePart, InventoryStock
         equipment_spare_parts = EquipmentSparePart.query.filter_by(equipment_id=order.equipment_id).all()
         for esp in equipment_spare_parts:
             esp.spare_part = SparePart.query.get(esp.spare_part_id)
-            stock = InventoryStock.query.filter_by(spare_part_id=esp.spare_part_id).first()
-            esp.current_stock = stock.current_stock if stock else 0
+            if esp.spare_part:
+                # Obtener TODOS los stocks de esta refacción (todas las ubicaciones)
+                stocks = InventoryStock.query.filter_by(spare_part_id=esp.spare_part_id).all()
+                esp.stock_locations = stocks
+                esp.total_stock = sum(s.current_stock for s in stocks)
 
-    return render_template('work_orders/view.html', order=order, equipment_spare_parts=equipment_spare_parts)
+    return render_template('work_orders/view.html',
+                           order=order,
+                           equipment_spare_parts=equipment_spare_parts,
+                           spare_part_movements=spare_part_movements)
 
 
 @work_orders_bp.route('/<int:id>/edit', methods=['GET', 'POST'])
@@ -270,6 +277,21 @@ def complete_order(id):
         flash('No puedes completar esta OT', 'danger')
         return redirect(url_for('work_orders.list_orders'))
 
+    # ============================================
+    # OBTENER REFACCIONES CON SUS UBICACIONES DE STOCK
+    # ============================================
+    equipment_spare_parts = []
+    if order.equipment_id and order.work_type == 'corrective':
+        from app.blueprints.spare_parts.models import EquipmentSparePart, SparePart, InventoryStock
+
+        equipment_spare_parts = EquipmentSparePart.query.filter_by(equipment_id=order.equipment_id).all()
+        for esp in equipment_spare_parts:
+            esp.spare_part = SparePart.query.get(esp.spare_part_id)
+            # Obtener TODOS los stocks de esta refacción (todas las ubicaciones)
+            stocks = InventoryStock.query.filter_by(spare_part_id=esp.spare_part_id).all()
+            esp.stock_locations = stocks
+            esp.total_stock = sum(s.current_stock for s in stocks)
+
     if request.method == 'POST':
         order.status = 'completed'
         order.completion_date = datetime.utcnow()
@@ -280,9 +302,62 @@ def complete_order(id):
         order.work_performed = request.form.get('work_performed') or None
         order.parts_used = request.form.get('parts_used') or None
         order.closed_by_id = current_user.id
-
         db.session.commit()
 
+        # ============================================
+        # PROCESAR CONSUMOS DE REFACCIONES POR UBICACIÓN
+        # ============================================
+        if order.work_type == 'corrective' and order.equipment_id:
+            import json
+            from app.blueprints.spare_parts.services import consume_spare_part
+            from app.blueprints.spare_parts.models import SparePart
+
+            # Dentro de complete_order (POST), procesar consumptions_json
+            consumptions_json = request.form.get('consumptions', '[]')
+            try:
+                consumptions = json.loads(consumptions_json)
+            except:
+                consumptions = []
+
+            for item in consumptions:
+                spare_part_id = item['spare_part_id']
+                stock_id = item['stock_id']
+                quantity = item['quantity']
+                if quantity <= 0:
+                    continue
+
+                # Obtener el registro de stock (ubicación) para saber el warehouse
+                stock_record = InventoryStock.query.get(stock_id)
+                if not stock_record:
+                    flash(f'Ubicación de stock no encontrada para refacción ID {spare_part_id}', 'warning')
+                    continue
+
+                # Verificar stock suficiente (doble chequeo)
+                if stock_record.current_stock < quantity:
+                    part = SparePart.query.get(spare_part_id)
+                    flash(
+                        f'⚠️ Stock insuficiente de {part.name} en {stock_record.warehouse}. Disponible: {stock_record.current_stock}',
+                        'warning')
+                    continue
+
+                # Registrar movimiento de consumo (salida)
+                success = consume_spare_part(
+                    spare_part_id=spare_part_id,
+                    quantity=quantity,
+                    warehouse=stock_record.warehouse,
+                    reference=f'Correctivo OT {order.number}',
+                    performed_by_id=current_user.id,
+                    work_order_id=order.id,
+                    preventive_execution_log_id=None
+                )
+                if success:
+                    part = SparePart.query.get(spare_part_id)
+                    flash(f'✅ Consumido {quantity} de {part.name} desde {stock_record.warehouse}', 'info')
+                else:
+                    part = SparePart.query.get(spare_part_id)
+                    flash(f'❌ No se pudo registrar consumo de {part.name} desde {stock_record.warehouse}', 'danger')
+
+        # Notificación al creador de la OT
         if order.created_by_id and order.created_by_id != current_user.id:
             if order.work_type == 'corrective':
                 create_notification(
@@ -295,9 +370,11 @@ def complete_order(id):
                 )
 
         flash(f'OT {order.number} completada', 'success')
-        return redirect(url_for('work_orders.view_order', id=id))
+        return redirect(url_for('work_orders.view_order', id=order.id))
 
-    return render_template('work_orders/complete.html', order=order)
+    return render_template('work_orders/complete.html',
+                           order=order,
+                           equipment_spare_parts=equipment_spare_parts)
 
 
 @work_orders_bp.route('/<int:id>/close', methods=['POST'])
@@ -321,42 +398,7 @@ def close_order(id):
     order.closed_at = datetime.utcnow()
     db.session.commit()
 
-    # ============================================
-    # PROCESAR CONSUMOS DE REFACCIONES (CORRECTIVO)
-    # ============================================
-    if order.work_type == 'corrective' and order.equipment_id:
-        from app.blueprints.spare_parts.models import EquipmentSparePart
-        from app.blueprints.spare_parts.services import consume_spare_part, check_stock_availability
-
-        equipment_spare_parts = EquipmentSparePart.query.filter_by(equipment_id=order.equipment_id).all()
-        for esp in equipment_spare_parts:
-            qty_key = f'consumed_qty_{esp.spare_part_id}'
-            if qty_key in request.form:
-                try:
-                    qty = int(request.form.get(qty_key, 0))
-                    if qty > 0:
-                        disponible, stock_actual = check_stock_availability(esp.spare_part_id, qty)
-                        if not disponible:
-                            flash(
-                                f'⚠️ Stock insuficiente para refacción ID {esp.spare_part_id}. Disponible: {stock_actual}, requerido: {qty}',
-                                'warning')
-                            continue
-
-                        consume_spare_part(
-                            spare_part_id=esp.spare_part_id,
-                            quantity=qty,
-                            warehouse='General',
-                            reference=f'Correctivo OT {order.number}',
-                            work_order_id=order.id,
-                            performed_by_id=current_user.id
-                        )
-                        flash(f'✅ Consumido {qty} de {esp.spare_part.name}', 'info')
-                except ValueError:
-                    flash(f'⚠️ Cantidad inválida para refacción ID {esp.spare_part_id}', 'warning')
-
-    # ============================================
-    # ACTUALIZAR SCHEDULE PREVENTIVO Y REGISTRAR HISTORIAL
-    # ============================================
+    # ACTUALIZAR SCHEDULE PREVENTIVO
     if order.work_type == 'preventive' and order.preventive_schedule_id:
         schedule = PreventiveSchedule.query.get(order.preventive_schedule_id)
         if schedule:
@@ -379,9 +421,7 @@ def close_order(id):
             db.session.commit()
             flash('Calendario preventivo actualizado y ejecución registrada', 'info')
 
-    # ============================================
-    # GENERAR PDF Y REGISTRAR EN BD
-    # ============================================
+    # GENERAR PDF
     pdf_generated = False
     try:
         existing_report = WorkOrderReport.query.filter_by(work_order_id=order.id).first()
@@ -407,15 +447,11 @@ def close_order(id):
             flash(f'OT {order.number} cerrada. Reporte PDF generado.', 'success')
             pdf_generated = True
     except Exception as e:
-        # Log interno (solo para desarrolladores)
         print(f"ERROR generando PDF para OT {order.id}: {e}")
-        # Mensaje amigable para el usuario
         flash('No se pudo generar el reporte PDF. Por favor, contacte al administrador.', 'danger')
         return redirect(url_for('work_orders.view_order', id=order.id))
 
-    # ============================================
     # ENVIAR CORREO CON ADJUNTO (CORRECTIVAS)
-    # ============================================
     if Setting.get('brevo_enabled') == 'true' and order.work_type == 'corrective' and pdf_generated:
         try:
             success = send_work_order_closed_email(order, pdf_info['absolute_path'])
@@ -434,9 +470,7 @@ def close_order(id):
             order.email_failed_at = datetime.utcnow()
             db.session.commit()
 
-    # ============================================
     # ENVIAR CORREO CON ADJUNTO (PREVENTIVAS)
-    # ============================================
     elif Setting.get('brevo_enabled') == 'true' and order.work_type == 'preventive' and pdf_generated:
         try:
             success = send_preventive_completed_email(order, pdf_info['absolute_path'])
@@ -462,7 +496,7 @@ def close_order(id):
 @work_orders_bp.route('/<int:id>/resend-email', methods=['POST'])
 @login_required
 def resend_email(id):
-    from flask import current_app  # importación local por si acaso
+    from flask import current_app
     order = WorkOrder.query.get_or_404(id)
 
     if order.status != 'closed':
@@ -497,7 +531,6 @@ def resend_email(id):
     except Exception as e:
         order.email_failed_at = datetime.utcnow()
         db.session.commit()
-        # No mostrar el error técnico al usuario
         print(f"Error reenviando correo para OT {order.id}: {e}")
         flash('❌ Error al reenviar el correo. Por favor, intente más tarde.', 'danger')
 

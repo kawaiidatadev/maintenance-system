@@ -419,6 +419,35 @@ class WorkOrderPDF(FPDF):
                                      gap=3)
         self.ln(2)
 
+    def draw_spare_parts_table(self, movements):
+        """Dibuja una tabla de refacciones consumidas (3 columnas)"""
+        if not movements:
+            return
+        self.section_title('Refacciones / Consumibles utilizados')
+        self.set_font('Helvetica', 'B', 9)
+        self.set_fill_color(220, 220, 220)
+        self.cell(80, 8, 'Refacción', 1, 0, 'C', 1)
+        self.cell(30, 8, 'Cantidad', 1, 0, 'C', 1)
+        self.cell(40, 8, 'Referencia', 1, 0, 'C', 1)
+        self.ln()
+        self.set_font('Helvetica', '', 9)
+        fill = False
+        for mov in movements:
+            if mov.spare_part:
+                name = normalize(mov.spare_part.name)
+                qty = f"{mov.quantity} {mov.spare_part.unit}"
+                ref = normalize(mov.reference_number or '')
+            else:
+                name = f"ID {mov.spare_part_id}"
+                qty = str(mov.quantity)
+                ref = normalize(mov.reference_number or '')
+            self.cell(80, 6, name, 1, 0, 'L', fill)
+            self.cell(30, 6, qty, 1, 0, 'C', fill)
+            self.cell(40, 6, ref, 1, 0, 'L', fill)
+            self.ln()
+            fill = not fill
+        self.ln(4)
+
     def draw_report(self, work_order=None, preview_mode=False):
         self.add_page()
 
@@ -483,6 +512,14 @@ class WorkOrderPDF(FPDF):
         self.ln(4)
 
         self.draw_technical_info(tech_items)
+
+        # ============================================
+        # SECCIÓN DE REFACCIONES CONSUMIDAS (CORRECTIVAS)
+        # ============================================
+        if not preview_mode and wo.work_type == 'corrective' and wo.id:
+            from app.blueprints.spare_parts.models import SparePartMovement
+            movements = SparePartMovement.query.filter_by(work_order_id=wo.id, movement_type='out').all()
+            self.draw_spare_parts_table(movements)
 
         if closing_text:
             self.section_title('Notas de cierre')

@@ -8,10 +8,8 @@
                 <h4><i class="fas fa-check-circle"></i> Completar OT: {{ order.number }}</h4>
             </div>
             <div class="card-body">
-                <!-- ============================================ -->
-                <!-- AGREGADA LA CLASE block-on-submit AQUÍ -->
-                <!-- ============================================ -->
-                <form method="POST" class="block-on-submit">
+                <form method="POST" class="block-on-submit" id="completeForm">
+                    <!-- ========== CAMPOS EXISTENTES (sin cambios) ========== -->
                     <div class="row">
                         <div class="col-md-6 mb-3">
                             <label for="downtime_hours" class="form-label">Tiempo de parada (horas)</label>
@@ -34,20 +32,46 @@
                     </div>
                     <div class="mb-3">
                         <label for="root_cause" class="form-label">Causa raíz</label>
-                        <textarea class="form-control" id="root_cause" name="root_cause" rows="2"></textarea>
+                        <textarea class="form-control" id="root_cause" name="root_cause" rows="2">{{ order.root_cause or '' }}</textarea>
                     </div>
                     <div class="mb-3">
                         <label for="work_performed" class="form-label">Trabajo realizado</label>
-                        <textarea class="form-control" id="work_performed" name="work_performed" rows="3"></textarea>
+                        <textarea class="form-control" id="work_performed" name="work_performed" rows="3">{{ order.work_performed or '' }}</textarea>
                     </div>
                     <div class="mb-3">
-                        <label for="parts_used" class="form-label">Repuestos utilizados</label>
-                        <textarea class="form-control" id="parts_used" name="parts_used" rows="2"></textarea>
+                        <label for="parts_used" class="form-label">Repuestos utilizados (texto libre)</label>
+                        <textarea class="form-control" id="parts_used" name="parts_used" rows="2">{{ order.parts_used or '' }}</textarea>
                     </div>
                     <div class="mb-3">
                         <label for="resolution" class="form-label">Solución aplicada *</label>
-                        <textarea class="form-control" id="resolution" name="resolution" rows="3" required></textarea>
+                        <textarea class="form-control" id="resolution" name="resolution" rows="3" required>{{ order.resolution or '' }}</textarea>
                     </div>
+
+                    <!-- ============================================ -->
+                    <!-- NUEVA SECCIÓN: CONSUMO DE REFACCIONES POR UBICACIÓN -->
+                    <!-- ============================================ -->
+                    <hr>
+                    <h5><i class="fas fa-boxes"></i> Consumo de refacciones / consumibles</h5>
+                    <div id="consumptions-container">
+                        <table class="table table-sm table-bordered" id="consumptions-table">
+                            <thead>
+                                <tr>
+                                    <th style="width: 35%">Refacción</th>
+                                    <th style="width: 55%">Ubicaciones y cantidades</th>
+                                    <th style="width: 10%"></th>
+                                </tr>
+                            </thead>
+                            <tbody id="consumptions-body">
+                                <!-- Las filas dinámicas se agregarán aquí -->
+                            </tbody>
+                        </table>
+                        <button type="button" class="btn btn-sm btn-secondary mt-2" id="add-row-btn">
+                            <i class="fas fa-plus"></i> Agregar refacción
+                        </button>
+                    </div>
+                    <input type="hidden" name="consumptions" id="consumptions-input" value="[]">
+                    <hr>
+
                     <button type="submit" class="btn btn-success">Completar OT</button>
                     <a href="{{ url_for('work_orders.view_order', id=order.id) }}" class="btn btn-secondary">Cancelar</a>
                 </form>
@@ -55,4 +79,278 @@
         </div>
     </div>
 </div>
+
+<script>
+    // ============================================
+    // LISTA DE REFACCIONES (cargada desde API)
+    // ============================================
+    let sparePartsList = [];
+
+    // ============================================
+    // DATOS DE UBICACIONES DE STOCK (por spare_part_id)
+    // ============================================
+    let stockLocationsCache = {};
+
+    // ============================================
+    // FUNCIONES AUXILIARES
+    // ============================================
+    async function loadSpareParts() {
+        try {
+            const response = await fetch('/spare-parts/api/spare-parts');
+            if (response.ok) {
+                sparePartsList = await response.json();
+                console.log('Refacciones cargadas:', sparePartsList.length);
+            } else {
+                console.error('Error cargando refacciones');
+            }
+        } catch (error) {
+            console.error('Error:', error);
+        }
+    }
+
+    async function loadStockLocations(sparePartId) {
+        if (stockLocationsCache[sparePartId]) {
+            return stockLocationsCache[sparePartId];
+        }
+        try {
+            const response = await fetch(`/spare-parts/api/stock-locations/${sparePartId}`);
+            if (response.ok) {
+                const data = await response.json();
+                stockLocationsCache[sparePartId] = data;
+                return data;
+            } else {
+                return [];
+            }
+        } catch (error) {
+            console.error('Error cargando ubicaciones:', error);
+            return [];
+        }
+    }
+
+    // ============================================
+    // GENERAR FILA PARA UNA REFACCIÓN (con sub-tabla de ubicaciones)
+    // ============================================
+    let nextRowId = 0;
+
+    function createSelectRow(rowIndex, selectedSpareId = '') {
+        const select = document.createElement('select');
+        select.className = 'form-select form-select-sm spare-part-select';
+        select.setAttribute('data-row', rowIndex);
+        const defaultOption = document.createElement('option');
+        defaultOption.value = '';
+        defaultOption.textContent = '-- Seleccionar refacción --';
+        select.appendChild(defaultOption);
+        sparePartsList.forEach(sp => {
+            const opt = document.createElement('option');
+            opt.value = sp.id;
+            let stockText = sp.current_stock !== undefined ? ` (Stock total: ${sp.current_stock})` : '';
+            opt.textContent = `${sp.code} - ${sp.name}${stockText}`;
+            if (selectedSpareId && sp.id == selectedSpareId) opt.selected = true;
+            select.appendChild(opt);
+        });
+        return select;
+    }
+
+    function createRemoveButton(rowIndex) {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'btn btn-sm btn-danger remove-row';
+        btn.innerHTML = '<i class="fas fa-trash"></i>';
+        btn.addEventListener('click', function() {
+            const row = document.getElementById(`row_${rowIndex}`);
+            if (row) row.remove();
+            updateConsumptionsInput();
+        });
+        return btn;
+    }
+
+    async function addRow(selectedSpareId = '') {
+        const tbody = document.getElementById('consumptions-body');
+        if (!tbody) return;
+        const rowId = nextRowId++;
+        const tr = document.createElement('tr');
+        tr.id = `row_${rowId}`;
+        tr.setAttribute('data-spare-id', selectedSpareId);
+
+        // Celda de selección de refacción
+        const tdSelect = document.createElement('td');
+        const select = createSelectRow(rowId, selectedSpareId);
+        tdSelect.appendChild(select);
+
+        // Celda de ubicaciones (se llenará dinámicamente al seleccionar)
+        const tdLocations = document.createElement('td');
+        tdLocations.id = `locations_${rowId}`;
+        tdLocations.innerHTML = '<div class="text-muted small">Seleccione una refacción para ver las ubicaciones</div>';
+
+        // Celda de acción (eliminar)
+        const tdAction = document.createElement('td');
+        tdAction.appendChild(createRemoveButton(rowId));
+
+        tr.appendChild(tdSelect);
+        tr.appendChild(tdLocations);
+        tr.appendChild(tdAction);
+        tbody.appendChild(tr);
+
+        // Evento al cambiar la selección de refacción
+        select.addEventListener('change', async function() {
+            const spareId = this.value;
+            tr.setAttribute('data-spare-id', spareId);
+            if (spareId) {
+                const locations = await loadStockLocations(spareId);
+                renderLocationsTable(tdLocations, spareId, rowId, locations);
+            } else {
+                tdLocations.innerHTML = '<div class="text-muted small">Seleccione una refacción para ver las ubicaciones</div>';
+            }
+            updateConsumptionsInput();
+        });
+
+        // Si ya se pasó un selectedSpareId, cargar ubicaciones inmediatamente
+        if (selectedSpareId) {
+            select.value = selectedSpareId;
+            const event = new Event('change');
+            select.dispatchEvent(event);
+        }
+
+        updateConsumptionsInput();
+    }
+
+    function renderLocationsTable(container, sparePartId, rowId, locations) {
+        if (!locations || locations.length === 0) {
+            container.innerHTML = '<div class="alert alert-warning small mb-0">⚠️ No hay stock disponible en ninguna ubicación</div>';
+            return;
+        }
+
+        let html = `
+            <table class="table table-sm table-bordered mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Ubicación (Almacén / Estante)</th>
+                        <th>Stock disponible</th>
+                        <th style="width: 40%">Cantidad a consumir</th>
+                    </tr>
+                </thead>
+                <tbody>
+        `;
+        locations.forEach(loc => {
+            html += `
+                <tr>
+                    <td>
+                        ${loc.warehouse}
+                        ${loc.location_shelf ? `<br><small class="text-muted">${loc.location_shelf}</small>` : ''}
+                    </td>
+                    <td class="text-center">${loc.current_stock}</td>
+                    <td>
+                        <input type="number"
+                               class="form-control form-control-sm consumption-qty"
+                               data-row="${rowId}"
+                               data-spare-id="${sparePartId}"
+                               data-stock-id="${loc.id}"
+                               data-max="${loc.current_stock}"
+                               value="0"
+                               min="0"
+                               max="${loc.current_stock}"
+                               step="1"
+                               style="width: 100px;">
+                    </td>
+                </tr>
+            `;
+        });
+        html += `</tbody></table>`;
+        container.innerHTML = html;
+
+        // Agregar listeners a los nuevos inputs
+        container.querySelectorAll('.consumption-qty').forEach(input => {
+            input.addEventListener('input', function() {
+                // Validar que no exceda el máximo
+                let val = parseInt(this.value);
+                const max = parseInt(this.getAttribute('data-max'));
+                if (isNaN(val)) val = 0;
+                if (val > max) {
+                    this.value = max;
+                    alert(`No puede consumir más de ${max} unidades de esta ubicación`);
+                }
+                updateConsumptionsInput();
+            });
+        });
+    }
+
+    // ============================================
+    // RECOPILAR DATOS ESTRUCTURADOS PARA ENVIAR
+    // ============================================
+    function updateConsumptionsInput() {
+        const consumptions = [];
+        const rows = document.querySelectorAll('#consumptions-body tr');
+        rows.forEach(row => {
+            const spareId = row.getAttribute('data-spare-id');
+            if (!spareId) return;
+            const qtyInputs = row.querySelectorAll('.consumption-qty');
+            qtyInputs.forEach(input => {
+                const qty = parseInt(input.value) || 0;
+                if (qty > 0) {
+                    consumptions.push({
+                        spare_part_id: parseInt(spareId),
+                        stock_id: parseInt(input.getAttribute('data-stock-id')),
+                        quantity: qty
+                    });
+                }
+            });
+        });
+        document.getElementById('consumptions-input').value = JSON.stringify(consumptions);
+        console.log('Consumos actualizados:', consumptions);
+    }
+
+    // ============================================
+    // INICIALIZACIÓN
+    // ============================================
+    document.addEventListener('DOMContentLoaded', async () => {
+        await loadSpareParts();
+
+        // Si no hay refacciones, mostrar al menos una fila vacía
+        if (sparePartsList.length === 0) {
+            addRow();
+        } else {
+            // Cargar refacciones predefinidas del equipo (si las hay)
+            const equipmentId = {{ order.equipment_id }};
+            if (equipmentId) {
+                try {
+                    const resp = await fetch(`/spare-parts/api/equipment-spare-parts/${equipmentId}`);
+                    if (resp.ok) {
+                        const equipmentParts = await resp.json();
+                        if (equipmentParts.length > 0) {
+                            for (const ep of equipmentParts) {
+                                // Verificar que la refacción exista en la lista global
+                                if (sparePartsList.some(sp => sp.id === ep.spare_part_id)) {
+                                    await addRow(ep.spare_part_id);
+                                }
+                            }
+                        } else {
+                            addRow();
+                        }
+                    } else {
+                        addRow();
+                    }
+                } catch (error) {
+                    console.error('Error cargando refacciones del equipo:', error);
+                    addRow();
+                }
+            } else {
+                addRow();
+            }
+        }
+
+        // Botón para agregar más refacciones
+        const addBtn = document.getElementById('add-row-btn');
+        if (addBtn) {
+            addBtn.addEventListener('click', () => addRow());
+        }
+
+        // Asegurar que el input oculto se actualice antes de enviar
+        const form = document.getElementById('completeForm');
+        if (form) {
+            form.addEventListener('submit', () => {
+                updateConsumptionsInput();
+            });
+        }
+    });
+</script>
 {% endblock %}
