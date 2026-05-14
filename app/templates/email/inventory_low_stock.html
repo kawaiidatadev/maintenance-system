@@ -1,0 +1,15 @@
+{% extends "email/base_email.html" %}
+
+{% block content %}
+<h2 style="color: #d32f2f;">⚠️ Alerta de stock mínimo</h2>
+<p>Hola,</p>
+<p>La refacción <strong>{{ spare_part_code }} - {{ spare_part_name }}</strong> ha alcanzado su stock mínimo.</p>
+
+<div class="info-box" style="background-color: #ffebee; border-left: 4px solid #d32f2f;">
+    <div class="info-item"><span class="info-label">Stock actual:</span> {{ current_stock }} {{ unit }}</div>
+    <div class="info-item"><span class="info-label">Stock mínimo:</span> {{ minimum_stock }} {{ unit }}</div>
+    <div class="info-item"><span class="info-label">Almacén:</span> {{ warehouse }}</div>
+</div>
+<p>Es necesario realizar una compra urgente.</p>
+<a href="{{ link }}" class="button" style="background-color: #d32f2f;">Ver inventario</a>
+{% endblock %}

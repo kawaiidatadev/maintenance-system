@@ -43,6 +43,8 @@ def index():
     # Separar reglas por tipo
     corrective_rules = [r for r in all_rules if not r.event_type.startswith('preventive_')]
     preventive_rules = [r for r in all_rules if r.event_type.startswith('preventive_')]
+    # Separar reglas de inventario
+    inventory_rules = [r for r in all_rules if r.event_type.startswith('inventory_')]
 
     # Preferencias de notificaciones del usuario actual
     user_prefs = {}
@@ -80,6 +82,7 @@ def index():
                            timezones=timezones,
                            corrective_rules=corrective_rules,
                            preventive_rules=preventive_rules,
+                           inventory_rules=inventory_rules,
                            user_prefs=user_prefs,
                            preview_date=now_local,
                            preview_datetime=now_local,

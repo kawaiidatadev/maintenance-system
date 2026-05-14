@@ -7,7 +7,8 @@ from flask import url_for
 from app import db
 from app.blueprints.spare_parts.models import SparePart, InventoryStock, SparePartMovement
 from flask_login import current_user
-
+from app.email_dispatcher import send_email_with_attachment_to_multiple
+from flask import url_for
 
 def get_or_create_stock(spare_part_id, warehouse='General'):
     """Obtiene el stock para una refacción en un almacén específico. Evita duplicados."""
@@ -147,16 +148,27 @@ def check_stock_availability(spare_part_id, quantity, warehouse=None):
 
 
 def check_stock_alerts():
-    """Verifica todos los stocks y genera alertas no resueltas, además de notificaciones internas."""
+    """
+    Verifica todos los stocks y genera alertas no resueltas.
+    También envía notificaciones internas y correos según las reglas configuradas.
+    """
+    from app.models.user import User
+    from app.email_dispatcher import get_recipients_for_rule, send_email_with_attachment_to_multiple
+
     stocks = InventoryStock.query.all()
+
     for stock in stocks:
         alert_type = None
+        event_type = None
+
         if stock.current_stock <= stock.minimum_stock:
             alert_type = 'low_stock'
+            event_type = 'inventory_low_stock'
         elif stock.current_stock <= stock.reorder_point:
             alert_type = 'reorder'
+            event_type = 'inventory_reorder_point'
 
-        if alert_type:
+        if alert_type and event_type:
             # Verificar si ya hay alerta sin resolver para este stock y tipo
             existing = StockAlert.query.filter_by(
                 spare_part_id=stock.spare_part_id,
@@ -164,42 +176,89 @@ def check_stock_alerts():
                 alert_type=alert_type,
                 resolved_at=None
             ).first()
+
             if not existing:
+                # Crear alerta en la tabla stock_alerts
                 alert = StockAlert(
                     spare_part_id=stock.spare_part_id,
                     warehouse=stock.warehouse,
                     alert_type=alert_type
                 )
                 db.session.add(alert)
-                db.session.commit()  # Guardar para tener ID
+                db.session.commit()
 
-                # Crear notificación interna (opcional, si existe regla 'stock_low')
-                rule = NotificationRule.query.filter_by(event_type='stock_low', is_active=True).first()
-                if rule and rule.target_roles:
-                    from app.models.user import User
-                    roles = rule.target_roles.split(',')
-                    users = User.query.filter(User.role.in_(roles)).all()
-                    for user in users:
-                        create_notification(
-                            user_id=user.id,
-                            title=f"⚠️ Alerta de inventario: {stock.spare_part.name}",
-                            message=f"Stock actual: {stock.current_stock} {stock.spare_part.unit}. "
-                                    f"{'Por debajo del mínimo' if alert_type == 'low_stock' else 'Punto de pedido alcanzado'}.",
-                            event_type='stock_low',
-                            related_id=stock.spare_part_id,
-                            link=url_for('spare_parts.inventory', _external=True)
+                # Obtener la regla de notificación correspondiente
+                rule = NotificationRule.query.filter_by(event_type=event_type, is_active=True).first()
+
+                if rule:
+                    # Obtener destinatarios según configuración de la regla
+                    recipients = get_recipients_for_rule(rule, include_central=True)
+
+                    if recipients:
+                        spare_part = stock.spare_part
+                        title = f"⚠️ {rule.name}: {spare_part.code}"
+                        message = f"Stock actual: {stock.current_stock} {spare_part.unit}. "
+
+                        if alert_type == 'low_stock':
+                            message += f"Por debajo del mínimo ({stock.minimum_stock} {spare_part.unit})."
+                        else:
+                            message += f"Punto de pedido alcanzado ({stock.reorder_point} {spare_part.unit})."
+
+                        # ============================================
+                        # NOTIFICACIONES INTERNAS (campanario)
+                        # ============================================
+                        for email in recipients:
+                            user = User.query.filter_by(email=email).first()
+                            if user:
+                                create_notification(
+                                    user_id=user.id,
+                                    title=title,
+                                    message=message,
+                                    event_type=event_type,
+                                    related_id=stock.spare_part_id,
+                                    link=url_for('spare_parts.inventory', _external=True)
+                                )
+
+                        # ============================================
+                        # ENVÍO DE CORREO (un solo correo a todos los destinatarios)
+                        # ============================================
+                        context = {
+                            'spare_part_code': spare_part.code,
+                            'spare_part_name': spare_part.name,
+                            'current_stock': stock.current_stock,
+                            'minimum_stock': stock.minimum_stock,
+                            'reorder_point': stock.reorder_point,
+                            'unit': spare_part.unit,
+                            'warehouse': stock.warehouse,
+                            'link': url_for('spare_parts.inventory', _external=True)
+                        }
+
+                        template = f'email/{event_type}.html'
+
+                        send_email_with_attachment_to_multiple(
+                            to_emails=recipients,
+                            subject=title,
+                            template=template,
+                            context=context,
+                            attachment_path=None,
+                            attachment_name=None
                         )
+
+                        print(f"📧 Notificaciones enviadas para {spare_part.code} - {rule.name}")
+
         else:
-            # Si ya no hay condición, resolver alertas pendientes del mismo ítem
+            # Si ya no hay condición de alerta, resolver alertas pendientes del mismo ítem
             pending = StockAlert.query.filter_by(
                 spare_part_id=stock.spare_part_id,
                 warehouse=stock.warehouse,
                 resolved_at=None
             ).all()
+
             for alert in pending:
                 alert.resolved_at = datetime.utcnow()
-            db.session.commit()
 
+            if pending:
+                db.session.commit()
 
 def transfer_stock(spare_part_id, from_warehouse, to_warehouse, quantity, performed_by_id, comment=''):
     """

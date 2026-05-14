@@ -1,0 +1,15 @@
+{% extends "email/base_email.html" %}
+
+{% block content %}
+<h2 style="color: #ed6c02;">📦 Punto de pedido alcanzado</h2>
+<p>Hola,</p>
+<p>La refacción <strong>{{ spare_part_code }} - {{ spare_part_name }}</strong> ha alcanzado el punto de pedido.</p>
+
+<div class="info-box" style="background-color: #fff3e0; border-left: 4px solid #ed6c02;">
+    <div class="info-item"><span class="info-label">Stock actual:</span> {{ current_stock }} {{ unit }}</div>
+    <div class="info-item"><span class="info-label">Punto de pedido:</span> {{ reorder_point }} {{ unit }}</div>
+    <div class="info-item"><span class="info-label">Almacén:</span> {{ warehouse }}</div>
+</div>
+<p>Se recomienda planificar la compra.</p>
+<a href="{{ link }}" class="button" style="background-color: #ed6c02;">Ver inventario</a>
+{% endblock %}
