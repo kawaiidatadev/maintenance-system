@@ -1,0 +1,136 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+        <h4><i class="fas fa-history"></i> Historial de Movimientos</h4>
+        <a href="{{ url_for('spare_parts.inventory') }}" class="btn btn-light btn-sm">
+            <i class="fas fa-arrow-left"></i> Volver
+        </a>
+    </div>
+    <div class="card-body">
+        <!-- Formulario de filtros -->
+        <form method="GET" class="row g-3 mb-4">
+            <div class="col-md-3">
+                <label class="form-label">Refacción (código/nombre)</label>
+                <input type="text" name="spare_part" class="form-control" value="{{ spare_part_search }}" placeholder="Ej: REF001">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">Tipo</label>
+                <select name="type" class="form-select">
+                    <option value="">Todos</option>
+                    <option value="in" {% if movement_type == 'in' %}selected{% endif %}>Entrada</option>
+                    <option value="out" {% if movement_type == 'out' %}selected{% endif %}>Salida</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">Almacén</label>
+                <select name="warehouse" class="form-select">
+                    <option value="">Todos</option>
+                    {% for w in warehouses %}
+                    <option value="{{ w }}" {% if warehouse == w %}selected{% endif %}>{{ w }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">Desde</label>
+                <input type="date" name="from_date" class="form-control" value="{{ from_date }}">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">Hasta</label>
+                <input type="date" name="to_date" class="form-control" value="{{ to_date }}">
+            </div>
+            <div class="col-md-1 d-flex align-items-end">
+                <button type="submit" class="btn btn-primary w-100">Filtrar</button>
+            </div>
+        </form>
+
+        <!-- Tabla de movimientos -->
+        <div class="table-responsive">
+            <table class="table table-sm table-bordered table-hover">
+                <thead class="table-dark">
+                    <tr>
+                        <th>Fecha</th>
+                        <th>Refacción</th>
+                        <th>Tipo</th>
+                        <th>Cantidad</th>
+                        <th>Almacén</th>
+                        <th>Referencia</th>
+                        <th>Descripción</th>
+                        <th>Realizado por</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for m in movements %}
+                    <tr>
+                        <td>{{ m.created_at.strftime('%d/%m/%Y %H:%M') }}</td>
+                        <td>
+                            <a href="{{ url_for('spare_parts.view', id=m.spare_part_id) }}">
+                                {{ m.spare_part.code if m.spare_part else 'ID ' + m.spare_part_id|string }} - {{ m.spare_part.name if m.spare_part else '?' }}
+                            </a>
+                        </td>
+                        <td>
+                            {% if m.movement_type == 'in' %}
+                                <span class="badge bg-success"><i class="fas fa-arrow-down"></i> Entrada</span>
+                            {% else %}
+                                <span class="badge bg-danger"><i class="fas fa-arrow-up"></i> Salida</span>
+                            {% endif %}
+                        </td>
+                        <td>{{ m.quantity }} {{ m.spare_part.unit if m.spare_part else '' }}</td>
+                        <td>{{ m.warehouse }}</td>
+                        <td>
+                            {% if m.work_order_id %}
+                                <a href="{{ url_for('work_orders.view_order', id=m.work_order_id) }}">OT #{{ m.work_order_id }}</a>
+                            {% else %}
+                                {{ m.reference_number or '-' }}
+                            {% endif %}
+                         </td>
+                        <td>{{ m.description or '-' }}</td>
+                        <td>{{ m.performed_by.username if m.performed_by else 'Sistema' }}</td>
+                    </tr>
+                    {% else %}
+                    <tr><td colspan="8" class="text-center">No hay movimientos registrados</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Paginación -->
+        {% if pagination and pagination.pages > 1 %}
+        <nav aria-label="Paginación" class="mt-4">
+            <ul class="pagination justify-content-center">
+                {% if pagination.has_prev %}
+                <li class="page-item">
+                    <a class="page-link" href="{{ url_for('spare_parts.movements_list', page=pagination.prev_num, spare_part=spare_part_search, type=movement_type, warehouse=warehouse, from_date=from_date, to_date=to_date) }}">« Anterior</a>
+                </li>
+                {% else %}
+                <li class="page-item disabled"><span class="page-link">« Anterior</span></li>
+                {% endif %}
+
+                {% for p in pagination.iter_pages(left_edge=2, left_current=2, right_current=3, right_edge=2) %}
+                    {% if p %}
+                        {% if p == pagination.page %}
+                        <li class="page-item active"><span class="page-link">{{ p }}</span></li>
+                        {% else %}
+                        <li class="page-item">
+                            <a class="page-link" href="{{ url_for('spare_parts.movements_list', page=p, spare_part=spare_part_search, type=movement_type, warehouse=warehouse, from_date=from_date, to_date=to_date) }}">{{ p }}</a>
+                        </li>
+                        {% endif %}
+                    {% else %}
+                        <li class="page-item disabled"><span class="page-link">…</span></li>
+                    {% endif %}
+                {% endfor %}
+
+                {% if pagination.has_next %}
+                <li class="page-item">
+                    <a class="page-link" href="{{ url_for('spare_parts.movements_list', page=pagination.next_num, spare_part=spare_part_search, type=movement_type, warehouse=warehouse, from_date=from_date, to_date=to_date) }}">Siguiente »</a>
+                </li>
+                {% else %}
+                <li class="page-item disabled"><span class="page-link">Siguiente »</span></li>
+                {% endif %}
+            </ul>
+        </nav>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

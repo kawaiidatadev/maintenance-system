@@ -1,0 +1,135 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+        <h4><i class="fas fa-chart-simple"></i> Inventario por stock</h4>
+        <a href="{{ url_for('spare_parts.inventory') }}" class="btn btn-light btn-sm">
+            <i class="fas fa-arrow-left"></i> Volver
+        </a>
+    </div>
+    <div class="card-body">
+        <!-- Filtros -->
+        <form method="GET" class="row g-3 mb-4">
+            <div class="col-md-4">
+                <label class="form-label">Buscar por código o nombre</label>
+                <input type="text" name="search" class="form-control" value="{{ search }}" placeholder="Ej: REF001">
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Almacén</label>
+                <select name="warehouse" class="form-select">
+                    <option value="">Todos</option>
+                    {% for w in warehouses %}
+                    <option value="{{ w }}" {% if warehouse == w %}selected{% endif %}>{{ w }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Estado del stock</label>
+                <select name="status" class="form-select">
+                    <option value="">Todos</option>
+                    <option value="low" {% if status_filter == 'low' %}selected{% endif %}>Crítico (≤ mínimo)</option>
+                    <option value="reorder" {% if status_filter == 'reorder' %}selected{% endif %}>Punto de pedido</option>
+                    <option value="normal" {% if status_filter == 'normal' %}selected{% endif %}>Normal</option>
+                </select>
+            </div>
+            <div class="col-md-2 d-flex align-items-end">
+                <button type="submit" class="btn btn-primary w-100">Filtrar</button>
+            </div>
+        </form>
+
+        <!-- Tabla de inventario -->
+        <div class="table-responsive">
+            <table class="table table-sm table-bordered table-hover">
+                <thead class="table-dark">
+                    <tr>
+                        <th>Código</th>
+                        <th>Nombre</th>
+                        <th>Almacén</th>
+                        <th>Ubicación</th>
+                        <th>Stock actual</th>
+                        <th>Mínimo</th>
+                        <th>Máximo</th>
+                        <th>Punto pedido</th>
+                        <th>Estado</th>
+                        <th>Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for stock in stocks %}
+                    {% set status_class = 'danger' if stock.current_stock <= stock.minimum_stock else 'warning' if stock.current_stock <= stock.reorder_point else 'success' %}
+                    <tr class="table-{{ status_class }}">
+                        <td><a href="{{ url_for('spare_parts.view', id=stock.spare_part.id) }}">{{ stock.spare_part.code }}</a></td>
+                        <td>{{ stock.spare_part.name }}</td>
+                        <td>{{ stock.warehouse }}</td>
+                        <td>{{ stock.location_shelf or '-' }}</td>
+                        <td><strong>{{ stock.current_stock }}</strong> {{ stock.spare_part.unit }}</td>
+                        <td>{{ stock.minimum_stock }}</td>
+                        <td>{{ stock.maximum_stock or '-' }}</td>
+                        <td>{{ stock.reorder_point or '-' }}</td>
+                        <td>
+                            {% if stock.current_stock <= stock.minimum_stock %}
+                                <span class="badge bg-danger">⚠️ Crítico</span>
+                            {% elif stock.current_stock <= stock.reorder_point %}
+                                <span class="badge bg-warning text-dark">🔔 Pedir</span>
+                            {% else %}
+                                <span class="badge bg-success">✔️ Normal</span>
+                            {% endif %}
+                         </td>
+                        <td>
+                            <div class="btn-group btn-group-sm">
+                                <a href="{{ url_for('spare_parts.transfer', spare_part_id=stock.spare_part.id) }}" class="btn btn-primary" title="Transferir stock">
+                                    <i class="fas fa-exchange-alt"></i>
+                                </a>
+                                <a href="{{ url_for('spare_parts.movements', part_id=stock.spare_part.id) }}" class="btn btn-info" title="Historial">
+                                    <i class="fas fa-history"></i>
+                                </a>
+                            </div>
+                         </td>
+                    </tr>
+                    {% else %}
+                    <tr><td colspan="10" class="text-center">No hay registros de inventario</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Paginación -->
+        {% if pagination and pagination.pages > 1 %}
+        <nav aria-label="Paginación" class="mt-4">
+            <ul class="pagination justify-content-center">
+                {% if pagination.has_prev %}
+                <li class="page-item">
+                    <a class="page-link" href="{{ url_for('spare_parts.stock_inventory', page=pagination.prev_num, search=search, warehouse=warehouse, status=status_filter) }}">« Anterior</a>
+                </li>
+                {% else %}
+                <li class="page-item disabled"><span class="page-link">« Anterior</span></li>
+                {% endif %}
+
+                {% for p in pagination.iter_pages(left_edge=2, left_current=2, right_current=3, right_edge=2) %}
+                    {% if p %}
+                        {% if p == pagination.page %}
+                        <li class="page-item active"><span class="page-link">{{ p }}</span></li>
+                        {% else %}
+                        <li class="page-item">
+                            <a class="page-link" href="{{ url_for('spare_parts.stock_inventory', page=p, search=search, warehouse=warehouse, status=status_filter) }}">{{ p }}</a>
+                        </li>
+                        {% endif %}
+                    {% else %}
+                        <li class="page-item disabled"><span class="page-link">…</span></li>
+                    {% endif %}
+                {% endfor %}
+
+                {% if pagination.has_next %}
+                <li class="page-item">
+                    <a class="page-link" href="{{ url_for('spare_parts.stock_inventory', page=pagination.next_num, search=search, warehouse=warehouse, status=status_filter) }}">Siguiente »</a>
+                </li>
+                {% else %}
+                <li class="page-item disabled"><span class="page-link">Siguiente »</span></li>
+                {% endif %}
+            </ul>
+        </nav>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

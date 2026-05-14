@@ -332,8 +332,8 @@
                     <a href="{{ url_for('spare_parts.edit', id=part.id) }}" class="btn btn-warning">
                         <i class="fas fa-edit"></i> Editar refacción
                     </a>
-                    <a href="{{ url_for('spare_parts.add_movement', part_id=part.id) }}" class="btn btn-success">
-                        <i class="fas fa-exchange-alt"></i> Registrar movimiento
+                    <a href="{{ url_for('spare_parts.transfer', spare_part_id=part.id) }}" class="btn btn-success">
+                        <i class="fas fa-exchange-alt"></i> Transferir stock
                     </a>
                     <a href="{{ url_for('spare_parts.inventory') }}" class="btn btn-info">
                         <i class="fas fa-boxes"></i> Ver inventario

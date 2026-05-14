@@ -1,11 +1,22 @@
 {% extends "base.html" %}
 {% block content %}
 <div class="card">
-    <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+    <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center flex-wrap">
         <h4><i class="fas fa-boxes"></i> Inventario de Refacciones</h4>
-        <a href="{{ url_for('spare_parts.index') }}" class="btn btn-light btn-sm">
-            <i class="fas fa-list"></i> Catálogo
-        </a>
+        <div class="btn-group" role="group">
+            <a href="{{ url_for('spare_parts.create') }}" class="btn btn-light btn-sm">
+                <i class="fas fa-plus"></i> Añadir
+            </a>
+            <a href="{{ url_for('spare_parts.index') }}" class="btn btn-info btn-sm">
+                <i class="fas fa-list"></i> Catálogo
+            </a>
+            <a href="{{ url_for('spare_parts.transfer') }}" class="btn btn-warning btn-sm">
+                <i class="fas fa-exchange-alt"></i> Transferencias
+            </a>
+            <a href="{{ url_for('spare_parts.assign_activity') }}" class="btn btn-secondary btn-sm">
+                <i class="fas fa-link"></i> Asignar a actividad
+            </a>
+        </div>
     </div>
     <div class="card-body">
         <div class="table-responsive">
@@ -49,7 +60,10 @@
                         <td>{{ stock.location_shelf or '-' }}</td>
                         <td>
                             <div class="btn-group btn-group-sm">
-                                <a href="{{ url_for('spare_parts.add_movement', part_id=stock.spare_part.id) }}" class="btn btn-primary" title="Registrar movimiento">
+                                <!-- ============================================ -->
+                                <!-- CAMBIADO: de add_movement a transfer con spare_part_id -->
+                                <!-- ============================================ -->
+                                <a href="{{ url_for('spare_parts.transfer', spare_part_id=stock.spare_part.id) }}" class="btn btn-primary" title="Transferir stock">
                                     <i class="fas fa-exchange-alt"></i>
                                 </a>
                                 <a href="{{ url_for('spare_parts.movements', part_id=stock.spare_part.id) }}" class="btn btn-info" title="Historial">

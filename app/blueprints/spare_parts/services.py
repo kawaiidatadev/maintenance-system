@@ -10,14 +10,18 @@ from flask_login import current_user
 
 
 def get_or_create_stock(spare_part_id, warehouse='General'):
-    """Obtiene o crea un registro de inventario para una refacción y almacén."""
+    """Obtiene el stock para una refacción en un almacén específico. Evita duplicados."""
     stock = InventoryStock.query.filter_by(spare_part_id=spare_part_id, warehouse=warehouse).first()
     if not stock:
+        # Buscar cualquier stock existente de esa refacción (para no duplicar)
+        existing = InventoryStock.query.filter_by(spare_part_id=spare_part_id).first()
+        if existing:
+            # Si ya existe en otro almacén, no crear uno nuevo
+            return existing
         stock = InventoryStock(spare_part_id=spare_part_id, warehouse=warehouse, current_stock=0)
         db.session.add(stock)
         db.session.commit()
     return stock
-
 
 def update_stock_after_movement(spare_part_id, quantity, movement_type, warehouse='General'):
     """
@@ -195,3 +199,59 @@ def check_stock_alerts():
             for alert in pending:
                 alert.resolved_at = datetime.utcnow()
             db.session.commit()
+
+
+def transfer_stock(spare_part_id, from_warehouse, to_warehouse, quantity, performed_by_id, comment=''):
+    """
+    Transfiere stock de un almacén a otro.
+    Retorna (success, message)
+    """
+    try:
+        from_stock = InventoryStock.query.filter_by(spare_part_id=spare_part_id, warehouse=from_warehouse).first()
+        if not from_stock or from_stock.current_stock < quantity:
+            return False, f'Stock insuficiente en {from_warehouse}'
+
+        to_stock = InventoryStock.query.filter_by(spare_part_id=spare_part_id, warehouse=to_warehouse).first()
+        if not to_stock:
+            to_stock = InventoryStock(spare_part_id=spare_part_id, warehouse=to_warehouse, current_stock=0)
+            db.session.add(to_stock)
+
+        # Transferir
+        from_stock.current_stock -= quantity
+        to_stock.current_stock += quantity
+
+        # Descripción con comentario
+        desc_out = f'Transferencia interna de {quantity} unidades a {to_warehouse}'
+        desc_in = f'Transferencia interna de {quantity} unidades desde {from_warehouse}'
+        if comment:
+            desc_out += f' Motivo: {comment}'
+            desc_in += f' Motivo: {comment}'
+
+        movement_out = SparePartMovement(
+            spare_part_id=spare_part_id,
+            warehouse=from_warehouse,
+            movement_type='out',
+            quantity=quantity,
+            reference_number=f'Transferencia a {to_warehouse}',
+            description=desc_out,
+            performed_by_id=performed_by_id
+        )
+        movement_in = SparePartMovement(
+            spare_part_id=spare_part_id,
+            warehouse=to_warehouse,
+            movement_type='in',
+            quantity=quantity,
+            reference_number=f'Transferencia desde {from_warehouse}',
+            description=desc_in,
+            performed_by_id=performed_by_id
+        )
+
+        db.session.add(movement_out)
+        db.session.add(movement_in)
+        db.session.commit()
+
+        return True, f'Transferidos {quantity} unidades de {from_warehouse} a {to_warehouse}'
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error en transfer_stock: {e}")
+        return False, f'Error al transferir: {str(e)}'

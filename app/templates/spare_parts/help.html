@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header bg-primary text-white">
+        <h4><i class="fas fa-question-circle"></i> Ayuda: Gestión de Inventario de Refacciones</h4>
+    </div>
+    <div class="card-body">
+        <h5 class="mt-3">📦 Conceptos fundamentales</h5>
+        <ul>
+            <li><strong>Almacén (warehouse)</strong>: Lugar físico principal donde se guardan las refacciones. Ejemplo: "Planta Norte", "Almacén Central", "Bodega Sur". Una misma refacción puede existir en varios almacenes.</li>
+            <li><strong>Ubicación (location_shelf)</strong>: Posición específica dentro de un almacén. Ejemplo: "Estante A-12", "Pasillo 3, nivel 2". Ayuda a localizar físicamente la pieza.</li>
+            <li><strong>Stock mínimo (minimum_stock)</strong>: Cantidad por debajo de la cual se activa una alerta crítica (roja).</li>
+            <li><strong>Punto de pedido (reorder_point)</strong>: Nivel que indica que es momento de solicitar más existencias (alerta amarilla).</li>
+            <li><strong>Stock máximo (maximum_stock)</strong>: Límite superior de inventario deseable (evita sobre-almacenamiento).</li>
+        </ul>
+
+        <h5 class="mt-4">🔄 Tipos de movimientos</h5>
+        <ul>
+            <li><strong>Entrada (in)</strong>: Aumenta el stock. Se usa al comprar, recibir devolución o transferir desde otro almacén.</li>
+            <li><strong>Salida (out)</strong>: Disminuye el stock. Puede ser por consumo en mantenimiento (correctivo o preventivo), baja, o transferencia a otro almacén.</li>
+            <li><strong>Transferencia</strong>: Movimiento interno que resta de un almacén y suma a otro. Se registran dos movimientos: salida en origen y entrada en destino.</li>
+        </ul>
+
+        <h5 class="mt-4">⚙️ Consumo en órdenes de trabajo</h5>
+        <ul>
+            <li><strong>Correctivo</strong>: Al completar una OT correctiva, se pueden descontar refacciones específicas. El sistema registra un movimiento de salida con referencia a la OT.</li>
+            <li><strong>Preventivo</strong>: Al ejecutar una actividad preventiva que consume refacciones, se descuenta el stock automáticamente y se asocia al log de ejecución.</li>
+        </ul>
+
+        <h5 class="mt-4">📊 Políticas de inventario</h5>
+        <ul>
+            <li>Define un <strong>stock mínimo</strong> basado en el tiempo de reaprovisionamiento y la criticidad del equipo.</li>
+            <li>Establece un <strong>punto de pedido</strong> mayor que el mínimo para anticipar compras.</li>
+            <li>Configura alertas automáticas en <strong>Configuración → Notificaciones</strong> (regla <code>stock_low</code>) para que los supervisores reciban avisos.</li>
+        </ul>
+
+        <h5 class="mt-4">🔄 Proceso recomendado para transferencias</h5>
+        <ol>
+            <li>Identifica la refacción y el almacén origen con stock disponible.</li>
+            <li>Selecciona el almacén destino (existente o crea uno nuevo).</li>
+            <li>Ingresa la cantidad a transferir (no debe superar el stock disponible).</li>
+            <li>Opcional: añade un comentario (ej. "Reabastecimiento" o "Ajuste de inventario").</li>
+            <li>Confirma la transferencia: el sistema generará los movimientos correspondientes y actualizará ambos stocks.</li>
+        </ol>
+
+        <h5 class="mt-4">💡 Buenas prácticas</h5>
+        <ul>
+            <li>Mantén un inventario cíclico (conteos periódicos) para verificar consistencia.</li>
+            <li>Asigna ubicaciones claras (ej. "Estante A-12", "Pasillo 3, nivel 2") para facilitar la localización.</li>
+            <li>Revisa periódicamente los reportes de stock mínimo y punto de pedido.</li>
+            <li>Vincula refacciones a equipos y actividades para consumir automáticamente desde el mantenimiento.</li>
+            <li>Utiliza la vista <strong>Inventario por stock</strong> para monitorear niveles y alertas.</li>
+        </ul>
+
+        <div class="alert alert-info mt-4">
+            <i class="fas fa-lightbulb"></i> <strong>Consejo:</strong> Para ver el detalle de todos los movimientos de una refacción, visita su ficha y haz clic en "Historial de movimientos".
+        </div>
+    </div>
+    <div class="card-footer">
+        <a href="{{ url_for('spare_parts.inventory') }}" class="btn btn-secondary">Volver al inventario</a>
+    </div>
+</div>
+{% endblock %}

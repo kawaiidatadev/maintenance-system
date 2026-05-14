@@ -1,0 +1,281 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-8 mx-auto">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h4><i class="fas fa-exchange-alt"></i> Transferencia de Stock</h4>
+            </div>
+            <div class="card-body">
+                <form id="transferForm" method="POST">
+                    <!-- Búsqueda de refacción -->
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Refacción / Consumible *</label>
+                        <div class="position-relative">
+                            <input type="text" id="searchInput" class="form-control" placeholder="Buscar por código o nombre..." autocomplete="off">
+                            <input type="hidden" id="selectedSpareId" name="spare_part_id">
+                            <div id="searchResults" class="list-group position-absolute w-100" style="z-index: 1050; display: none; max-height: 300px; overflow-y: auto; box-shadow: 0 4px 8px rgba(0,0,0,0.1);"></div>
+                        </div>
+                        <div id="selectedInfo" class="mt-2 text-muted small"></div>
+                    </div>
+
+                    <!-- Origen y destino -->
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">Desde (origen) *</label>
+                            <select id="fromWarehouse" name="from_warehouse" class="form-select" required disabled>
+                                <option value="">Seleccione primero una refacción</option>
+                            </select>
+                            <small id="stockInfo" class="text-muted d-block mt-1"></small>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">Hacia (destino) *</label>
+                            <select id="toWarehouseSelect" name="to_warehouse" class="form-select" required disabled>
+                                <option value="">Seleccione primero una refacción</option>
+                            </select>
+                            <div id="newWarehouseGroup" style="display: none;" class="mt-2">
+                                <input type="text" id="newWarehouse" name="new_warehouse" class="form-control" placeholder="Nombre del nuevo almacén">
+                                <small class="text-muted">Ej: Almacén Norte, Bodega B, etc.</small>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Cantidad y comentario -->
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">Cantidad *</label>
+                            <input type="number" id="quantity" name="quantity" class="form-control" min="1" step="1" required disabled>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label fw-bold">Motivo / Comentario</label>
+                            <input type="text" id="comment" name="comment" class="form-control" placeholder="Ej: Reabastecimiento de almacén sur, ajuste de inventario...">
+                            <small class="text-muted">Opcional pero recomendado para trazabilidad</small>
+                        </div>
+                    </div>
+
+                    <div class="mt-4">
+                        <button type="submit" class="btn btn-primary" id="submitBtn" disabled>
+                            <i class="fas fa-exchange-alt"></i> Transferir
+                        </button>
+                        <a href="{{ url_for('spare_parts.inventory') }}" class="btn btn-secondary">Cancelar</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // ============================================
+    // TRANSFERENCIA DE STOCK - VERSIÓN PROFESIONAL
+    // ============================================
+    let currentSpareId = null;
+    let currentSpareUnit = '';
+    let originsData = {};      // { warehouse: stock }
+    let allWarehouses = [];
+
+    // Elementos DOM
+    const searchInput = document.getElementById('searchInput');
+    const searchResults = document.getElementById('searchResults');
+    const selectedSpareId = document.getElementById('selectedSpareId');
+    const selectedInfo = document.getElementById('selectedInfo');
+    const fromWarehouse = document.getElementById('fromWarehouse');
+    const toWarehouseSelect = document.getElementById('toWarehouseSelect');
+    const newWarehouseGroup = document.getElementById('newWarehouseGroup');
+    const newWarehouseInput = document.getElementById('newWarehouse');
+    const quantityInput = document.getElementById('quantity');
+    const submitBtn = document.getElementById('submitBtn');
+    const stockInfo = document.getElementById('stockInfo');
+    const commentInput = document.getElementById('comment');
+
+    // Debounce para búsqueda
+    let debounceTimer;
+    function debounce(func, delay) {
+        return function(...args) {
+            clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(() => func.apply(this, args), delay);
+        };
+    }
+
+    // Buscar refacciones en el servidor
+    async function searchSpareParts(term) {
+        if (term.length < 2) {
+            searchResults.style.display = 'none';
+            return;
+        }
+        try {
+            const response = await fetch(`/spare-parts/api/spare-parts-search?q=${encodeURIComponent(term)}`);
+            const data = await response.json();
+            renderSearchResults(data);
+        } catch (error) {
+            console.error('Error en búsqueda:', error);
+        }
+    }
+
+    function renderSearchResults(results) {
+        searchResults.innerHTML = '';
+        if (results.length === 0) {
+            searchResults.style.display = 'none';
+            return;
+        }
+        results.forEach(part => {
+            const item = document.createElement('div');
+            item.className = 'list-group-item list-group-item-action';
+            item.innerHTML = `<strong>${escapeHtml(part.code)}</strong> - ${escapeHtml(part.name)}`;
+            item.addEventListener('click', () => {
+                selectSparePart(part.id, part.code, part.name, part.unit);
+                searchResults.style.display = 'none';
+                searchInput.value = `${part.code} - ${part.name}`;
+            });
+            searchResults.appendChild(item);
+        });
+        searchResults.style.display = 'block';
+    }
+
+    function escapeHtml(str) {
+        if (!str) return '';
+        return str.replace(/[&<>]/g, function(m) {
+            if (m === '&') return '&amp;';
+            if (m === '<') return '&lt;';
+            if (m === '>') return '&gt;';
+            return m;
+        });
+    }
+
+    async function selectSparePart(id, code, name, unit) {
+        currentSpareId = id;
+        selectedSpareId.value = id;
+        selectedInfo.innerHTML = `<i class="fas fa-check-circle text-success"></i> Seleccionado: ${code} - ${name} (${unit})`;
+
+        try {
+            const response = await fetch(`/spare-parts/api/spare-part-stock/${id}`);
+            const data = await response.json();
+            currentSpareUnit = data.unit;
+            originsData = {};
+            data.origins.forEach(origin => {
+                originsData[origin.warehouse] = origin.current_stock;
+            });
+            allWarehouses = data.all_warehouses;
+
+            // Llenar select de origen
+            fromWarehouse.innerHTML = '<option value="">Seleccione...</option>';
+            for (let [warehouse, stock] of Object.entries(originsData)) {
+                const option = document.createElement('option');
+                option.value = warehouse;
+                option.textContent = `${warehouse} (Stock: ${stock} ${currentSpareUnit})`;
+                fromWarehouse.appendChild(option);
+            }
+            fromWarehouse.disabled = Object.keys(originsData).length === 0;
+            if (Object.keys(originsData).length === 0) {
+                stockInfo.textContent = '⚠️ No hay stock disponible en ningún almacén.';
+            }
+
+            // Llenar select de destino
+            toWarehouseSelect.innerHTML = '<option value="">Seleccione...</option>';
+            allWarehouses.forEach(wh => {
+                const option = document.createElement('option');
+                option.value = wh;
+                option.textContent = wh;
+                toWarehouseSelect.appendChild(option);
+            });
+            // Opción para nuevo almacén
+            const newOption = document.createElement('option');
+            newOption.value = '__NEW__';
+            newOption.textContent = '+ Nuevo almacén...';
+            toWarehouseSelect.appendChild(newOption);
+            toWarehouseSelect.disabled = false;
+
+            // Resetear campos
+            quantityInput.value = '';
+            quantityInput.disabled = true;
+            submitBtn.disabled = true;
+            newWarehouseGroup.style.display = 'none';
+            stockInfo.classList.remove('text-danger', 'text-warning');
+
+        } catch (error) {
+            console.error('Error cargando stock:', error);
+            selectedInfo.innerHTML = '<span class="text-danger">Error al cargar datos de stock</span>';
+        }
+    }
+
+    // Cuando cambia el origen, actualizar el máximo de cantidad
+    fromWarehouse.addEventListener('change', () => {
+        const selectedWh = fromWarehouse.value;
+        if (selectedWh && originsData[selectedWh]) {
+            const maxStock = originsData[selectedWh];
+            quantityInput.max = maxStock;
+            quantityInput.disabled = false;
+            quantityInput.placeholder = `Máximo ${maxStock}`;
+            stockInfo.innerHTML = `<i class="fas fa-boxes"></i> Stock disponible: <strong>${maxStock}</strong> ${currentSpareUnit}`;
+        } else {
+            quantityInput.disabled = true;
+            quantityInput.value = '';
+            stockInfo.textContent = '';
+        }
+        validateForm();
+    });
+
+    // Detectar selección de nuevo almacén
+    toWarehouseSelect.addEventListener('change', () => {
+        if (toWarehouseSelect.value === '__NEW__') {
+            newWarehouseGroup.style.display = 'block';
+            newWarehouseInput.required = true;
+        } else {
+            newWarehouseGroup.style.display = 'none';
+            newWarehouseInput.required = false;
+            newWarehouseInput.value = '';
+        }
+        validateForm();
+    });
+
+    // Validar el formulario en tiempo real
+    function validateForm() {
+        const spareValid = currentSpareId !== null;
+        const fromValid = fromWarehouse.value && fromWarehouse.value !== '';
+
+        let toValid = false;
+        if (toWarehouseSelect.value === '__NEW__') {
+            toValid = newWarehouseInput.value.trim() !== '';
+        } else {
+            toValid = toWarehouseSelect.value && toWarehouseSelect.value !== '';
+        }
+
+        const qty = parseInt(quantityInput.value);
+        const maxQty = originsData[fromWarehouse.value] || 0;
+        const qtyValid = !isNaN(qty) && qty > 0 && qty <= maxQty;
+
+        submitBtn.disabled = !(spareValid && fromValid && toValid && qtyValid);
+    }
+
+    // Eventos
+    searchInput.addEventListener('input', debounce((e) => {
+        const term = e.target.value.trim();
+        if (term === '') {
+            searchResults.style.display = 'none';
+            return;
+        }
+        searchSpareParts(term);
+    }, 300));
+
+    // Cerrar resultados al hacer clic fuera
+    document.addEventListener('click', (e) => {
+        if (!searchResults.contains(e.target) && e.target !== searchInput) {
+            searchResults.style.display = 'none';
+        }
+    });
+
+    quantityInput.addEventListener('input', validateForm);
+    toWarehouseSelect.addEventListener('change', validateForm);
+    if (newWarehouseInput) newWarehouseInput.addEventListener('input', validateForm);
+    fromWarehouse.addEventListener('change', validateForm);
+    commentInput.addEventListener('input', validateForm); // solo para activar, no obligatorio
+
+    // Prevenir envío duplicado (opcional)
+    const form = document.getElementById('transferForm');
+    form.addEventListener('submit', function() {
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span> Procesando...';
+    });
+</script>
+{% endblock %}

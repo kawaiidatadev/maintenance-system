@@ -39,17 +39,17 @@
                         <a class="nav-link dropdown-toggle" href="#" id="adminDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                             <i class="fas fa-users-cog"></i> Admin
                         </a>
-                            <ul class="dropdown-menu" aria-labelledby="adminDropdown">
-                                <li><a class="dropdown-item" href="{{ url_for('admin.users') }}">
-                                    <i class="fas fa-users"></i> Usuarios
-                                </a></li>
-                                <li><hr class="dropdown-divider"></li>
-                                <li><a class="dropdown-item" href="{{ url_for('settings.index') }}">
-                                    <i class="fas fa-cog"></i> Configuración
-                                </a></li>
-                            </ul>
-                        </li>
-                        {% endif %}
+                        <ul class="dropdown-menu" aria-labelledby="adminDropdown">
+                            <li><a class="dropdown-item" href="{{ url_for('admin.users') }}">
+                                <i class="fas fa-users"></i> Usuarios
+                            </a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item" href="{{ url_for('settings.index') }}">
+                                <i class="fas fa-cog"></i> Configuración
+                            </a></li>
+                        </ul>
+                    </li>
+                    {% endif %}
 
                     <li class="nav-item">
                         <a class="nav-link" href="{{ url_for('equipment.list_equipment') }}">
@@ -64,12 +64,41 @@
                     </li>
 
                     <!-- ============================================ -->
-                    <!-- BOTÓN INVENTARIO (NUEVO MÓDULO) -->
+                    <!-- MENÚ DESPLEGABLE DE INVENTARIO (NUEVO MÓDULO) -->
                     <!-- ============================================ -->
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('spare_parts.inventory') }}">
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" id="inventoryDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                             <i class="fas fa-boxes"></i> Inventario
                         </a>
+                        <ul class="dropdown-menu" aria-labelledby="inventoryDropdown">
+                            <li><a class="dropdown-item" href="{{ url_for('spare_parts.inventory') }}">
+                                <i class="fas fa-chart-simple"></i> Ver inventario
+                            </a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('spare_parts.create') }}">
+                                <i class="fas fa-plus"></i> Nueva refacción
+                            </a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item" href="{{ url_for('spare_parts.transfer') }}">
+                                <i class="fas fa-exchange-alt"></i> Transferencias de stock
+                            </a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('spare_parts.assign_activity') }}">
+                                <i class="fas fa-link"></i> Asignar a actividades
+                            </a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item" href="{{ url_for('spare_parts.movements_list') }}">
+                                <i class="fas fa-history"></i> Historial de movimientos
+                            </a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('spare_parts.stock_inventory') }}">
+                                <i class="fas fa-chart-simple"></i> Inventario por stock
+                            </a></li>
+                            <!-- ============================================ -->
+                            <!-- AYUDA DEL INVENTARIO - AQUÍ ES DONDE DEBE IR -->
+                            <!-- ============================================ -->
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item" href="{{ url_for('spare_parts.help') }}">
+                                <i class="fas fa-question-circle"></i> Ayuda del inventario
+                            </a></li>
+                        </ul>
                     </li>
 
                     <!-- MENÚ PREVENTIVOS (único punto de entrada) -->
@@ -93,9 +122,13 @@
                             <li><a class="dropdown-item" href="{{ url_for('preventive.catalog') }}">
                                 <i class="fas fa-book"></i> Actividades estándar
                             </a></li>
-                            <!-- Calendario - CORREGIDO: como <li> con <a> -->
+                            <!-- Calendario -->
                             <li><a class="dropdown-item" href="{{ url_for('preventive.calendar') }}">
                                 <i class="fas fa-calendar-alt"></i> Calendario
+                            </a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item" href="{{ url_for('spare_parts.help') }}">
+                                <i class="fas fa-question-circle"></i> Ayuda del inventario
                             </a></li>
                         </ul>
                     </li>
