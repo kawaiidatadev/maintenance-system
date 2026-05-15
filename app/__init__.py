@@ -5,6 +5,7 @@ from flask_login import LoginManager, current_user
 from config import Config
 import json
 
+
 # Inicializar extensiones (fuera de la función)
 db = SQLAlchemy()
 migrate = Migrate()
@@ -45,6 +46,9 @@ def create_app():
     from app.blueprints.preventive import preventive_bp
     from app.blueprints.spare_parts import spare_parts_bp
     from app.blueprints.autonomous import autonomous_bp
+    from app.blueprints.minutes import minutes_bp
+
+
 
 
 
@@ -62,6 +66,7 @@ def create_app():
     app.register_blueprint(preventive_bp)
     app.register_blueprint(spare_parts_bp)
     app.register_blueprint(autonomous_bp)
+    app.register_blueprint(minutes_bp)
 
     # ============================================
     # REGISTRAR TIPOS DE PDF (IMPORTANTE: dentro del contexto de app)

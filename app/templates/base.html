@@ -2,311 +2,595 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
     <title>Sistema de Mantenimiento</title>
 
     <!-- Favicon -->
     <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}">
     <link rel="shortcut icon" type="image/x-icon" href="{{ url_for('static', filename='favicon.ico') }}">
 
-    <!-- Bootstrap 5 CSS -->
+    <!-- Bootstrap 5 + Icons -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <!-- Font Awesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/custom.css') }}">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <style>
+        :root {
+            --nav-bg: #1a1d20;
+            --nav-hover: #2c3035;
+            --dropdown-hover-bg: #f1f3f5;
+            --border-radius-card: 0.75rem;
+        }
+
+        body {
+            background: #f4f6f9;
+            font-family: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+        }
+
+        /* Navbar mejorado */
+        .navbar {
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+            padding-top: 0.65rem;
+            padding-bottom: 0.65rem;
+        }
+
+        .navbar-brand img {
+            max-height: 34px;
+            width: auto;
+        }
+
+        .navbar .nav-link,
+        .navbar .dropdown-toggle {
+            font-weight: 500;
+            padding: 0.5rem 0.85rem;
+            transition: all 0.2s ease;
+        }
+
+        .navbar .nav-link:hover,
+        .navbar .dropdown-toggle:hover {
+            background-color: rgba(255, 255, 255, 0.08);
+            border-radius: 0.5rem;
+        }
+
+        .nav-divider {
+            width: 1px;
+            height: 28px;
+            background: rgba(255, 255, 255, 0.2);
+            margin: 0 0.5rem;
+        }
+
+        /* Dropdowns modernos */
+        .dropdown-menu {
+            border: none;
+            border-radius: var(--border-radius-card);
+            box-shadow: 0 12px 28px rgba(0, 0, 0, 0.12), 0 2px 4px rgba(0, 0, 0, 0.02);
+            padding: 0.5rem;
+            margin-top: 0.65rem;
+            background: #fff;
+        }
+
+        .dropdown-menu .dropdown-header {
+            font-size: 0.7rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: #6c757d;
+            padding: 0.4rem 1rem 0.2rem;
+        }
+
+        .dropdown-menu .dropdown-item {
+            border-radius: 0.5rem;
+            padding: 0.5rem 1rem;
+            font-size: 0.9rem;
+            color: #1e293b;
+        }
+
+        .dropdown-menu .dropdown-item:hover,
+        .dropdown-menu .dropdown-item:focus {
+            background: var(--dropdown-hover-bg);
+            color: #0a58ca;
+        }
+
+        /* Submenús dentro de dropdown (colapsables) */
+        .submenu-toggle {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            width: 100%;
+            background: transparent;
+            border: none;
+            text-align: left;
+            padding: 0.5rem 1rem;
+            border-radius: 0.5rem;
+            font-size: 0.9rem;
+            font-weight: 500;
+            transition: background 0.2s;
+        }
+
+        .submenu-toggle:hover,
+        .submenu-toggle:focus {
+            background: var(--dropdown-hover-bg);
+            outline: none;
+        }
+
+        .submenu-toggle .chevron {
+            font-size: 0.75rem;
+            transition: transform 0.2s ease;
+            color: #6c757d;
+        }
+
+        .submenu-toggle[aria-expanded="true"] .chevron {
+            transform: rotate(180deg);
+        }
+
+        .submenu-collapse {
+            margin-top: 0.25rem;
+            margin-bottom: 0.25rem;
+        }
+
+        .submenu-collapse .dropdown-item {
+            padding-left: 2.5rem;
+            font-size: 0.85rem;
+        }
+
+        /* Notificaciones */
+        .dropdown-notifications {
+            width: 380px;
+            max-width: 92vw;
+            padding: 0;
+        }
+
+        .notification-item {
+            padding: 0.75rem 1rem;
+            border-radius: 0.6rem;
+            transition: background 0.15s;
+        }
+
+        .notification-item.unread {
+            background: #eef2ff;
+        }
+
+        .notification-title {
+            font-weight: 600;
+            font-size: 0.9rem;
+        }
+
+        .notification-meta {
+            font-size: 0.8rem;
+            color: #495057;
+        }
+
+        /* Modal de carga */
+        #loadingModal .modal-content {
+            background: rgba(33, 37, 41, 0.95);
+            color: white;
+            border-radius: 1.5rem;
+        }
+
+        /* Responsive */
+        @media (max-width: 991.98px) {
+            .navbar-nav {
+                padding-top: 1rem;
+            }
+            .nav-divider {
+                display: none;
+            }
+            .dropdown-menu {
+                box-shadow: none;
+                border: 1px solid #dee2e6;
+                margin-top: 0;
+            }
+            .navbar .nav-link,
+            .navbar .dropdown-toggle {
+                padding: 0.6rem 0.75rem;
+            }
+        }
+
+        /* Contenedor principal */
+        .content-wrap {
+            padding: 1.5rem 1rem;
+            max-width: 1600px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+    </style>
 </head>
 <body>
-<nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+
+<nav class="navbar navbar-expand-lg navbar-dark bg-dark sticky-top" aria-label="Navegación principal">
     <div class="container-fluid">
-        <a class="navbar-brand" href="{{ url_for('dashboard.index') }}">
+        <a class="navbar-brand d-flex align-items-center gap-2" href="{{ url_for('dashboard.index') }}">
             {% if company_logo %}
-            <img src="{{ url_for('static', filename=company_logo) }}" height="30" class="d-inline-block align-top me-2" alt="Logo">
+                <img src="{{ url_for('static', filename=company_logo) }}" alt="Logo" height="34">
             {% else %}
-            <i class="fas fa-tools me-2"></i>
+                <i class="fas fa-tools fa-lg"></i>
             {% endif %}
-            {{ company_name }}
+            <span class="fw-semibold">{{ company_name }}</span>
         </a>
-        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNavbar"
+                aria-controls="mainNavbar" aria-expanded="false" aria-label="Mostrar menú">
             <span class="navbar-toggler-icon"></span>
         </button>
-        <div class="collapse navbar-collapse" id="navbarNav">
-            <ul class="navbar-nav ms-auto">
+
+        <div class="collapse navbar-collapse" id="mainNavbar">
+            <ul class="navbar-nav ms-auto align-items-lg-center">
+
                 {% if current_user.is_authenticated %}
 
-                    <!-- 1. ADMIN (solo admin) -->
+                    <!-- Dashboard -->
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('dashboard.index') }}">
+                            <i class="fas fa-tachometer-alt me-1"></i> Dashboard
+                        </a>
+                    </li>
+
+                    <li class="nav-divider d-none d-lg-block"></li>
+
+                    <!-- Admin (solo admin) -->
                     {% if current_user.role == 'admin' %}
                     <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle" href="#" id="adminDropdown" role="button" data-bs-toggle="dropdown">
-                            <i class="fas fa-users-cog"></i> Admin
+                        <a class="nav-link dropdown-toggle" href="#" id="adminDropdown" role="button"
+                           data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="fas fa-users-cog me-1"></i> Administración
                         </a>
-                        <ul class="dropdown-menu">
+                        <ul class="dropdown-menu" aria-labelledby="adminDropdown">
                             <li><a class="dropdown-item" href="{{ url_for('admin.users') }}">Usuarios</a></li>
-                            <li><hr class="dropdown-divider"></li>
-                            <li><a class="dropdown-item" href="{{ url_for('settings.index') }}">Configuración</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('settings.index') }}">Configuración del sistema</a></li>
                         </ul>
                     </li>
                     {% endif %}
 
-                    <!-- 2. EQUIPOS -->
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('equipment.list_equipment') }}">
-                            <i class="fas fa-microchip"></i> Equipos
+                    <!-- Mantenimiento (con submenús anidados mejorados) -->
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" id="maintenanceDropdown" role="button"
+                           data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="fas fa-tools me-1"></i> Mantenimiento
                         </a>
+                        <ul class="dropdown-menu menu-section" aria-labelledby="maintenanceDropdown" data-bs-auto-close="outside">
+                            <li class="dropdown-header">Órdenes</li>
+                            <li><a class="dropdown-item" href="{{ url_for('work_orders.list_orders') }}">Órdenes de trabajo</a></li>
+
+                            <li><hr class="dropdown-divider"></li>
+
+                            <li class="dropdown-header">Preventivos</li>
+                            <li>
+                                <button class="dropdown-item submenu-toggle" type="button"
+                                        data-bs-toggle="collapse" data-bs-target="#preventiveSubmenu"
+                                        aria-expanded="false" aria-controls="preventiveSubmenu">
+                                    <span><i class="fas fa-calendar-check me-2"></i>Preventivos</span>
+                                    <i class="fas fa-chevron-down chevron"></i>
+                                </button>
+                            </li>
+                            <li class="w-100">
+                                <div class="collapse submenu-collapse" id="preventiveSubmenu">
+                                    <a class="dropdown-item" href="{{ url_for('preventive.tasks') }}">Mis tareas</a>
+                                    <a class="dropdown-item" href="{{ url_for('preventive.dashboard') }}">Actividades por equipo</a>
+                                    <a class="dropdown-item" href="{{ url_for('preventive.groups_list') }}">Administrar actividades</a>
+                                    <a class="dropdown-item" href="{{ url_for('preventive.catalog') }}">Actividades estándar</a>
+                                    <a class="dropdown-item" href="{{ url_for('preventive.calendar') }}">Calendario</a>
+                                </div>
+                            </li>
+
+                            <li><hr class="dropdown-divider"></li>
+
+                            <li class="dropdown-header">Autónomo</li>
+                            <li>
+                                <button class="dropdown-item submenu-toggle" type="button"
+                                        data-bs-toggle="collapse" data-bs-target="#autonomousSubmenu"
+                                        aria-expanded="false" aria-controls="autonomousSubmenu">
+                                    <span><i class="fas fa-broom me-2"></i>Autónomo</span>
+                                    <i class="fas fa-chevron-down chevron"></i>
+                                </button>
+                            </li>
+                            <li class="w-100">
+                                <div class="collapse submenu-collapse" id="autonomousSubmenu">
+                                    <a class="dropdown-item" href="{{ url_for('autonomous.pending') }}">Pendientes</a>
+                                    <a class="dropdown-item" href="{{ url_for('autonomous.activities') }}">Gestionar actividades</a>
+                                    <a class="dropdown-item" href="{{ url_for('autonomous.history') }}">Historial</a>
+                                    <a class="dropdown-item" href="{{ url_for('autonomous.activity_create') }}">Nueva actividad</a>
+                                </div>
+                            </li>
+                        </ul>
                     </li>
 
-                    <!-- 3. INVENTARIO (dropdown) -->
+                    <!-- Activos e Inventario -->
                     <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle" href="#" id="inventoryDropdown" role="button" data-bs-toggle="dropdown">
-                            <i class="fas fa-boxes"></i> Inventario
+                        <a class="nav-link dropdown-toggle" href="#" id="assetsDropdown" role="button"
+                           data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="fas fa-microchip me-1"></i> Activos e Inventario
                         </a>
-                        <ul class="dropdown-menu">
-                            <li><a class="dropdown-item" href="{{ url_for('spare_parts.inventory') }}">Ver inventario</a></li>
+                        <ul class="dropdown-menu menu-section" aria-labelledby="assetsDropdown">
+                            <li class="dropdown-header">Activos</li>
+                            <li><a class="dropdown-item" href="{{ url_for('equipment.list_equipment') }}">Equipos</a></li>
+
+                            <li><hr class="dropdown-divider"></li>
+
+                            <li class="dropdown-header">Inventario</li>
+                            <li><a class="dropdown-item" href="{{ url_for('spare_parts.inventory') }}">Ver existencias</a></li>
                             <li><a class="dropdown-item" href="{{ url_for('spare_parts.create') }}">Nueva refacción</a></li>
-                            <li><hr class="dropdown-divider"></li>
-                            <li><a class="dropdown-item" href="{{ url_for('spare_parts.transfer') }}">Transferencias</a></li>
                             <li><a class="dropdown-item" href="{{ url_for('spare_parts.assign_activity') }}">Asignar a actividades</a></li>
-                            <li><hr class="dropdown-divider"></li>
                             <li><a class="dropdown-item" href="{{ url_for('spare_parts.movements_list') }}">Historial movimientos</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('spare_parts.transfer') }}">Transferencias</a></li>
                             <li><a class="dropdown-item" href="{{ url_for('spare_parts.help') }}">Ayuda</a></li>
                         </ul>
                     </li>
 
-                    <!-- ============================================ -->
-                    <!-- SEPARADOR VISUAL ANTES DEL GRUPO OPERATIVO      -->
-                    <!-- ============================================ -->
-                    <li class="nav-item ms-3 ps-3 border-start"></li>
-
-                    <!-- 4. ÓRDENES -->
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('work_orders.list_orders') }}">
-                            <i class="fas fa-clipboard-list"></i> Órdenes
+                    <!-- Análisis y Reportes -->
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" id="analyticsDropdown" role="button"
+                           data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="fas fa-chart-line me-1"></i> Análisis y Reportes
                         </a>
+                        <ul class="dropdown-menu menu-section" aria-labelledby="analyticsDropdown">
+                            <li><a class="dropdown-item" href="{{ url_for('criticality.index') }}">Criticidad de equipos</a></li>
+
+                            {% if current_user.role == 'admin' and pdf_templates %}
+                                <li><hr class="dropdown-divider"></li>
+                                <li class="dropdown-header">Reportes PDF</li>
+                                {% for tpl in pdf_templates %}
+                                    <li>
+                                        <a class="dropdown-item" href="{{ url_for('reports.config', template_key=tpl.key) }}">
+                                            {{ tpl.name }}
+                                        </a>
+                                    </li>
+                                {% endfor %}
+                            {% endif %}
+                        </ul>
                     </li>
 
-                    <!-- 5. PREVENTIVOS (dropdown) -->
+                    <!-- MINUTAS: CON RUTAS ESPECÍFICAS -->
+                    <!-- ============================================ -->
                     <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle" href="#" id="preventiveDropdown" role="button" data-bs-toggle="dropdown">
-                            <i class="fas fa-calendar-check"></i> Preventivos
+                        <a class="nav-link dropdown-toggle" href="#" id="minutesDropdown" role="button"
+                           data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="fas fa-comments me-1"></i> Minutas
                         </a>
-                        <ul class="dropdown-menu">
-                            <li><a class="dropdown-item" href="{{ url_for('preventive.tasks') }}">Mis tareas</a></li>
-                            <li><a class="dropdown-item" href="{{ url_for('preventive.dashboard') }}">Actividades por equipo</a></li>
+                        <ul class="dropdown-menu menu-section" aria-labelledby="minutesDropdown" data-bs-auto-close="outside">
+                            <li><a class="dropdown-item" href="{{ url_for('minutes.list_minutes') }}">
+                                <i class="fas fa-list me-2"></i> Todas las minutas
+                            </a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('minutes.my_minutes') }}">
+                                <i class="fas fa-user me-2"></i> Mis minutas
+                            </a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('minutes.pending_minutes') }}">
+                                <i class="fas fa-clock me-2"></i> Mis pendientes
+                            </a></li>
                             <li><hr class="dropdown-divider"></li>
-                            <li><a class="dropdown-item" href="{{ url_for('preventive.groups_list') }}">Administrar actividades</a></li>
-                            <li><a class="dropdown-item" href="{{ url_for('preventive.catalog') }}">Actividades estándar</a></li>
-                            <li><a class="dropdown-item" href="{{ url_for('preventive.calendar') }}">Calendario</a></li>
+                            <li><a class="dropdown-item" href="{{ url_for('minutes.create') }}">
+                                <i class="fas fa-plus me-2"></i> Nueva minuta
+                            </a></li>
                         </ul>
                     </li>
 
-                    <!-- 6. AUTÓNOMO (dropdown para tener acceso a todas las partes) -->
+                    <!-- Notificaciones -->
                     <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle" href="#" id="autonomousDropdown" role="button" data-bs-toggle="dropdown">
-                            <i class="fas fa-broom"></i> Autónomo
-                        </a>
-                        <ul class="dropdown-menu">
-                            <li><a class="dropdown-item" href="{{ url_for('autonomous.pending') }}">Pendientes</a></li>
-                            <li><a class="dropdown-item" href="{{ url_for('autonomous.activities') }}">Gestionar actividades</a></li>
-                            <li><a class="dropdown-item" href="{{ url_for('autonomous.history') }}">Historial</a></li>
-                            <li><a class="dropdown-item" href="{{ url_for('autonomous.activity_create') }}">Nueva actividad</a></li>
-                        </ul>
-                    </li>
-
-                    <!-- ============================================ -->
-                    <!-- SEPARADOR VISUAL DESPUÉS DEL GRUPO OPERATIVO   -->
-                    <!-- ============================================ -->
-                    <li class="nav-item ms-3 ps-3 border-start"></li>
-
-                    <!-- 7. CRITICIDAD -->
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('criticality.index') }}">
-                            <i class="fas fa-chart-line"></i> Criticidad
-                        </a>
-                    </li>
-
-                    <!-- 8. CONFIGURACIÓN (solo admin) -->
-                    {% if current_user.role == 'admin' %}
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('settings.index') }}">
-                            <i class="fas fa-cog"></i> Configuración
-                        </a>
-                    </li>
-                    {% endif %}
-
-                    <!-- 9. REPORTES PDF (solo admin) -->
-                    {% if current_user.role == 'admin' and pdf_templates %}
-                    <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle" href="#" id="reportsDropdown" role="button" data-bs-toggle="dropdown">
-                            <i class="fas fa-print"></i> Reportes PDF
-                        </a>
-                        <ul class="dropdown-menu dropdown-menu-end">
-                            {% for tpl in pdf_templates %}
-                            <li><a class="dropdown-item" href="{{ url_for('reports.config', template_key=tpl.key) }}">{{ tpl.name }}</a></li>
-                            {% endfor %}
-                        </ul>
-                    </li>
-                    {% endif %}
-
-                    <!-- NOTIFICACIONES COMPLETAS -->
-                    <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle" href="#" id="notificationsDropdown" role="button" data-bs-toggle="dropdown">
+                        <a class="nav-link dropdown-toggle position-relative" href="#" id="notificationsDropdown" role="button"
+                           data-bs-toggle="dropdown" aria-expanded="false">
                             <i class="fas fa-bell"></i>
                             {% if unread_count > 0 %}
-                            <span class="badge bg-danger rounded-pill">{{ unread_count }}</span>
+                                <span class="badge bg-danger rounded-pill position-absolute top-0 start-100 translate-middle" style="font-size: 0.7rem;">
+                                    {{ unread_count }}
+                                </span>
                             {% endif %}
                         </a>
-                        <div class="dropdown-menu dropdown-menu-end dropdown-notifications" style="width: 350px;">
+                        <div class="dropdown-menu dropdown-menu-end dropdown-notifications" aria-labelledby="notificationsDropdown">
                             <div class="d-flex justify-content-between align-items-center px-3 py-2 border-bottom">
-                                <h6 class="mb-0">🔔 Notificaciones</h6>
+                                <h6 class="mb-0 fw-bold">Notificaciones</h6>
                                 <div>
                                     {% if unread_count > 0 %}
-                                    <a href="{{ url_for('notifications.mark_all_read') }}" class="text-muted me-2" title="Marcar todas como leídas">
-                                        <i class="fas fa-check-double"></i>
-                                    </a>
+                                        <a href="{{ url_for('notifications.mark_all_read') }}" class="text-muted me-2" title="Marcar todas como leídas">
+                                            <i class="fas fa-check-double"></i>
+                                        </a>
                                     {% endif %}
-                                    <a href="{{ url_for('notifications.clear_dropdown') }}" class="text-muted" title="Limpiar notificaciones leídas" onclick="return confirm('¿Eliminar las notificaciones leídas?')">
+                                    <a href="{{ url_for('notifications.clear_dropdown') }}" class="text-muted"
+                                       title="Limpiar notificaciones leídas"
+                                       onclick="return confirm('¿Eliminar las notificaciones leídas?')">
                                         <i class="fas fa-trash-alt"></i>
                                     </a>
                                 </div>
                             </div>
                             <div class="dropdown-divider"></div>
-                            <div class="notifications-list" style="max-height: 400px; overflow-y: auto;">
+                            <div class="notifications-list" style="max-height: 420px; overflow-y: auto;">
                                 {% for notif in recent_notifications %}
-                                <div class="notification-item {% if not notif.is_read %}unread{% endif %}" data-notif-id="{{ notif.id }}">
-                                    <div class="d-flex">
-                                        <div class="notification-icon">
-                                            {% set icon = 'fa-bell' %}
-                                            {% set color = 'text-secondary' %}
-                                            {% if notif.rule and notif.rule.event_type %}
-                                                {% if notif.rule.event_type == 'work_order_assigned' %}
-                                                    {% set icon = 'fa-tools' %}
-                                                    {% set color = 'text-primary' %}
-                                                {% elif notif.rule.event_type == 'work_order_completed' %}
-                                                    {% set icon = 'fa-check-circle' %}
-                                                    {% set color = 'text-success' %}
-                                                {% elif notif.rule.event_type == 'work_order_overdue' %}
-                                                    {% set icon = 'fa-exclamation-triangle' %}
-                                                    {% set color = 'text-danger' %}
-                                                {% elif notif.rule.event_type == 'equipment_life_critical' %}
-                                                    {% set icon = 'fa-microchip' %}
-                                                    {% set color = 'text-danger' %}
-                                                {% elif notif.rule.event_type == 'preventive_due_soon' %}
-                                                    {% set icon = 'fa-calendar-alt' %}
-                                                    {% set color = 'text-warning' %}
-                                                {% elif notif.rule.event_type == 'preventive_executed' %}
-                                                    {% set icon = 'fa-check-circle' %}
-                                                    {% set color = 'text-success' %}
-                                                {% elif notif.rule.event_type == 'stock_low' %}
-                                                    {% set icon = 'fa-boxes' %}
-                                                    {% set color = 'text-warning' %}
+                                    <div class="notification-item {% if not notif.is_read %}unread{% endif %}" data-notif-id="{{ notif.id }}">
+                                        <div class="d-flex">
+                                            <div class="notification-icon me-2 mt-1">
+                                                {% set icon = 'fa-bell' %}
+                                                {% set color = 'text-secondary' %}
+                                                {% if notif.rule and notif.rule.event_type %}
+                                                    {% if notif.rule.event_type == 'work_order_assigned' %}
+                                                        {% set icon = 'fa-tools' %}
+                                                        {% set color = 'text-primary' %}
+                                                    {% elif notif.rule.event_type == 'work_order_completed' %}
+                                                        {% set icon = 'fa-check-circle' %}
+                                                        {% set color = 'text-success' %}
+                                                    {% elif notif.rule.event_type == 'work_order_overdue' %}
+                                                        {% set icon = 'fa-exclamation-triangle' %}
+                                                        {% set color = 'text-danger' %}
+                                                    {% elif notif.rule.event_type == 'equipment_life_critical' %}
+                                                        {% set icon = 'fa-microchip' %}
+                                                        {% set color = 'text-danger' %}
+                                                    {% elif notif.rule.event_type == 'preventive_due_soon' %}
+                                                        {% set icon = 'fa-calendar-alt' %}
+                                                        {% set color = 'text-warning' %}
+                                                    {% elif notif.rule.event_type == 'preventive_executed' %}
+                                                        {% set icon = 'fa-check-circle' %}
+                                                        {% set color = 'text-success' %}
+                                                    {% elif notif.rule.event_type == 'stock_low' %}
+                                                        {% set icon = 'fa-boxes' %}
+                                                        {% set color = 'text-warning' %}
+                                                    {% endif %}
                                                 {% endif %}
-                                            {% endif %}
-                                            <i class="fas {{ icon }} {{ color }}"></i>
-                                        </div>
-                                        <div class="notification-content ms-2">
-                                            <div class="notification-title">{{ notif.title }}</div>
-                                            <div class="notification-meta">
-                                                {% if notif.link %}
-                                                <a href="{{ notif.link }}" class="text-decoration-none">{{ notif.message[:60] }}{% if notif.message|length > 60 %}...{% endif %}</a>
-                                                {% else %}
-                                                <span>{{ notif.message[:60] }}{% if notif.message|length > 60 %}...{% endif %}</span>
-                                                {% endif %}
+                                                <i class="fas {{ icon }} {{ color }}"></i>
                                             </div>
-                                            <div class="notification-meta">
-                                                <small>{{ time_ago(notif.created_at) }}</small>
+                                            <div class="notification-content flex-grow-1">
+                                                <div class="notification-title">{{ notif.title }}</div>
+                                                <div class="notification-meta">
+                                                    {% if notif.link %}
+                                                        <a href="{{ notif.link }}" class="text-decoration-none">
+                                                            {{ notif.message[:60] }}{% if notif.message|length > 60 %}...{% endif %}
+                                                        </a>
+                                                    {% else %}
+                                                        {{ notif.message[:60] }}{% if notif.message|length > 60 %}...{% endif %}
+                                                    {% endif %}
+                                                </div>
+                                                <small class="text-muted">{{ time_ago(notif.created_at) }}</small>
                                                 {% if not notif.is_read %}
-                                                <a href="{{ url_for('notifications.mark_read', id=notif.id) }}" class="ms-2 text-muted small">Marcar leída</a>
+                                                    <a href="{{ url_for('notifications.mark_read', id=notif.id) }}" class="ms-2 text-muted small">Marcar leída</a>
                                                 {% endif %}
                                             </div>
                                         </div>
                                     </div>
-                                </div>
                                 {% else %}
-                                <div class="text-center py-3 text-muted">
-                                    <small>No hay notificaciones</small>
-                                </div>
+                                    <div class="text-center py-4 text-muted">
+                                        <i class="fas fa-inbox fa-2x mb-2 d-block"></i>
+                                        <small>No hay notificaciones</small>
+                                    </div>
                                 {% endfor %}
                             </div>
                             <div class="dropdown-divider"></div>
                             <div class="d-flex justify-content-between align-items-center px-3 py-2">
-                                <a class="small" href="{{ url_for('notifications.index') }}">Ver todas</a>
-                                <a class="small text-danger" href="{{ url_for('notifications.clear_dropdown') }}" onclick="return confirm('¿Eliminar todas las notificaciones leídas?')">Limpiar leídas</a>
+                                <a class="small fw-semibold" href="{{ url_for('notifications.index') }}">Ver todas</a>
+                                <a class="small text-danger" href="{{ url_for('notifications.clear_dropdown') }}"
+                                   onclick="return confirm('¿Eliminar todas las notificaciones leídas?')">
+                                    Limpiar leídas
+                                </a>
                             </div>
                         </div>
                     </li>
 
-                    <!-- USUARIO Y LOGOUT -->
-                    <li class="nav-item">
-                        <span class="nav-link">
-                            <i class="fas fa-user"></i> {{ current_user.username }} ({{ current_user.role }})
-                        </span>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('auth.logout') }}">
-                            <i class="fas fa-sign-out-alt"></i> Cerrar Sesión
+                    <!-- Usuario -->
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" id="userDropdown" role="button"
+                           data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="fas fa-user-circle me-1"></i> {{ current_user.username }}
                         </a>
+                        <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="userDropdown">
+                            <li><span class="dropdown-item-text text-muted"><i class="fas fa-id-card me-2"></i>Rol: {{ current_user.role }}</span></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li>
+                                <a class="dropdown-item text-danger" href="{{ url_for('auth.logout') }}">
+                                    <i class="fas fa-sign-out-alt me-2"></i> Cerrar Sesión
+                                </a>
+                            </li>
+                        </ul>
                     </li>
+
                 {% endif %}
             </ul>
         </div>
     </div>
 </nav>
 
-<div class="container mt-4">
+<main class="container content-wrap">
+    <!-- Mensajes Flash -->
     {% with messages = get_flashed_messages(with_categories=true) %}
         {% if messages %}
             {% for category, message in messages %}
-                <div class="alert alert-{{ category if category != 'message' else 'info' }} alert-dismissible fade show">
-                    {{ message }}
-                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                <div class="alert alert-{{ category if category != 'message' else 'info' }} alert-dismissible fade show shadow-sm" role="alert">
+                    <i class="fas fa-info-circle me-2"></i> {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Cerrar"></button>
                 </div>
             {% endfor %}
         {% endif %}
     {% endwith %}
 
+    <!-- Bloque principal de cada página -->
     {% block content %}{% endblock %}
-</div>
+</main>
 
-<!-- Modal de carga -->
-<div id="loadingModal" class="modal fade" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content">
-            <div class="modal-body text-center py-5">
-                <div class="spinner-border text-primary" role="status" style="width: 3rem; height: 3rem;">
+<!-- Modal de carga (procesando solicitudes largas) -->
+<div id="loadingModal" class="modal fade" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
+        <div class="modal-content bg-dark text-white border-0">
+            <div class="modal-body text-center py-4">
+                <div class="spinner-border text-primary" role="status">
                     <span class="visually-hidden">Cargando...</span>
                 </div>
-                <div class="mt-3 fw-bold">Procesando solicitud...</div>
-                <p class="text-muted small">Por favor, no cierres esta ventana.</p>
+                <p class="mt-2 mb-0 small">Procesando solicitud, espere...</p>
             </div>
         </div>
     </div>
 </div>
 
+<!-- Bootstrap JS + Popper -->
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
 <script>
-    document.addEventListener('DOMContentLoaded', function() {
-        const formsToBlock = document.querySelectorAll('form.block-on-submit');
-        formsToBlock.forEach(form => {
-            form.addEventListener('submit', function(e) {
-                if (form.getAttribute('data-submitting') === 'true') {
-                    e.preventDefault();
-                    return false;
-                }
-                form.setAttribute('data-submitting', 'true');
-                const modalEl = document.getElementById('loadingModal');
-                const modal = new bootstrap.Modal(modalEl);
-                modal.show();
-                const submitBtn = form.querySelector('button[type="submit"]');
-                if (submitBtn) {
-                    if (!submitBtn.hasAttribute('data-original-text')) {
-                        submitBtn.setAttribute('data-original-text', submitBtn.innerHTML);
+    (function() {
+        'use strict';
+
+        // Cerrar submenús anidados al abrir otro (evitar saturación visual)
+        const submenuButtons = document.querySelectorAll('.submenu-toggle');
+        const allCollapseIds = ['preventiveSubmenu', 'autonomousSubmenu'];
+
+        submenuButtons.forEach(btn => {
+            btn.addEventListener('click', function(e) {
+                const targetId = this.getAttribute('data-bs-target');
+                if (targetId) {
+                    const currentCollapse = bootstrap.Collapse.getInstance(document.querySelector(targetId));
+                    if (currentCollapse && currentCollapse._element.classList.contains('show')) {
+                        // Ya está abierto, se cerrará normalmente
+                    } else {
+                        // Cerrar otros colapsos
+                        allCollapseIds.forEach(id => {
+                            if (`#${id}` !== targetId) {
+                                const otherCollapse = bootstrap.Collapse.getInstance(document.getElementById(id));
+                                if (otherCollapse && otherCollapse._element.classList.contains('show')) {
+                                    otherCollapse.hide();
+                                }
+                            }
+                        });
                     }
-                    submitBtn.disabled = true;
-                    submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span> Enviando...';
                 }
             });
         });
-    });
+
+        // Bloquear envíos duplicados en formularios con clase 'block-on-submit'
+        const formsToBlock = document.querySelectorAll('form.block-on-submit');
+        if (formsToBlock.length > 0) {
+            formsToBlock.forEach(form => {
+                form.addEventListener('submit', function(e) {
+                    if (form.getAttribute('data-submitting') === 'true') {
+                        e.preventDefault();
+                        return false;
+                    }
+                    form.setAttribute('data-submitting', 'true');
+
+                    const modalEl = document.getElementById('loadingModal');
+                    if (modalEl) {
+                        const modal = new bootstrap.Modal(modalEl);
+                        modal.show();
+                    }
+
+                    const submitBtn = form.querySelector('button[type="submit"]');
+                    if (submitBtn) {
+                        if (!submitBtn.hasAttribute('data-original-text')) {
+                            submitBtn.setAttribute('data-original-text', submitBtn.innerHTML);
+                        }
+                        submitBtn.disabled = true;
+                        submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span> Enviando...';
+                    }
+                });
+            });
+        }
+
+        // Cerrar dropdowns al hacer clic fuera (mejora usabilidad)
+        const dropdowns = document.querySelectorAll('.dropdown-toggle');
+        dropdowns.forEach(drop => {
+            drop.addEventListener('click', function(e) {
+                const parent = this.closest('.dropdown');
+                if (parent) {
+                    const menu = parent.querySelector('.dropdown-menu');
+                    if (menu && menu.classList.contains('show')) {
+                        // No hacer nada, bootstrap lo maneja
+                    }
+                }
+            });
+        });
+    })();
 </script>
 </body>
 </html>

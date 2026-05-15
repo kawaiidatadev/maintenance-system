@@ -1,0 +1,33 @@
+<div class="list-group-item {% if task.status == 'completed' %}list-group-item-success{% endif %}">
+    <div class="d-flex justify-content-between align-items-start">
+        <div class="flex-grow-1">
+            <p class="mb-1 {% if task.status == 'completed' %}text-decoration-line-through{% endif %}">
+                {{ task.description }}
+            </p>
+            <small>
+                {% if task.assigned_to %}
+                    👤 {{ task.assigned_to.username }}
+                {% else %}
+                    👤 Sin asignar
+                {% endif %}
+                {% if task.due_date %}
+                    · ⏰ {{ format_datetime(task.due_date) }}
+                {% endif %}
+            </small>
+        </div>
+        {% if task.status == 'pending' %}
+        <form method="POST" action="{{ url_for('minutes.complete_task', task_id=task.id) }}" class="ms-2">
+            <button type="submit" class="btn btn-sm btn-outline-success" title="Marcar completada">
+                <i class="fas fa-check"></i>
+            </button>
+        </form>
+        {% else %}
+        <span class="badge bg-success ms-2">Completada</span>
+        {% endif %}
+    </div>
+    {% if task.completed_at %}
+    <div class="mt-1">
+        <small class="text-muted">✔️ Completada: {{ format_datetime(task.completed_at) }}</small>
+    </div>
+    {% endif %}
+</div>

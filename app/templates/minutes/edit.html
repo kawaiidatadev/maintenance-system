@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-8 mx-auto">
+        <div class="card shadow-sm">
+            <div class="card-header bg-warning text-dark">
+                <h4><i class="fas fa-edit"></i> Editar Minuta: {{ minute.title }}</h4>
+            </div>
+            <div class="card-body">
+                <form method="POST">
+                    {{ form.hidden_tag() }}
+
+                    <div class="mb-3">
+                        {{ form.title.label(class="form-label") }}
+                        {{ form.title(class="form-control") }}
+                    </div>
+
+                    <div class="mb-3">
+                        {{ form.topic.label(class="form-label") }}
+                        {{ form.topic(class="form-control") }}
+                    </div>
+
+                    <div class="mb-3">
+                        {{ form.description.label(class="form-label") }}
+                        {{ form.description(class="form-control", rows=4) }}
+                    </div>
+
+                    <div class="mb-3">
+                        {{ form.meeting_date.label(class="form-label") }}
+                        {{ form.meeting_date(class="form-control", type="datetime-local") }}
+                    </div>
+
+                    <div class="mb-3">
+                        {{ form.participants.label(class="form-label") }}
+                        {{ form.participants(class="form-select", size=8, multiple=True) }}
+                        <small class="text-muted">Ctrl+clic para múltiple selección</small>
+                    </div>
+
+                    <div class="d-flex justify-content-between">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save"></i> Guardar cambios
+                        </button>
+                        <a href="{{ url_for('minutes.view_minute', minute_id=minute.id) }}" class="btn btn-secondary">
+                            <i class="fas fa-times"></i> Cancelar
+                        </a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
