@@ -80,3 +80,4 @@ class TaskResponsible(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'))
     task = db.relationship('MinuteTask', backref='responsibles')
     user = db.relationship('User')
+
