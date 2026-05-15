@@ -16,13 +16,14 @@
                         </a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link text-dark" href="{{ url_for('autonomous.activities') }}">
-                            <i class="fas fa-list"></i> Actividades
-                        </a>
-                    </li>
-                    <li class="nav-item">
                         <a class="nav-link text-dark" href="{{ url_for('autonomous.history') }}">
                             <i class="fas fa-history"></i> Historial
+                        </a>
+                    </li>
+                    {% if current_user.role in ['admin', 'supervisor'] %}
+                    <li class="nav-item">
+                        <a class="nav-link text-dark" href="{{ url_for('autonomous.activities') }}">
+                            <i class="fas fa-list"></i> Actividades
                         </a>
                     </li>
                     <li class="nav-item">
@@ -30,6 +31,7 @@
                             <i class="fas fa-plus"></i> Nueva actividad
                         </a>
                     </li>
+                    {% endif %}
                 </ul>
             </div>
         </div>
@@ -60,11 +62,15 @@
                                     <td>{{ next_date.strftime('%d/%m/%Y') }}</td>
                                     <td>{{ activity.instructions or '—' }}</td>
                                     <td>
+                                        {% if current_user.role in ['admin', 'supervisor', 'tecnico'] %}
                                         <a href="{{ url_for('autonomous.register', activity_id=activity.id) }}" class="btn btn-sm btn-primary">
                                             <i class="fas fa-check-circle"></i> Registrar
                                         </a>
+                                        {% else %}
+                                        <span class="text-muted">Solo lectura</span>
+                                        {% endif %}
                                     </td>
-
+                                </tr>
                                 {% endfor %}
                             </tbody>
                         </table>
