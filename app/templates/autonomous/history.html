@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card">
+    <div class="card-header bg-info text-white"><h4>Historial de cumplimiento autónomo</h4></div>
+    <div class="card-body">
+        <table class="table table-striped">
+            <thead><tr><th>Fecha</th><th>Equipo</th><th>Actividad</th><th>Operador</th><th>Cumplió</th><th>Comentarios</th><th>Verificado por</th></tr></thead>
+            <tbody>
+                {% for ex in executions %}
+                <tr>
+                    <td>{{ ex.executed_date.strftime('%d/%m/%Y') }}</td>
+                    <td>{{ ex.activity.equipment.code }}</td>
+                    <td>{{ ex.activity.name }}</td>
+                    <td>{{ ex.responsible.username }}</td>
+                    <td>{% if ex.compliance %}✅ Sí{% else %}❌ No{% endif %}</td>
+                    <td>{{ ex.comments or '-' }}</td>
+                    <td>{{ ex.verified_by.username }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

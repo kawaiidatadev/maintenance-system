@@ -1,0 +1,81 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-12">
+        <!-- Tarjeta de navegación interna del módulo Autónomo -->
+        <div class="card mb-3">
+            <div class="card-header bg-dark text-white">
+                <i class="fas fa-broom me-2"></i> Módulo Autónomo
+            </div>
+            <div class="card-body py-2">
+                <ul class="nav nav-pills">
+                    <li class="nav-item">
+                        <a class="nav-link active bg-primary" href="{{ url_for('autonomous.pending') }}">
+                            <i class="fas fa-clock"></i> Pendientes
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link text-dark" href="{{ url_for('autonomous.activities') }}">
+                            <i class="fas fa-list"></i> Actividades
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link text-dark" href="{{ url_for('autonomous.history') }}">
+                            <i class="fas fa-history"></i> Historial
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link text-dark" href="{{ url_for('autonomous.activity_create') }}">
+                            <i class="fas fa-plus"></i> Nueva actividad
+                        </a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- Tarjeta de actividades pendientes -->
+        <div class="card">
+            <div class="card-header bg-warning text-dark">
+                <i class="fas fa-tasks"></i> Actividades autónomas pendientes
+            </div>
+            <div class="card-body">
+                {% if pending and pending|length > 0 %}
+                    <div class="table-responsive">
+                        <table class="table table-hover table-bordered">
+                            <thead class="table-dark">
+                                <tr>
+                                    <th>Equipo</th>
+                                    <th>Actividad</th>
+                                    <th>Próxima fecha</th>
+                                    <th>Instrucciones</th>
+                                    <th>Acción</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for activity, next_date in pending %}
+                                <tr>
+                                    <td>{{ activity.equipment.code }} - {{ activity.equipment.name }}</td>
+                                    <td>{{ activity.name }}</td>
+                                    <td>{{ next_date.strftime('%d/%m/%Y') }}</td>
+                                    <td>{{ activity.instructions or '—' }}</td>
+                                    <td>
+                                        <a href="{{ url_for('autonomous.register', activity_id=activity.id) }}" class="btn btn-sm btn-primary">
+                                            <i class="fas fa-check-circle"></i> Registrar
+                                        </a>
+                                    </td>
+
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <div class="alert alert-success">
+                        <i class="fas fa-check-circle"></i> No hay actividades autónomas pendientes en este momento.
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
