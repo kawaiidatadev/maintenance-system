@@ -72,3 +72,11 @@ class MinuteComment(db.Model):
     # Relaciones
     minute = db.relationship('Minute', back_populates='comments')
     user = db.relationship('User', backref='minute_comments')
+
+class TaskResponsible(db.Model):
+    __tablename__ = 'task_responsibles'
+    id = db.Column(db.Integer, primary_key=True)
+    task_id = db.Column(db.Integer, db.ForeignKey('minute_tasks.id'))
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'))
+    task = db.relationship('MinuteTask', backref='responsibles')
+    user = db.relationship('User')
